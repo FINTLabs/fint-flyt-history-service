@@ -2,6 +2,7 @@ package no.fintlabs.consumers;
 
 import no.fintlabs.InstanceFlowHeadersEmbeddableMapper;
 import no.fintlabs.flyt.kafka.event.error.InstanceFlowErrorEventConsumerFactoryService;
+import no.fintlabs.kafka.OriginHeaderProducerInterceptor;
 import no.fintlabs.kafka.event.error.ErrorCollection;
 import no.fintlabs.kafka.event.error.topic.ErrorEventTopicNameParameters;
 import no.fintlabs.model.Error;
@@ -13,6 +14,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.listener.CommonLoggingErrorHandler;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -36,20 +38,20 @@ public class ErrorEventConsumerConfiguration {
         this.instanceFlowHeadersEmbeddableMapper = instanceFlowHeadersEmbeddableMapper;
     }
 
-    @Bean
-    public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceProcessingErrorListener() {
-        return createErrorEventListener("instance-processing");
-    }
+//    @Bean
+//    public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceProcessingErrorListener() {
+//        return createErrorEventListener("instance-processing");
+//    }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceToCaseMappingErrorListener() {
         return createErrorEventListener("instance-to-case-mapping");
     }
 
-    @Bean
-    public ConcurrentMessageListenerContainer<String, ErrorCollection> caseDispatchingErrorListener() {
-        return createErrorEventListener("case-dispatch");
-    }
+//    @Bean
+//    public ConcurrentMessageListenerContainer<String, ErrorCollection> caseDispatchingErrorListener() {
+//        return createErrorEventListener("case-dispatch");
+//    }
 
     private ConcurrentMessageListenerContainer<String, ErrorCollection> createErrorEventListener(String errorEventName) {
         return instanceFlowErrorEventConsumerFactoryService.createFactory(
@@ -65,6 +67,13 @@ public class ErrorEventConsumerConfiguration {
                             ZoneId.systemDefault() // TODO: 25/03/2022 ZoneId
                     ));
                     event.setErrors(mapToErrorEntities(instanceFlowConsumerRecord.getConsumerRecord().value()));
+                    event.setApplicationId(new String(
+                            instanceFlowConsumerRecord.getConsumerRecord()
+                                    .headers()
+                                    .lastHeader(OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_RECORD_HEADER)
+                                    .value(),
+                            StandardCharsets.UTF_8
+                    ));
                     eventRepository.save(event);
                 },
                 new CommonLoggingErrorHandler(),

@@ -18,15 +18,15 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     Collection<Event> findAllByInstanceFlowHeadersSourceApplicationIntegrationId(String sourceApplicationIntegrationId);
 
-    @Query(value = "SELECT e.instanceFlowHeaders.archiveCaseFolderId " +
+    @Query(value = "SELECT e.instanceFlowHeaders.archiveCaseId " +
             "FROM Event e " +
             "WHERE e.type = no.fintlabs.model.EventType.INFO" +
             " and e.name LIKE 'case-dispatched'" +
-            " and e.instanceFlowHeaders.sourceApplication = :sourceApplication" +
+            " and e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId" +
             " and e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId"
     )
     Optional<String> findArchiveCaseFolderId(
-            @Param(value = "sourceApplication") String sourceApplication,
+            @Param(value = "sourceApplicationId") String sourceApplicationId,
             @Param(value = "sourceApplicationInstanceId") String sourceApplicationInstanceId
     );
 

@@ -4,8 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import no.fintlabs.model.Error;
 import no.fintlabs.model.Event;
 import no.fintlabs.model.EventType;
-import no.fintlabs.repositories.EventRepository;
 import no.fintlabs.model.InstanceFlowHeadersEmbeddable;
+import no.fintlabs.repositories.EventRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -22,32 +22,29 @@ public class TestDataGenerator {
 
     public TestDataGenerator(EventRepository eventRepository) {
         eventRepository.saveAll(List.of(
-                createEvent("incoming-instance", EventType.INFO, "1", null, null, null, null, null, 0),
-                createEvent("new-instance", EventType.INFO, "1", "1", null, null, null, null, 0),
-                createEvent("instance-to-case-mapping-error", EventType.ERROR, "1", "1", "1", null, null, null, 4),
-                createEvent("reemitted-instance", EventType.INFO, "2", "1", null, null, null, null, 0),
-                createEvent("new-case", EventType.INFO, "2", "1", "2", "1", null, null, 0),
-                createEvent("dispatch-case", EventType.INFO, "2", "1", "2", "1", "1", null, 0),
-                createEvent("case-dispatched", EventType.INFO, "2", "1", "2", "1", "1", "1", 0)
+                createEvent("incoming-instance", EventType.INFO, "1", null, null, null, 0),
+                createEvent("new-instance", EventType.INFO, "1", "1", null, null, 0),
+                createEvent("instance-to-case-mapping-error", EventType.ERROR, "1", "1", "1", null, 4),
+                createEvent("reemitted-instance", EventType.INFO, "2", "1", null, null, 0),
+                createEvent("new-case", EventType.INFO, "2", "1", "2", null, 0),
+                createEvent("dispatch-case", EventType.INFO, "2", "1", "2", null, 0),
+                createEvent("case-dispatched", EventType.INFO, "2", "1", "2", "1", 0)
         ));
     }
 
-    private Event createEvent(String name, EventType type, String correlationId, String instanceId, String configurationId, String caseId, String dispatchId, String archiveCaseFolderId, int numOfErrors) {
+    private Event createEvent(String name, EventType type, String correlationId, String instanceId, String configurationId, String archiveCaseId, int numOfErrors) {
         Event event = new Event();
         event.setInstanceFlowHeaders(
                 InstanceFlowHeadersEmbeddable
                         .builder()
                         .orgId("orgId")
-                        .service("service")
-                        .sourceApplication("sourceApplication")
+                        .sourceApplicationId("sourceApplicationId")
                         .sourceApplicationIntegrationId("sourceApplicationIntegrationId")
                         .sourceApplicationInstanceId("sourceApplicationInstanceId")
                         .correlationId(correlationId)
                         .instanceId(instanceId)
                         .configurationId(configurationId)
-                        .caseId(caseId)
-                        .dispatchId(dispatchId)
-                        .archiveCaseFolderId(archiveCaseFolderId)
+                        .archiveCaseId(archiveCaseId)
                         .build()
         );
         event.setName(name);

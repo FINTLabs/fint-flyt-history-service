@@ -13,7 +13,6 @@ import java.util.Map;
 
 @Data
 @Entity
-@Table(name = "errors")
 public class Error {
 
     @Id

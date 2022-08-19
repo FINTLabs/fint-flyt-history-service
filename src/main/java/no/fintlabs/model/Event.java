@@ -7,11 +7,10 @@ import javax.persistence.*;
 import java.time.LocalDateTime;
 import java.util.Collection;
 
-@lombok.Data
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "events")
 @Builder(toBuilder = true)
 public class Event {
 
@@ -31,6 +30,8 @@ public class Event {
 
     @Enumerated(EnumType.STRING)
     private EventType type;
+
+    private String applicationId;
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "event_id")

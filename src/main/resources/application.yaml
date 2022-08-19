@@ -1,20 +1,31 @@
 fint:
+  org-id: fintlabs.no
   kafka:
+    application-id: fint-flyt-history-service
     topic:
-      org-id: fintlabs.no
+      org-id: ${fint.org-id}
       domain-context: flyt
-    application-id: fint-skjema-case-history-service
 spring:
   kafka:
     bootstrap-servers: localhost:29092
     consumer:
-      group-id: fint-skjema-case-history-service
+      group-id: ${fint.kafka.application-id}
   datasource:
-    url: jdbc:postgresql://localhost:5434/fint-skjema-case-history-service-postgres
+    hikari:
+      schema: fintlabs_no
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://localhost:5434/fint-flyt-history-service-postgres
     username: postgres
     password: password
   jpa:
     properties:
+#      javax:
+#        persistence:
+#          schema-generation:
+#            scripts:
+#              action: create
+#              create-target: __init.sql
+#              create-source: metadata
       hibernate:
         jdbc:
           lob:
@@ -22,7 +33,9 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         enable_lazy_load_no_trans: true
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
+  flyway:
+    locations: classpath:db/migration/
 server:
   port: 8084
 generateTestData: false
