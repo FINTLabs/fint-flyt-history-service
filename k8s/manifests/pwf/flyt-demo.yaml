@@ -74,3 +74,4 @@ spec:
             - { name: JAVA_TOOL_OPTIONS, value: '-XX:+ExitOnOutOfMemoryError -Xmx1840M' }
             - { name: fint.org-id, value: 'pwf.no' }
             - { name: spring.datasource.hikari.schema, value: 'pwf_no' }
+            - { name: fint.flyt.security.api.internal.authorized-org-id, value: 'fintlabs.no' }

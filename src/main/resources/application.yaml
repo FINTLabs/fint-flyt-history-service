@@ -1,5 +1,10 @@
 fint:
   org-id: fintlabs.no
+  flyt:
+    security:
+      api:
+        internal:
+          authorized-org-id: fintlabs.no
   kafka:
     application-id: fint-flyt-history-service
     topic:
@@ -36,6 +41,11 @@ spring:
       ddl-auto: validate
   flyway:
     locations: classpath:db/migration/
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://idp.felleskomponent.no/nidp/oauth/nam
 server:
   port: 8084
 generateTestData: false
