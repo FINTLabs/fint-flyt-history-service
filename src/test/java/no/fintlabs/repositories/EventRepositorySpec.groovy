@@ -11,7 +11,7 @@ import spock.lang.Specification
 
 import java.time.LocalDateTime
 
-@DataJpaTest
+@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=none")
 @DirtiesContext
 class EventRepositorySpec extends Specification {
 
@@ -27,16 +27,13 @@ class EventRepositorySpec extends Specification {
                         InstanceFlowHeadersEmbeddable
                                 .builder()
                                 .orgId("orgId")
-                                .service("service")
-                                .sourceApplication("testSourceApplication1")
+                                .sourceApplicationId("testSourceApplicationId1")
                                 .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
                                 .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
                                 .correlationId("testCorrelationId1")
                                 .instanceId("testInstanceId1")
                                 .configurationId("testConfigurationId1")
-                                .caseId("testCaseId1")
-                                .dispatchId("testDispatchId1")
-                                .archiveCaseFolderId("testArchiveCaseFolderId1")
+                                .archiveCaseId("testArchiveCaseId1")
                                 .build()
                 )
                 .name("case-dispatched")
@@ -45,19 +42,19 @@ class EventRepositorySpec extends Specification {
                 .build()
     }
 
-    def "should return archiveCaseFolderId from event that is of type INFO, is a case dispatched event, and has matching source application and source application instance ids"() {
+    def "should return archiveCaseId from event that is of type INFO, is a case dispatched event, and has matching source application and source application instance ids"() {
         given:
         eventRepository.save(eventApplicableForGettingArchiveCaseId)
 
         when:
         Optional<String> archiveCaseId = eventRepository.findArchiveCaseFolderId(
-                "testSourceApplication1",
+                "testSourceApplicationId1",
                 "testSourceApplicationInstanceId1"
         )
 
         then:
         archiveCaseId.isPresent()
-        archiveCaseId.get() == "testArchiveCaseFolderId1"
+        archiveCaseId.get() == "testArchiveCaseId1"
     }
 
     def "should not return case id of event with type ERROR"() {
@@ -71,7 +68,7 @@ class EventRepositorySpec extends Specification {
 
         when:
         Optional<String> archiveCaseId = eventRepository.findArchiveCaseFolderId(
-                "testSourceApplication1",
+                "testSourceApplicationId1",
                 "testSourceApplicationInstanceId1"
         )
 
@@ -90,7 +87,7 @@ class EventRepositorySpec extends Specification {
 
         when:
         Optional<String> archiveCaseId = eventRepository.findArchiveCaseFolderId(
-                "testSourceApplication1",
+                "testSourceApplicationId1",
                 "testSourceApplicationInstanceId1"
         )
 
@@ -106,7 +103,7 @@ class EventRepositorySpec extends Specification {
                         .instanceFlowHeaders(
                                 eventApplicableForGettingArchiveCaseId.instanceFlowHeaders
                                         .toBuilder()
-                                        .sourceApplication("testSourceApplication2")
+                                        .sourceApplicationId("testSourceApplicationId2")
                                         .build()
                         )
                         .build()
@@ -114,7 +111,7 @@ class EventRepositorySpec extends Specification {
 
         when:
         Optional<String> archiveCaseId = eventRepository.findArchiveCaseFolderId(
-                "testSourceApplication1",
+                "testSourceApplicationId1",
                 "testSourceApplicationInstanceId1"
         )
 
@@ -138,7 +135,7 @@ class EventRepositorySpec extends Specification {
 
         when:
         Optional<String> archiveCaseId = eventRepository.findArchiveCaseFolderId(
-                "testSourceApplication1",
+                "testSourceApplicationId1",
                 "testSourceApplicationInstanceId1"
         )
 
