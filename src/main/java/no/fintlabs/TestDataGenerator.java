@@ -22,17 +22,17 @@ public class TestDataGenerator {
 
     public TestDataGenerator(EventRepository eventRepository) {
         eventRepository.saveAll(List.of(
-                createEvent("incoming-instance", EventType.INFO, "1", null, null, null, null, 0),
-                createEvent("new-instance", EventType.INFO, "1", "1", null, null, null, 0),
-                createEvent("instance-to-case-mapping-error", EventType.ERROR, "1", "1", "1", null, null, 4),
-                createEvent("reemitted-instance", EventType.INFO, "2", "1", null, null, null, 0),
-                createEvent("new-case", EventType.INFO, "2", "1", "2", "1", null, 0),
-                createEvent("dispatch-case", EventType.INFO, "2", "1", "2", "1", "1", 0),
-                createEvent("case-dispatched-successfully", EventType.INFO, "2", "1", "2", "1", "1", 0)
+                createEvent("incoming-instance", EventType.INFO, "1", null, null, null, null, null, 0),
+                createEvent("new-instance", EventType.INFO, "1", "1", null, null, null, null, 0),
+                createEvent("instance-to-case-mapping-error", EventType.ERROR, "1", "1", "1", null, null, null, 4),
+                createEvent("reemitted-instance", EventType.INFO, "2", "1", null, null, null, null, 0),
+                createEvent("new-case", EventType.INFO, "2", "1", "2", "1", null, null, 0),
+                createEvent("dispatch-case", EventType.INFO, "2", "1", "2", "1", "1", null, 0),
+                createEvent("case-dispatched", EventType.INFO, "2", "1", "2", "1", "1", "1", 0)
         ));
     }
 
-    private Event createEvent(String name, EventType type, String correlationId, String instanceId, String configurationId, String caseId, String dispatchId, int numOfErrors) {
+    private Event createEvent(String name, EventType type, String correlationId, String instanceId, String configurationId, String caseId, String dispatchId, String archiveCaseFolderId, int numOfErrors) {
         Event event = new Event();
         event.setInstanceFlowHeaders(
                 InstanceFlowHeadersEmbeddable
@@ -47,6 +47,7 @@ public class TestDataGenerator {
                         .configurationId(configurationId)
                         .caseId(caseId)
                         .dispatchId(dispatchId)
+                        .archiveCaseFolderId(archiveCaseFolderId)
                         .build()
         );
         event.setName(name);

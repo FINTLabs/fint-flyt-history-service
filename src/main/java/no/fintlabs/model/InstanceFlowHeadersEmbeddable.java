@@ -10,7 +10,7 @@ import javax.persistence.Embeddable;
 @AllArgsConstructor
 @NoArgsConstructor
 @Data
-@Builder
+@Builder(toBuilder = true)
 @Embeddable
 public class InstanceFlowHeadersEmbeddable {
     private String orgId;
@@ -24,4 +24,5 @@ public class InstanceFlowHeadersEmbeddable {
     private String configurationId;
     private String caseId;
     private String dispatchId;
+    private String archiveCaseFolderId; // TODO: 21/06/2022 Add to flyt-kafka headers
 }

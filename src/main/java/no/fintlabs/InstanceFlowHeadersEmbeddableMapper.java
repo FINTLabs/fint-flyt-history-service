@@ -20,6 +20,7 @@ public class InstanceFlowHeadersEmbeddableMapper {
                 .configurationId(instanceFlowHeaders.getConfigurationId())
                 .caseId(instanceFlowHeaders.getCaseId())
                 .dispatchId(instanceFlowHeaders.getDispatchId())
+                .archiveCaseFolderId(null) // TODO: 21/06/2022 Add when instanceFlowHeaders support this property
                 .build();
     }
 

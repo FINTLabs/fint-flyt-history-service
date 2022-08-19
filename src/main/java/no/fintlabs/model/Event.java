@@ -1,10 +1,7 @@
 package no.fintlabs.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
@@ -12,8 +9,10 @@ import java.util.Collection;
 
 @lombok.Data
 @NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "events")
+@Builder(toBuilder = true)
 public class Event {
 
     @Id
