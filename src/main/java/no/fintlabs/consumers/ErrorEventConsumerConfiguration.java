@@ -48,10 +48,10 @@ public class ErrorEventConsumerConfiguration {
         return createErrorEventListener("instance-to-case-mapping");
     }
 
-//    @Bean
-//    public ConcurrentMessageListenerContainer<String, ErrorCollection> caseDispatchingErrorListener() {
-//        return createErrorEventListener("case-dispatch");
-//    }
+    @Bean
+    public ConcurrentMessageListenerContainer<String, ErrorCollection> caseDispatchingErrorListener() {
+        return createErrorEventListener("case-dispatch");
+    }
 
     private ConcurrentMessageListenerContainer<String, ErrorCollection> createErrorEventListener(String errorEventName) {
         return instanceFlowErrorEventConsumerFactoryService.createFactory(

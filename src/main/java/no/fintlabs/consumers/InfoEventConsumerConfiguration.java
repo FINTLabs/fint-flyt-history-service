@@ -49,10 +49,10 @@ public class InfoEventConsumerConfiguration {
         return createInfoEventListener("new-or-updated-case");
     }
 
-//    @Bean
-//    public ConcurrentMessageListenerContainer<String, Object> caseDispatchedSuccessfullyEventListener() {
-//        return createInfoEventListener("case-dispatched");
-//    }
+    @Bean
+    public ConcurrentMessageListenerContainer<String, Object> caseDispatchedSuccessfullyEventListener() {
+        return createInfoEventListener("case-dispatched");
+    }
 
     private ConcurrentMessageListenerContainer<String, Object> createInfoEventListener(String eventName) {
         return instanceFlowEventConsumerFactoryService.createFactory(
