@@ -11,21 +11,21 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 
 @Configuration
-public class ArchiveCaseFolderIdRequestConsumerConfiguration {
+public class ArchiveCaseIdRequestConsumerConfiguration {
 
     private final EventRepository eventRepository;
 
-    public ArchiveCaseFolderIdRequestConsumerConfiguration(EventRepository eventRepository) {
+    public ArchiveCaseIdRequestConsumerConfiguration(EventRepository eventRepository) {
         this.eventRepository = eventRepository;
     }
 
     @Bean
-    ConcurrentMessageListenerContainer<String, String> archiveCaseFolderIdRequestConsumer(
+    ConcurrentMessageListenerContainer<String, String> archiveCaseIdRequestConsumer(
             RequestTopicService requestTopicService,
             RequestConsumerFactoryService requestConsumerFactoryService
     ) {
         RequestTopicNameParameters topicNameParameters = RequestTopicNameParameters.builder()
-                .resource("archive.case.folder.id")
+                .resource("archive.case.id")
                 .parameterName("source-application-instance-id")
                 .build();
 
@@ -35,10 +35,9 @@ public class ArchiveCaseFolderIdRequestConsumerConfiguration {
                 String.class,
                 String.class,
                 consumerRecord -> {
-                    // TODO: 21/06/2022 Where do we get source application from?
-                    String archiveCaseFolderId = eventRepository.findArchiveCaseFolderId("", consumerRecord.value())
+                    String archiveCaseId = eventRepository.findArchiveCaseId("", consumerRecord.value())
                             .orElse(null);
-                    return ReplyProducerRecord.<String>builder().value(archiveCaseFolderId).build();
+                    return ReplyProducerRecord.<String>builder().value(archiveCaseId).build();
                 },
                 null
         ).createContainer(topicNameParameters);

@@ -25,7 +25,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             " and e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId" +
             " and e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId"
     )
-    Optional<String> findArchiveCaseFolderId(
+    Optional<String> findArchiveCaseId(
             @Param(value = "sourceApplicationId") String sourceApplicationId,
             @Param(value = "sourceApplicationInstanceId") String sourceApplicationInstanceId
     );

@@ -47,7 +47,7 @@ class EventRepositorySpec extends Specification {
         eventRepository.save(eventApplicableForGettingArchiveCaseId)
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveCaseFolderId(
+        Optional<String> archiveCaseId = eventRepository.findArchiveCaseId(
                 "testSourceApplicationId1",
                 "testSourceApplicationInstanceId1"
         )
@@ -67,7 +67,7 @@ class EventRepositorySpec extends Specification {
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveCaseFolderId(
+        Optional<String> archiveCaseId = eventRepository.findArchiveCaseId(
                 "testSourceApplicationId1",
                 "testSourceApplicationInstanceId1"
         )
@@ -86,7 +86,7 @@ class EventRepositorySpec extends Specification {
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveCaseFolderId(
+        Optional<String> archiveCaseId = eventRepository.findArchiveCaseId(
                 "testSourceApplicationId1",
                 "testSourceApplicationInstanceId1"
         )
@@ -110,7 +110,7 @@ class EventRepositorySpec extends Specification {
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveCaseFolderId(
+        Optional<String> archiveCaseId = eventRepository.findArchiveCaseId(
                 "testSourceApplicationId1",
                 "testSourceApplicationInstanceId1"
         )
@@ -134,7 +134,7 @@ class EventRepositorySpec extends Specification {
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveCaseFolderId(
+        Optional<String> archiveCaseId = eventRepository.findArchiveCaseId(
                 "testSourceApplicationId1",
                 "testSourceApplicationInstanceId1"
         )
