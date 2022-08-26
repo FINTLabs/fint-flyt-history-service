@@ -10,8 +10,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collection;
 
+import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
+
 @RestController
-@RequestMapping("/api/intern/historikk")
+@RequestMapping(INTERNAL_API + "/historikk")
 public class HistoryController {
 
     private final EventRepository eventRepository;

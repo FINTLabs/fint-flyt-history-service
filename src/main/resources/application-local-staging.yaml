@@ -1,0 +1,22 @@
+fint:
+  org-id: fintlabs.no
+  flyt:
+    resource-server:
+      security:
+        api:
+          internal:
+            enabled: true
+            authorized-org-ids: viken.no, vigo.no
+  kafka:
+    default-replicas: 1
+spring:
+  kafka:
+    bootstrap-servers: localhost:29092
+  datasource:
+    hikari:
+      schema: fintlabs_no
+    url: jdbc:postgresql://localhost:5436/fint-flyt-history-service
+    username: postgres
+    password: password
+server:
+  port: 8083

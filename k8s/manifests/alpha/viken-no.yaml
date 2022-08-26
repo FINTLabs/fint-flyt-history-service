@@ -74,4 +74,5 @@ spec:
             - { name: JAVA_TOOL_OPTIONS, value: '-XX:+ExitOnOutOfMemoryError -Xmx1840M' }
             - { name: fint.org-id, value: 'viken.no' }
             - { name: spring.datasource.hikari.schema, value: 'viken_no' }
-            - { name: fint.flyt.security.api.internal.authorized-org-id, value: 'viken.no' }
+            - { name: fint.flyt.resource-server.security.api.internal.enabled, value: 'true' }
+            - { name: fint.flyt.resource-server.security.api.internal.authorized-org-ids, value: 'viken.no, vigo.no' }
