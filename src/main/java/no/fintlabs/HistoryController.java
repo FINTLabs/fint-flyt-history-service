@@ -12,11 +12,11 @@ import java.util.Collection;
 
 @RestController
 @RequestMapping("/api/intern/historikk")
-public class CaseHistoryController {
+public class HistoryController {
 
     private final EventRepository eventRepository;
 
-    public CaseHistoryController(EventRepository eventRepository) {
+    public HistoryController(EventRepository eventRepository) {
         this.eventRepository = eventRepository;
     }
 
