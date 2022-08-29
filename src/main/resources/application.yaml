@@ -1,5 +1,7 @@
 fint:
   application-id: fint-flyt-history-service
+server:
+  max-http-header-size: 40KB
 spring:
   profiles:
     include:
