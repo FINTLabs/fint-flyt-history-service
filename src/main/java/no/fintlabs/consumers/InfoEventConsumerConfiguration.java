@@ -35,22 +35,22 @@ public class InfoEventConsumerConfiguration {
     }
 
     @Bean
-    public ConcurrentMessageListenerContainer<String, Object> incomingInstanceEventListener() {
-        return createInfoEventListener("incoming-instance");
+    public ConcurrentMessageListenerContainer<String, Object> instanceReceivedEventConsumer() {
+        return createInfoEventListener("instance-received");
     }
 
     @Bean
-    public ConcurrentMessageListenerContainer<String, Object> newInstanceEventListener() {
-        return createInfoEventListener("new-instance");
+    public ConcurrentMessageListenerContainer<String, Object> instanceRegisteredEventConsumer() {
+        return createInfoEventListener("instance-registered");
     }
 
     @Bean
-    public ConcurrentMessageListenerContainer<String, Object> newCaseEventListener() {
-        return createInfoEventListener("new-or-updated-case");
+    public ConcurrentMessageListenerContainer<String, Object> caseCreatedEventConsumer() {
+        return createInfoEventListener("case-created");
     }
 
     @Bean
-    public ConcurrentMessageListenerContainer<String, Object> caseDispatchedSuccessfullyEventListener() {
+    public ConcurrentMessageListenerContainer<String, Object> caseDispatchedEventConsumer() {
         return createInfoEventListener("case-dispatched");
     }
 
