@@ -30,4 +30,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param(value = "sourceApplicationInstanceId") String sourceApplicationInstanceId
     );
 
+    Optional<Event> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(String instanceId, String name);
+
 }

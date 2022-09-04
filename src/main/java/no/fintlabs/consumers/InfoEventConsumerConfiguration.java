@@ -45,6 +45,11 @@ public class InfoEventConsumerConfiguration {
     }
 
     @Bean
+    public ConcurrentMessageListenerContainer<String, Object> instanceRequestedForRetry() {
+        return createInfoEventListener("instance-requested-for-retry");
+    }
+
+    @Bean
     public ConcurrentMessageListenerContainer<String, Object> caseCreatedEventConsumer() {
         return createInfoEventListener("case-created");
     }
@@ -60,7 +65,7 @@ public class InfoEventConsumerConfiguration {
                 instanceFlowConsumerRecord -> {
                     Event event = new Event();
                     event.setInstanceFlowHeaders(
-                            instanceFlowHeadersEmbeddableMapper.getSkjemaEventHeaders(instanceFlowConsumerRecord.getInstanceFlowHeaders())
+                            instanceFlowHeadersEmbeddableMapper.toEmbeddable(instanceFlowConsumerRecord.getInstanceFlowHeaders())
                     );
                     event.setName(eventName);
                     event.setType(EventType.INFO);

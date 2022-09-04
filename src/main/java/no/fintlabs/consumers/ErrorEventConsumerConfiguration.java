@@ -49,6 +49,11 @@ public class ErrorEventConsumerConfiguration {
     }
 
     @Bean
+    public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceRetryRequestErrorEventConsumer() {
+        return createErrorEventListener("instance-retry-request-error");
+    }
+
+    @Bean
     public ConcurrentMessageListenerContainer<String, ErrorCollection> caseCreationErrorEventConsumer() {
         return createErrorEventListener("case-creation-error");
     }
@@ -63,7 +68,7 @@ public class ErrorEventConsumerConfiguration {
                 instanceFlowConsumerRecord -> {
                     Event event = new Event();
                     event.setInstanceFlowHeaders(
-                            instanceFlowHeadersEmbeddableMapper.getSkjemaEventHeaders(instanceFlowConsumerRecord.getInstanceFlowHeaders())
+                            instanceFlowHeadersEmbeddableMapper.toEmbeddable(instanceFlowConsumerRecord.getInstanceFlowHeaders())
                     );
                     event.setName(errorEventName);
                     event.setType(EventType.ERROR);
