@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
 
 import javax.persistence.*;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 
 @Data
@@ -26,7 +26,7 @@ public class Event {
 
     private String name;
 
-    private LocalDateTime timestamp;
+    private OffsetDateTime timestamp;
 
     @Enumerated(EnumType.STRING)
     private EventType type;

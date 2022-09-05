@@ -16,8 +16,7 @@ import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
@@ -72,10 +71,10 @@ public class ErrorEventConsumerConfiguration {
                     );
                     event.setName(errorEventName);
                     event.setType(EventType.ERROR);
-                    event.setTimestamp(LocalDateTime.ofInstant(
-                            Instant.ofEpochMilli(instanceFlowConsumerRecord.getConsumerRecord().timestamp()),
-                            ZoneId.systemDefault() // TODO: 25/03/2022 ZoneId
-                    ));
+                    event.setTimestamp(
+                            Instant.ofEpochMilli(instanceFlowConsumerRecord.getConsumerRecord().timestamp())
+                                    .atOffset(ZoneOffset.UTC)
+                    );
                     event.setErrors(mapToErrorEntities(instanceFlowConsumerRecord.getConsumerRecord().value()));
                     event.setApplicationId(new String(
                             instanceFlowConsumerRecord.getConsumerRecord()
