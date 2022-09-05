@@ -50,4 +50,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     )
     Collection<Tuple> findNumberOfCurrentInstanceErrorsPerIntegrationId();
 
+    Optional<Event> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(String instanceId, String name);
+
 }

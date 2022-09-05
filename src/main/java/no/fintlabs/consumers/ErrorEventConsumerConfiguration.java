@@ -38,19 +38,29 @@ public class ErrorEventConsumerConfiguration {
         this.instanceFlowHeadersEmbeddableMapper = instanceFlowHeadersEmbeddableMapper;
     }
 
-//    @Bean
-//    public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceProcessingErrorListener() {
-//        return createErrorEventListener("instance-processing");
-//    }
-
     @Bean
-    public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceToCaseMappingErrorListener() {
-        return createErrorEventListener("instance-to-case-mapping");
+    public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceReceivalErrorEventConsumer() {
+        return createErrorEventListener("instance-receival-error");
     }
 
     @Bean
-    public ConcurrentMessageListenerContainer<String, ErrorCollection> caseDispatchingErrorListener() {
-        return createErrorEventListener("case-dispatch");
+    public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceRegistrationErrorEventConsumer() {
+        return createErrorEventListener("instance-registration-error");
+    }
+
+    @Bean
+    public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceRetryRequestErrorEventConsumer() {
+        return createErrorEventListener("instance-retry-request-error");
+    }
+
+    @Bean
+    public ConcurrentMessageListenerContainer<String, ErrorCollection> caseCreationErrorEventConsumer() {
+        return createErrorEventListener("case-creation-error");
+    }
+
+    @Bean
+    public ConcurrentMessageListenerContainer<String, ErrorCollection> caseDispatchingErrorEventConsumer() {
+        return createErrorEventListener("case-dispatching-error");
     }
 
     private ConcurrentMessageListenerContainer<String, ErrorCollection> createErrorEventListener(String errorEventName) {
@@ -58,7 +68,7 @@ public class ErrorEventConsumerConfiguration {
                 instanceFlowConsumerRecord -> {
                     Event event = new Event();
                     event.setInstanceFlowHeaders(
-                            instanceFlowHeadersEmbeddableMapper.getSkjemaEventHeaders(instanceFlowConsumerRecord.getInstanceFlowHeaders())
+                            instanceFlowHeadersEmbeddableMapper.toEmbeddable(instanceFlowConsumerRecord.getInstanceFlowHeaders())
                     );
                     event.setName(errorEventName);
                     event.setType(EventType.ERROR);
