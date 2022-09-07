@@ -10,6 +10,8 @@ import spock.lang.Specification
 
 import javax.persistence.Tuple
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=none")
 @DirtiesContext
@@ -38,7 +40,7 @@ class EventRepositorySpec extends Specification {
                 )
                 .name("case-dispatched")
                 .type(EventType.INFO)
-                .timestamp(LocalDateTime.of(2001, 1, 1, 12, 30))
+                .timestamp(OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 12, 30), ZoneOffset.UTC))
                 .build()
     }
 
@@ -189,7 +191,7 @@ class EventRepositorySpec extends Specification {
                                 .build()
                 )
                 .type(eventType)
-                .timestamp(LocalDateTime.of(2001, 1, 1, 13, 30))
+                .timestamp(OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 13, 30), ZoneOffset.UTC))
                 .name(name)
                 .build()
     }
@@ -234,7 +236,7 @@ class EventRepositorySpec extends Specification {
                                 .build()
                 )
                 .type(eventType)
-                .timestamp(timestamp)
+                .timestamp(OffsetDateTime.of(timestamp, ZoneOffset.UTC))
                 .build()
     }
 
