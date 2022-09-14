@@ -1,13 +1,12 @@
 package no.fintlabs;
 
 import no.fintlabs.model.IntegrationStatistics;
-import no.fintlabs.model.IntegrationStatisticsWrapper;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -20,7 +19,7 @@ public class IntegrationStatisticsService {
         this.eventRepository = eventRepository;
     }
 
-    public IntegrationStatisticsWrapper getIntegrationStatistics() {
+    public List<IntegrationStatistics> getIntegrationStatistics() {
         Map<String, Long> numberOfDispatchedInstancesPerIntegrationId = eventRepository.findNumberOfDispatchedInstancesPerIntegrationId()
                 .stream()
                 .collect(Collectors.toMap(
@@ -41,20 +40,16 @@ public class IntegrationStatisticsService {
                 )
                 .collect(Collectors.toSet());
 
-        Map<String, IntegrationStatistics> statisticsPerIntegrationId = integrationIds
+        return integrationIds
                 .stream()
-                .collect(Collectors.toMap(
-                        Function.identity(),
+                .map(
                         integrationId -> IntegrationStatistics
                                 .builder()
+                                .sourceApplicationIntegrationId(integrationId)
                                 .dispatchedInstances(numberOfDispatchedInstancesPerIntegrationId.getOrDefault(integrationId, 0L))
                                 .currentErrors(numberOfCurrentErrorsPerIntegrationId.getOrDefault(integrationId, 0L))
                                 .build()
-                ));
-
-        return IntegrationStatisticsWrapper
-                .builder()
-                .statisticsPerIntegrationId(statisticsPerIntegrationId)
-                .build();
+                )
+                .toList();
     }
 }

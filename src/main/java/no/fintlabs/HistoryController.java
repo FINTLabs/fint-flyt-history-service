@@ -1,7 +1,7 @@
 package no.fintlabs;
 
 import no.fintlabs.model.Event;
-import no.fintlabs.model.IntegrationStatisticsWrapper;
+import no.fintlabs.model.IntegrationStatistics;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -46,7 +46,7 @@ public class HistoryController {
     }
 
     @GetMapping("statistikk/integrasjon")
-    public ResponseEntity<IntegrationStatisticsWrapper> getIntegrationStatistics() {
+    public ResponseEntity<Collection<IntegrationStatistics>> getIntegrationStatistics() {
         return ResponseEntity.ok(integrationStatisticsService.getIntegrationStatistics());
     }
 

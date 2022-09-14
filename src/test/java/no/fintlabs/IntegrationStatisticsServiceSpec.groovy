@@ -1,7 +1,6 @@
 package no.fintlabs
 
 import no.fintlabs.model.IntegrationStatistics
-import no.fintlabs.model.IntegrationStatisticsWrapper
 import no.fintlabs.repositories.EventRepository
 import spock.lang.Specification
 
@@ -37,13 +36,14 @@ class IntegrationStatisticsServiceSpec extends Specification {
         )
 
         when:
-        IntegrationStatisticsWrapper integrationStatisticsWrapper = integrationStatisticsService.getIntegrationStatistics()
+        Collection<IntegrationStatistics> integrationStatistics = integrationStatisticsService.getIntegrationStatistics()
 
         then:
-        integrationStatisticsWrapper.statisticsPerIntegrationId == Map.of(
-                "1", IntegrationStatistics.builder().dispatchedInstances(27).currentErrors(0).build(),
-                "3", IntegrationStatistics.builder().dispatchedInstances(102).currentErrors(24).build(),
-                "4", IntegrationStatistics.builder().dispatchedInstances(0).currentErrors(1).build(),
+        integrationStatistics.size() == 3
+        integrationStatistics.containsAll(
+                IntegrationStatistics.builder().sourceApplicationIntegrationId("1").dispatchedInstances(27).currentErrors(0).build(),
+                IntegrationStatistics.builder().sourceApplicationIntegrationId("3").dispatchedInstances(102).currentErrors(24).build(),
+                IntegrationStatistics.builder().sourceApplicationIntegrationId("4").dispatchedInstances(0).currentErrors(1).build(),
         )
     }
 
