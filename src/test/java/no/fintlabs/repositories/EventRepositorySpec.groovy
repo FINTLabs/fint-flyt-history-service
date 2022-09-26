@@ -8,7 +8,6 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.test.annotation.DirtiesContext
 import spock.lang.Specification
 
-import javax.persistence.Tuple
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -145,6 +144,37 @@ class EventRepositorySpec extends Specification {
         archiveCaseId.isEmpty()
     }
 
+    def 'should return number of dispatched instances'() {
+        given:
+        eventRepository.saveAll(List.of(
+                createNamedEvent("1", "1", EventType.INFO, "incoming-instance"),
+                createNamedEvent("1", "1", EventType.INFO, "new-instance"),
+                createNamedEvent("1", "1", EventType.INFO, "new-case"),
+                createNamedEvent("1", "1", EventType.INFO, "case-dispatched"),
+
+                createNamedEvent("1", "2", EventType.INFO, "incoming-instance"),
+                createNamedEvent("1", "2", EventType.INFO, "new-instance"),
+                createNamedEvent("1", "2", EventType.ERROR, "instance-to-case-mapping"),
+
+                createNamedEvent("2", "3", EventType.INFO, "incoming-instance"),
+                createNamedEvent("2", "3", EventType.INFO, "new-instance"),
+                createNamedEvent("2", "3", EventType.INFO, "new-case"),
+                createNamedEvent("2", "3", EventType.INFO, "case-dispatched"),
+                createNamedEvent("2", "3", EventType.INFO, "case-dispatched"),
+
+                createNamedEvent("2", "4", EventType.INFO, "incoming-instance"),
+                createNamedEvent("2", "4", EventType.INFO, "new-instance"),
+                createNamedEvent("2", "4", EventType.INFO, "new-case"),
+                createNamedEvent("2", "4", EventType.INFO, "case-dispatched"),
+        ))
+
+        when:
+        long numberOfDispatchedInstances = eventRepository.countDispatchedInstances()
+
+        then:
+        numberOfDispatchedInstances == 4
+    }
+
     def 'should return number of dispatched instances per integration id'() {
         given:
         eventRepository.saveAll(List.of(
@@ -170,14 +200,16 @@ class EventRepositorySpec extends Specification {
         ))
 
         when:
-        Collection<Tuple> numberOfDispatchedInstancesPerIntegrationId = eventRepository.findNumberOfDispatchedInstancesPerIntegrationId()
+        Collection<EventRepository.IntegrationIdAndCount> numberOfDispatchedInstancesPerIntegrationId = eventRepository.countDispatchedInstancesPerIntegrationId()
 
         then:
-        numberOfDispatchedInstancesPerIntegrationId[0].get(0, String.class) == "1"
-        numberOfDispatchedInstancesPerIntegrationId[0].get(1, Long.class) == 1
+        numberOfDispatchedInstancesPerIntegrationId.size() == 2
 
-        numberOfDispatchedInstancesPerIntegrationId[1].get(0, String.class) == "2"
-        numberOfDispatchedInstancesPerIntegrationId[1].get(1, Long.class) == 3
+        numberOfDispatchedInstancesPerIntegrationId[0].getIntegrationId() == "1"
+        numberOfDispatchedInstancesPerIntegrationId[0].getCount() == 1
+
+        numberOfDispatchedInstancesPerIntegrationId[1].getIntegrationId() == "2"
+        numberOfDispatchedInstancesPerIntegrationId[1].getCount() == 3
     }
 
     private Event createNamedEvent(String sourceApplicationIntegrationId, String sourceApplicationInstanceId, EventType eventType, String name) {
@@ -194,6 +226,30 @@ class EventRepositorySpec extends Specification {
                 .timestamp(OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 13, 30), ZoneOffset.UTC))
                 .name(name)
                 .build()
+    }
+
+    def 'should return number of current instance errors'() {
+        given:
+        eventRepository.saveAll(List.of(
+                createUnnamedTimestampEvent("1", "1", EventType.INFO, LocalDateTime.of(2001, 1, 1, 13, 30)),
+                createUnnamedTimestampEvent("1", "1", EventType.INFO, LocalDateTime.of(2001, 1, 1, 13, 31)),
+                createUnnamedTimestampEvent("1", "1", EventType.ERROR, LocalDateTime.of(2001, 1, 1, 13, 32)),
+
+                createUnnamedTimestampEvent("1", "2", EventType.ERROR, LocalDateTime.of(2001, 1, 1, 13, 31)),
+
+                createUnnamedTimestampEvent("2", "3", EventType.ERROR, LocalDateTime.of(2001, 1, 1, 13, 32)),
+                createUnnamedTimestampEvent("2", "3", EventType.INFO, LocalDateTime.of(2001, 1, 1, 13, 33)),
+
+                createUnnamedTimestampEvent("3", "4", EventType.INFO, LocalDateTime.of(2001, 1, 1, 13, 36)),
+
+                createUnnamedTimestampEvent("4", "5", EventType.ERROR, LocalDateTime.of(2001, 1, 1, 13, 28)),
+        ))
+
+        when:
+        long numberOfCurrentInstanceErrors = eventRepository.countCurrentInstanceErrors()
+
+        then:
+        numberOfCurrentInstanceErrors == 3
     }
 
     def 'should return number of current instance errors per integration id'() {
@@ -214,15 +270,15 @@ class EventRepositorySpec extends Specification {
         ))
 
         when:
-        Collection<Tuple> numberOfErrorsPerIntegrationId = eventRepository.findNumberOfCurrentInstanceErrorsPerIntegrationId()
+        Collection<EventRepository.IntegrationIdAndCount> numberOfErrorsPerIntegrationId = eventRepository.countCurrentInstanceErrorsPerIntegrationId()
 
 
         then:
-        numberOfErrorsPerIntegrationId[0].get(0, String.class) == "1"
-        numberOfErrorsPerIntegrationId[0].get(1, Long.class) == 2
+        numberOfErrorsPerIntegrationId[0].getIntegrationId() == "1"
+        numberOfErrorsPerIntegrationId[0].getCount() == 2
 
-        numberOfErrorsPerIntegrationId[1].get(0, String.class) == "4"
-        numberOfErrorsPerIntegrationId[1].get(1, Long.class) == 1
+        numberOfErrorsPerIntegrationId[1].getIntegrationId() == "4"
+        numberOfErrorsPerIntegrationId[1].getCount() == 1
     }
 
     private Event createUnnamedTimestampEvent(String sourceApplicationIntegrationId, String sourceApplicationInstanceId, EventType eventType, LocalDateTime timestamp) {

@@ -1,6 +1,7 @@
 package no.fintlabs;
 
 import no.fintlabs.model.IntegrationStatistics;
+import no.fintlabs.model.Statistics;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.stereotype.Service;
 
@@ -11,27 +12,35 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Service
-public class IntegrationStatisticsService {
+public class StatisticsService {
 
     private final EventRepository eventRepository;
 
-    public IntegrationStatisticsService(EventRepository eventRepository) {
+    public StatisticsService(EventRepository eventRepository) {
         this.eventRepository = eventRepository;
     }
 
+    public Statistics getStatistics() {
+        return Statistics
+                .builder()
+                .dispatchedInstances(eventRepository.countDispatchedInstances())
+                .currentErrors(eventRepository.countCurrentInstanceErrors())
+                .build();
+    }
+
     public List<IntegrationStatistics> getIntegrationStatistics() {
-        Map<String, Long> numberOfDispatchedInstancesPerIntegrationId = eventRepository.findNumberOfDispatchedInstancesPerIntegrationId()
+        Map<String, Long> numberOfDispatchedInstancesPerIntegrationId = eventRepository.countDispatchedInstancesPerIntegrationId()
                 .stream()
                 .collect(Collectors.toMap(
-                        tuple -> tuple.get(0, String.class),
-                        tuple -> tuple.get(1, Long.class)
+                        EventRepository.IntegrationIdAndCount::getIntegrationId,
+                        EventRepository.IntegrationIdAndCount::getCount
                 ));
 
-        Map<String, Long> numberOfCurrentErrorsPerIntegrationId = eventRepository.findNumberOfCurrentInstanceErrorsPerIntegrationId()
+        Map<String, Long> numberOfCurrentErrorsPerIntegrationId = eventRepository.countCurrentInstanceErrorsPerIntegrationId()
                 .stream()
                 .collect(Collectors.toMap(
-                        tuple -> tuple.get(0, String.class),
-                        tuple -> tuple.get(1, Long.class)
+                        EventRepository.IntegrationIdAndCount::getIntegrationId,
+                        EventRepository.IntegrationIdAndCount::getCount
                 ));
 
         Set<String> integrationIds = Stream.concat(
@@ -52,4 +61,5 @@ public class IntegrationStatisticsService {
                 )
                 .toList();
     }
+
 }

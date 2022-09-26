@@ -2,6 +2,7 @@ package no.fintlabs;
 
 import no.fintlabs.model.Event;
 import no.fintlabs.model.IntegrationStatistics;
+import no.fintlabs.model.Statistics;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,11 +19,11 @@ import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 public class HistoryController {
 
     private final EventRepository eventRepository;
-    private final IntegrationStatisticsService integrationStatisticsService;
+    private final StatisticsService statisticsService;
 
-    public HistoryController(EventRepository eventRepository, IntegrationStatisticsService integrationStatisticsService) {
+    public HistoryController(EventRepository eventRepository, StatisticsService statisticsService) {
         this.eventRepository = eventRepository;
-        this.integrationStatisticsService = integrationStatisticsService;
+        this.statisticsService = statisticsService;
     }
 
     @GetMapping("hendelser")
@@ -45,9 +46,14 @@ public class HistoryController {
         return ResponseEntity.ok(eventRepository.findAllByInstanceFlowHeadersSourceApplicationIntegrationId(integrationId));
     }
 
-    @GetMapping("statistikk/integrasjon")
+    @GetMapping("statistikk")
+    public ResponseEntity<Statistics> getStatistics() {
+        return ResponseEntity.ok(statisticsService.getStatistics());
+    }
+
+    @GetMapping("statistikk/integrasjoner")
     public ResponseEntity<Collection<IntegrationStatistics>> getIntegrationStatistics() {
-        return ResponseEntity.ok(integrationStatisticsService.getIntegrationStatistics());
+        return ResponseEntity.ok(statisticsService.getIntegrationStatistics());
     }
 
 }
