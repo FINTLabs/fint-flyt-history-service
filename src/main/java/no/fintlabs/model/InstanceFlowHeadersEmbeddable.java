@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import javax.persistence.Embeddable;
+import java.util.UUID;
 
 @AllArgsConstructor
 @NoArgsConstructor
@@ -13,12 +14,14 @@ import javax.persistence.Embeddable;
 @Builder(toBuilder = true)
 @Embeddable
 public class InstanceFlowHeadersEmbeddable {
-    private String orgId;
-    private String sourceApplicationId;
+    private Long sourceApplicationId;
     private String sourceApplicationIntegrationId;
     private String sourceApplicationInstanceId;
-    private String correlationId;
-    private String instanceId;
-    private String configurationId;
-    private String archiveCaseId;
+
+    private UUID correlationId;
+    private Long integrationId;
+    private Long instanceId;
+    private Long configurationId;
+
+    private String archiveInstanceId;
 }

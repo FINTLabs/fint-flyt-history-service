@@ -6,11 +6,12 @@ import no.fintlabs.model.Statistics;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collection;
+import java.util.Optional;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 
@@ -27,23 +28,27 @@ public class HistoryController {
     }
 
     @GetMapping("hendelser")
-    public ResponseEntity<Collection<Event>> getEvents() {
-        return ResponseEntity.ok(eventRepository.findAll());
+    public ResponseEntity<Collection<Event>> getEvents(
+            @RequestParam(name = "bareSistePerIntegrasjon") Optional<Boolean> onlyLatestPerIntegration
+    ) {
+        return ResponseEntity.ok(
+                onlyLatestPerIntegration.orElse(false)
+                        ? eventRepository.findLatestEventPerSourceApplicationInstanceId()
+                        : eventRepository.findAll()
+        );
     }
 
-    @GetMapping("hendelser/korrelasjonsid/{correlationId}")
-    public ResponseEntity<Collection<Event>> getEventsByCorrelationId(@PathVariable String correlationId) {
-        return ResponseEntity.ok(eventRepository.findAllByInstanceFlowHeadersCorrelationId(correlationId));
-    }
-
-    @GetMapping("hendelser/instansid/{instanceId}")
-    public ResponseEntity<Collection<Event>> getEventsByInstanceId(@PathVariable String instanceId) {
-        return ResponseEntity.ok(eventRepository.findAllByInstanceFlowHeadersInstanceId(instanceId));
-    }
-
-    @GetMapping("hendelser/integrasjonsid/{integrationId}")
-    public ResponseEntity<Collection<Event>> getEventsByIntegrationId(@PathVariable String integrationId) {
-        return ResponseEntity.ok(eventRepository.findAllByInstanceFlowHeadersSourceApplicationIntegrationId(integrationId));
+    @GetMapping(path = "hendelser", params = {"kildeapplikasjonId", "kildeapplikasjonInstansId"})
+    public ResponseEntity<Collection<Event>> getEventsWithInstanceId(
+            @RequestParam(name = "kildeapplikasjonId") Long sourceApplicationId,
+            @RequestParam(name = "kildeapplikasjonInstansId") String sourceApplicationInstanceId
+    ) {
+        return ResponseEntity.ok(eventRepository
+                .findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
+                        sourceApplicationId,
+                        sourceApplicationInstanceId
+                )
+        );
     }
 
     @GetMapping("statistikk")

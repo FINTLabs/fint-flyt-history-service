@@ -9,27 +9,27 @@ public class InstanceFlowHeadersEmbeddableMapper {
 
     public InstanceFlowHeadersEmbeddable toEmbeddable(InstanceFlowHeaders instanceFlowHeaders) {
         return InstanceFlowHeadersEmbeddable.builder()
-                .orgId(instanceFlowHeaders.getOrgId())
                 .sourceApplicationId(instanceFlowHeaders.getSourceApplicationId())
                 .sourceApplicationIntegrationId(instanceFlowHeaders.getSourceApplicationIntegrationId())
                 .sourceApplicationInstanceId(instanceFlowHeaders.getSourceApplicationInstanceId())
                 .correlationId(instanceFlowHeaders.getCorrelationId())
+                .integrationId(instanceFlowHeaders.getIntegrationId())
                 .instanceId(instanceFlowHeaders.getInstanceId())
                 .configurationId(instanceFlowHeaders.getConfigurationId())
-                .archiveCaseId(instanceFlowHeaders.getArchiveCaseId())
+                .archiveInstanceId(instanceFlowHeaders.getArchiveInstanceId())
                 .build();
     }
 
     public InstanceFlowHeaders toInstanceFlowHeaders(InstanceFlowHeadersEmbeddable embeddable) {
         return InstanceFlowHeaders.builder()
-                .orgId(embeddable.getOrgId())
                 .sourceApplicationId(embeddable.getSourceApplicationId())
                 .sourceApplicationIntegrationId(embeddable.getSourceApplicationIntegrationId())
                 .sourceApplicationInstanceId(embeddable.getSourceApplicationInstanceId())
                 .correlationId(embeddable.getCorrelationId())
+                .integrationId(embeddable.getIntegrationId())
                 .instanceId(embeddable.getInstanceId())
                 .configurationId(embeddable.getConfigurationId())
-                .archiveCaseId(embeddable.getArchiveCaseId())
+                .archiveInstanceId(embeddable.getArchiveInstanceId())
                 .build();
     }
 

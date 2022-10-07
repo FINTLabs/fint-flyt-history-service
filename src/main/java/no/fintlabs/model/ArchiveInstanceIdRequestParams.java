@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ArchiveCaseIdRequestParams {
-    private String sourceApplicationId;
+public class ArchiveInstanceIdRequestParams {
+    private Long sourceApplicationId;
     private String sourceApplicationInstanceId;
 }

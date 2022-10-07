@@ -19,22 +19,21 @@ class EventRepositorySpec extends Specification {
     @Autowired
     EventRepository eventRepository
 
-    Event eventApplicableForGettingArchiveCaseId
+    Event eventApplicableForGettingArchiveInstanceId
 
     def setup() {
-        eventApplicableForGettingArchiveCaseId = Event
+        eventApplicableForGettingArchiveInstanceId = Event
                 .builder()
                 .instanceFlowHeaders(
                         InstanceFlowHeadersEmbeddable
                                 .builder()
-                                .orgId("orgId")
-                                .sourceApplicationId("testSourceApplicationId1")
+                                .sourceApplicationId(1)
                                 .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
                                 .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
-                                .correlationId("testCorrelationId1")
-                                .instanceId("testInstanceId1")
-                                .configurationId("testConfigurationId1")
-                                .archiveCaseId("testArchiveCaseId1")
+                                .correlationId(UUID.fromString("2ee6f95e-44c3-11ed-b878-0242ac120002"))
+                                .instanceId(2)
+                                .configurationId(3)
+                                .archiveInstanceId("testArchiveInstanceId1")
                                 .build()
                 )
                 .name("case-dispatched")
@@ -43,33 +42,49 @@ class EventRepositorySpec extends Specification {
                 .build()
     }
 
-    def "should return archiveCaseId from event that is of type INFO, is a case dispatched event, and has matching source application and source application instance ids"() {
+    def "should return only latest event for each source application instance id"() {
         given:
-        eventRepository.save(eventApplicableForGettingArchiveCaseId)
+        Event event1 = createUnnamedTimestampEvent("1", "1", EventType.INFO, LocalDateTime.of(2001, 1, 1, 13, 30))
+        Event event2 = createUnnamedTimestampEvent("1", "1", EventType.INFO, LocalDateTime.of(2001, 1, 1, 13, 32))
+        Event event3 = createUnnamedTimestampEvent("1", "1", EventType.ERROR, LocalDateTime.of(2001, 1, 1, 13, 31))
+        Event event4 = createUnnamedTimestampEvent("1", "2", EventType.ERROR, LocalDateTime.of(2001, 1, 1, 13, 29))
+        eventRepository.saveAll(List.of(event1, event2, event3, event4))
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveCaseId(
-                "testSourceApplicationId1",
+        Collection<Event> events = eventRepository.findLatestEventPerSourceApplicationInstanceId()
+
+        then:
+        events.size() == 2
+        events.containsAll(event2, event4)
+    }
+
+    def "should return archiveCaseId from event that is of type INFO, is a case dispatched event, and has matching source application and source application instance ids"() {
+        given:
+        eventRepository.save(eventApplicableForGettingArchiveInstanceId)
+
+        when:
+        Optional<String> archiveInstanceId = eventRepository.findArchiveInstanceId(
+                1,
                 "testSourceApplicationInstanceId1"
         )
 
         then:
-        archiveCaseId.isPresent()
-        archiveCaseId.get() == "testArchiveCaseId1"
+        archiveInstanceId.isPresent()
+        archiveInstanceId.get() == "testArchiveInstanceId1"
     }
 
     def "should not return case id of event with type ERROR"() {
         given:
         eventRepository.save(
-                eventApplicableForGettingArchiveCaseId
+                eventApplicableForGettingArchiveInstanceId
                         .toBuilder()
                         .type(EventType.ERROR)
                         .build()
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveCaseId(
-                "testSourceApplicationId1",
+        Optional<String> archiveCaseId = eventRepository.findArchiveInstanceId(
+                1,
                 "testSourceApplicationInstanceId1"
         )
 
@@ -80,15 +95,15 @@ class EventRepositorySpec extends Specification {
     def "should not return case id of event is not a case dispatched event"() {
         given:
         eventRepository.save(
-                eventApplicableForGettingArchiveCaseId
+                eventApplicableForGettingArchiveInstanceId
                         .toBuilder()
                         .name('new-case')
                         .build()
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveCaseId(
-                "testSourceApplicationId1",
+        Optional<String> archiveCaseId = eventRepository.findArchiveInstanceId(
+                1,
                 "testSourceApplicationInstanceId1"
         )
 
@@ -99,20 +114,20 @@ class EventRepositorySpec extends Specification {
     def "should not return case id of event does not have a matching source application"() {
         given:
         eventRepository.save(
-                eventApplicableForGettingArchiveCaseId
+                eventApplicableForGettingArchiveInstanceId
                         .toBuilder()
                         .instanceFlowHeaders(
-                                eventApplicableForGettingArchiveCaseId.instanceFlowHeaders
+                                eventApplicableForGettingArchiveInstanceId.instanceFlowHeaders
                                         .toBuilder()
-                                        .sourceApplicationId("testSourceApplicationId2")
+                                        .sourceApplicationId(2)
                                         .build()
                         )
                         .build()
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveCaseId(
-                "testSourceApplicationId1",
+        Optional<String> archiveCaseId = eventRepository.findArchiveInstanceId(
+                1,
                 "testSourceApplicationInstanceId1"
         )
 
@@ -123,10 +138,10 @@ class EventRepositorySpec extends Specification {
     def "should not return case id of event does not have a matching source application instance id"() {
         given:
         eventRepository.save(
-                eventApplicableForGettingArchiveCaseId
+                eventApplicableForGettingArchiveInstanceId
                         .toBuilder()
                         .instanceFlowHeaders(
-                                eventApplicableForGettingArchiveCaseId.instanceFlowHeaders
+                                eventApplicableForGettingArchiveInstanceId.instanceFlowHeaders
                                         .toBuilder()
                                         .sourceApplicationInstanceId("testSourceApplicationInstanceId2")
                                         .build()
@@ -135,8 +150,8 @@ class EventRepositorySpec extends Specification {
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveCaseId(
-                "testSourceApplicationId1",
+        Optional<String> archiveCaseId = eventRepository.findArchiveInstanceId(
+                1,
                 "testSourceApplicationInstanceId1"
         )
 

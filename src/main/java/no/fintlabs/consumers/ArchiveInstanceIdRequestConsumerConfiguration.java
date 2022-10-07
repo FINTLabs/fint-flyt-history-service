@@ -5,43 +5,43 @@ import no.fintlabs.kafka.requestreply.ReplyProducerRecord;
 import no.fintlabs.kafka.requestreply.RequestConsumerFactoryService;
 import no.fintlabs.kafka.requestreply.topic.RequestTopicNameParameters;
 import no.fintlabs.kafka.requestreply.topic.RequestTopicService;
-import no.fintlabs.model.ArchiveCaseIdRequestParams;
+import no.fintlabs.model.ArchiveInstanceIdRequestParams;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 
 @Configuration
-public class ArchiveCaseIdRequestConsumerConfiguration {
+public class ArchiveInstanceIdRequestConsumerConfiguration {
 
     private final EventRepository eventRepository;
 
-    public ArchiveCaseIdRequestConsumerConfiguration(EventRepository eventRepository) {
+    public ArchiveInstanceIdRequestConsumerConfiguration(EventRepository eventRepository) {
         this.eventRepository = eventRepository;
     }
 
     @Bean
-    ConcurrentMessageListenerContainer<String, ArchiveCaseIdRequestParams> archiveCaseIdRequestConsumer(
+    ConcurrentMessageListenerContainer<String, ArchiveInstanceIdRequestParams> archiveCaseIdRequestConsumer(
             RequestTopicService requestTopicService,
             RequestConsumerFactoryService requestConsumerFactoryService
     ) {
         RequestTopicNameParameters topicNameParameters = RequestTopicNameParameters.builder()
-                .resource("archive.case.id")
+                .resource("archive.instance.id")
                 .parameterName("source-application-instance-id")
                 .build();
 
         requestTopicService.ensureTopic(topicNameParameters, 0, TopicCleanupPolicyParameters.builder().build());
 
         return requestConsumerFactoryService.createFactory(
-                ArchiveCaseIdRequestParams.class,
+                ArchiveInstanceIdRequestParams.class,
                 String.class,
                 consumerRecord -> {
-                    String archiveCaseId = eventRepository.findArchiveCaseId(
+                    String archiveInstanceId = eventRepository.findArchiveInstanceId(
                                     consumerRecord.value().getSourceApplicationId(),
                                     consumerRecord.value().getSourceApplicationInstanceId()
                             )
                             .orElse(null);
-                    return ReplyProducerRecord.<String>builder().value(archiveCaseId).build();
+                    return ReplyProducerRecord.<String>builder().value(archiveInstanceId).build();
                 },
                 null
         ).createContainer(topicNameParameters);

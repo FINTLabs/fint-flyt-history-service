@@ -18,17 +18,34 @@ public interface EventRepository extends JpaRepository<Event, Long> {
         String getIntegrationId();
 
         long getCount();
-
     }
 
-    Collection<Event> findAllByInstanceFlowHeadersInstanceId(String instanceId);
+    Collection<Event> findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
+            Long sourceApplicationId,
+            String sourceApplicationInstanceId
+    );
 
-    Collection<Event> findAllByInstanceFlowHeadersCorrelationId(String correlationId);
+    @Query(value = "SELECT e" +
+            " FROM Event e" +
+            " WHERE e.timestamp IN (" +
+            "   SELECT MAX(ie.timestamp)" +
+            "   FROM Event ie" +
+            "   WHERE e.instanceFlowHeaders.sourceApplicationInstanceId = ie.instanceFlowHeaders.sourceApplicationInstanceId" +
+            " )"
+    )
+    Collection<Event> findLatestEventPerSourceApplicationInstanceId();
 
-    Collection<Event> findAllByInstanceFlowHeadersSourceApplicationIntegrationId(String sourceApplicationIntegrationId);
-
-    @Query(value = "SELECT e.instanceFlowHeaders.archiveCaseId" + " FROM Event e" + " WHERE e.type = no.fintlabs.model.EventType.INFO" + " and e.name LIKE 'case-dispatched'" + " and e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId" + " and e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId")
-    Optional<String> findArchiveCaseId(@Param(value = "sourceApplicationId") String sourceApplicationId, @Param(value = "sourceApplicationInstanceId") String sourceApplicationInstanceId);
+    @Query(value = "SELECT e.instanceFlowHeaders.archiveInstanceId" +
+            " FROM Event e" +
+            " WHERE e.type = no.fintlabs.model.EventType.INFO" +
+            " and e.name LIKE 'case-dispatched'" +
+            " and e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId" +
+            " and e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId"
+    )
+    Optional<String> findArchiveInstanceId(
+            @Param(value = "sourceApplicationId") Long sourceApplicationId,
+            @Param(value = "sourceApplicationInstanceId") String sourceApplicationInstanceId
+    );
 
     long countEventsByNameLike(String name);
 
@@ -36,13 +53,34 @@ public interface EventRepository extends JpaRepository<Event, Long> {
         return countEventsByNameLike("case-dispatched");
     }
 
-    @Query(value = "SELECT e.instanceFlowHeaders.sourceApplicationIntegrationId as integrationId, COUNT(e) as count" + " FROM Event e" + " WHERE e.name LIKE 'case-dispatched'" + " GROUP BY e.instanceFlowHeaders.sourceApplicationIntegrationId")
+    @Query(value = "SELECT e.instanceFlowHeaders.sourceApplicationIntegrationId as integrationId, COUNT(e) as count" +
+            " FROM Event e" +
+            " WHERE e.name LIKE 'case-dispatched'" +
+            " GROUP BY e.instanceFlowHeaders.sourceApplicationIntegrationId"
+    )
     Collection<IntegrationIdAndCount> countDispatchedInstancesPerIntegrationId();
 
-    @Query(value = "SELECT COUNT(e)" + " FROM Event e" + " WHERE e.timestamp IN (" + "   SELECT MAX(ie.timestamp)" + "   FROM Event ie" + "   WHERE e.instanceFlowHeaders.sourceApplicationInstanceId = ie.instanceFlowHeaders.sourceApplicationInstanceId" + " )" + " AND e.type = no.fintlabs.model.EventType.ERROR")
+    @Query(value = "SELECT COUNT(e)" +
+            " FROM Event e" +
+            " WHERE e.timestamp IN (" +
+            "   SELECT MAX(ie.timestamp)" +
+            "   FROM Event ie" +
+            "   WHERE e.instanceFlowHeaders.sourceApplicationInstanceId = ie.instanceFlowHeaders.sourceApplicationInstanceId" +
+            " )" +
+            " AND e.type = no.fintlabs.model.EventType.ERROR"
+    )
     long countCurrentInstanceErrors();
 
-    @Query(value = "SELECT e.instanceFlowHeaders.sourceApplicationIntegrationId as integrationId, COUNT(e) as count" + " FROM Event e" + " WHERE e.timestamp IN (" + "   SELECT MAX(ie.timestamp)" + "   FROM Event ie" + "   WHERE e.instanceFlowHeaders.sourceApplicationInstanceId = ie.instanceFlowHeaders.sourceApplicationInstanceId" + " )" + " AND e.type = no.fintlabs.model.EventType.ERROR" + " GROUP BY e.instanceFlowHeaders.sourceApplicationIntegrationId")
+    @Query(value = "SELECT e.instanceFlowHeaders.sourceApplicationIntegrationId as integrationId, COUNT(e) as count" +
+            " FROM Event e" +
+            " WHERE e.timestamp IN (" +
+            "   SELECT MAX(ie.timestamp)" +
+            "   FROM Event ie" +
+            "   WHERE e.instanceFlowHeaders.sourceApplicationInstanceId = ie.instanceFlowHeaders.sourceApplicationInstanceId" +
+            " )" +
+            " AND e.type = no.fintlabs.model.EventType.ERROR" +
+            " GROUP BY e.instanceFlowHeaders.sourceApplicationIntegrationId"
+    )
     Collection<IntegrationIdAndCount> countCurrentInstanceErrorsPerIntegrationId();
 
     Optional<Event> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(String instanceId, String name);
