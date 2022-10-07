@@ -29,10 +29,10 @@ public class HistoryController {
 
     @GetMapping("hendelser")
     public ResponseEntity<Collection<Event>> getEvents(
-            @RequestParam(name = "bareSistePerIntegrasjon") Optional<Boolean> onlyLatestPerIntegration
+            @RequestParam(name = "bareSistePerInstans") Optional<Boolean> onlyLatestPerInstance
     ) {
         return ResponseEntity.ok(
-                onlyLatestPerIntegration.orElse(false)
+                onlyLatestPerInstance.orElse(false)
                         ? eventRepository.findLatestEventPerSourceApplicationInstanceId()
                         : eventRepository.findAll()
         );
