@@ -28,7 +28,7 @@ public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguratio
     }
 
     @Bean
-    ConcurrentMessageListenerContainer<String, String> instanceFlowHeadersForRegisteredInstanceRequestConsumer(
+    ConcurrentMessageListenerContainer<String, Long> instanceFlowHeadersForRegisteredInstanceRequestConsumer(
             RequestTopicService requestTopicService,
             RequestConsumerFactoryService requestConsumerFactoryService
     ) {
@@ -40,7 +40,7 @@ public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguratio
         requestTopicService.ensureTopic(topicNameParameters, 0, TopicCleanupPolicyParameters.builder().build());
 
         return requestConsumerFactoryService.createFactory(
-                String.class,
+                Long.class,
                 InstanceFlowHeaders.class,
                 consumerRecord -> {
                     InstanceFlowHeaders instanceFlowHeaders = eventRepository

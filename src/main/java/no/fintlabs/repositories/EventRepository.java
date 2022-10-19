@@ -83,6 +83,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     )
     Collection<IntegrationIdAndCount> countCurrentInstanceErrorsPerIntegrationId();
 
-    Optional<Event> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(String instanceId, String name);
+    Optional<Event> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(Long instanceId, String name);
 
 }
