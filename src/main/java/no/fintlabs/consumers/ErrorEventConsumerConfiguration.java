@@ -54,12 +54,12 @@ public class ErrorEventConsumerConfiguration {
 
     @Bean
     public ConcurrentMessageListenerContainer<String, ErrorCollection> caseCreationErrorEventConsumer() {
-        return createErrorEventListener("case-creation-error");
+        return createErrorEventListener("instance-mapping-error");
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, ErrorCollection> caseDispatchingErrorEventConsumer() {
-        return createErrorEventListener("case-dispatching-error");
+        return createErrorEventListener("instance-dispatching-error");
     }
 
     private ConcurrentMessageListenerContainer<String, ErrorCollection> createErrorEventListener(String errorEventName) {

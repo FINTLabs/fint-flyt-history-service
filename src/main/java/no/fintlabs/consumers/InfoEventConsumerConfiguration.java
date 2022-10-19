@@ -50,12 +50,12 @@ public class InfoEventConsumerConfiguration {
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> caseCreatedEventConsumer() {
-        return createInfoEventListener("case-created");
+        return createInfoEventListener("instance-mapped");
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> caseDispatchedEventConsumer() {
-        return createInfoEventListener("case-dispatched");
+        return createInfoEventListener("instance-dispatched");
     }
 
     private ConcurrentMessageListenerContainer<String, Object> createInfoEventListener(String eventName) {
