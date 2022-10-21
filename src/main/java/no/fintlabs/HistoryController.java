@@ -34,11 +34,13 @@ public class HistoryController {
     public ResponseEntity<Page<Event>> getEvents(
             @RequestParam(name = "side") int page,
             @RequestParam(name = "antall") int size,
+            @RequestParam(name = "sorteringFelt") String sortProperty,
+            @RequestParam(name = "sorteringRetning") Sort.Direction sortDirection,
             @RequestParam(name = "bareSistePerInstans") Optional<Boolean> onlyLatestPerInstance
     ) {
         PageRequest pageRequest = PageRequest
                 .of(page, size)
-                .withSort(Sort.Direction.DESC, "timestamp");
+                .withSort(sortDirection, sortProperty);
 
         return ResponseEntity.ok(
                 onlyLatestPerInstance.orElse(false)
@@ -51,12 +53,14 @@ public class HistoryController {
     public ResponseEntity<Page<Event>> getEventsWithInstanceId(
             @RequestParam(name = "side") int page,
             @RequestParam(name = "antall") int size,
+            @RequestParam(name = "sorteringFelt") String sortProperty,
+            @RequestParam(name = "sorteringRetning") Sort.Direction sortDirection,
             @RequestParam(name = "kildeapplikasjonId") Long sourceApplicationId,
             @RequestParam(name = "kildeapplikasjonInstansId") String sourceApplicationInstanceId
     ) {
         PageRequest pageRequest = PageRequest
                 .of(page, size)
-                .withSort(Sort.Direction.DESC, "timestamp");
+                .withSort(sortDirection, sortProperty);
 
         return ResponseEntity.ok(
                 eventRepository
