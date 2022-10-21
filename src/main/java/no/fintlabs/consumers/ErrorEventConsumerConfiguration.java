@@ -20,6 +20,8 @@ import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
+import static no.fintlabs.EventTopicNames.*;
+
 @Configuration
 public class ErrorEventConsumerConfiguration {
 
@@ -39,27 +41,27 @@ public class ErrorEventConsumerConfiguration {
 
     @Bean
     public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceReceivalErrorEventConsumer() {
-        return createErrorEventListener("instance-receival-error");
+        return createErrorEventListener(INSTANCE_RECEIVAL_ERROR);
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceRegistrationErrorEventConsumer() {
-        return createErrorEventListener("instance-registration-error");
+        return createErrorEventListener(INSTANCE_REGISTRATION_ERROR);
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceRetryRequestErrorEventConsumer() {
-        return createErrorEventListener("instance-retry-request-error");
+        return createErrorEventListener(INSTANCE_RETRY_REQUEST_ERROR);
     }
 
     @Bean
-    public ConcurrentMessageListenerContainer<String, ErrorCollection> caseCreationErrorEventConsumer() {
-        return createErrorEventListener("instance-mapping-error");
+    public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceMappingErrorEventConsumer() {
+        return createErrorEventListener(INSTANCE_MAPPING_ERROR);
     }
 
     @Bean
-    public ConcurrentMessageListenerContainer<String, ErrorCollection> caseDispatchingErrorEventConsumer() {
-        return createErrorEventListener("instance-dispatching-error");
+    public ConcurrentMessageListenerContainer<String, ErrorCollection> instanceDispatchingErrorEventConsumer() {
+        return createErrorEventListener(INSTANCE_DISPATCHING_ERROR);
     }
 
     private ConcurrentMessageListenerContainer<String, ErrorCollection> createErrorEventListener(String errorEventName) {

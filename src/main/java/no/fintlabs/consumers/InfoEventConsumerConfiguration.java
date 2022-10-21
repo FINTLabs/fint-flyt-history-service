@@ -16,6 +16,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
+import static no.fintlabs.EventTopicNames.*;
+
 @Configuration
 public class InfoEventConsumerConfiguration {
 
@@ -35,27 +37,27 @@ public class InfoEventConsumerConfiguration {
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceReceivedEventConsumer() {
-        return createInfoEventListener("instance-received");
+        return createInfoEventListener(INSTANCE_RECEIVED);
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceRegisteredEventConsumer() {
-        return createInfoEventListener("instance-registered");
+        return createInfoEventListener(INSTANCE_REGISTERED);
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceRequestedForRetry() {
-        return createInfoEventListener("instance-requested-for-retry");
+        return createInfoEventListener(INSTANCE_REQUESTED_FOR_RETRY);
     }
 
     @Bean
-    public ConcurrentMessageListenerContainer<String, Object> caseCreatedEventConsumer() {
-        return createInfoEventListener("instance-mapped");
+    public ConcurrentMessageListenerContainer<String, Object> instanceMappedEventConsumer() {
+        return createInfoEventListener(INSTANCE_MAPPED);
     }
 
     @Bean
-    public ConcurrentMessageListenerContainer<String, Object> caseDispatchedEventConsumer() {
-        return createInfoEventListener("instance-dispatched");
+    public ConcurrentMessageListenerContainer<String, Object> instanceDispatchedEventConsumer() {
+        return createInfoEventListener(INSTANCE_DISPATCHED);
     }
 
     private ConcurrentMessageListenerContainer<String, Object> createInfoEventListener(String eventName) {

@@ -12,6 +12,8 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
+import static no.fintlabs.EventTopicNames.*
+
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=none")
 @DirtiesContext
 class EventRepositorySpec extends Specification {
@@ -36,7 +38,7 @@ class EventRepositorySpec extends Specification {
                                 .archiveInstanceId("testArchiveInstanceId1")
                                 .build()
                 )
-                .name("case-dispatched")
+                .name(INSTANCE_DISPATCHED)
                 .type(EventType.INFO)
                 .timestamp(OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 12, 30), ZoneOffset.UTC))
                 .build()
@@ -58,7 +60,7 @@ class EventRepositorySpec extends Specification {
         events.containsAll(event2, event4)
     }
 
-    def "should return archiveCaseId from event that is of type INFO, is a case dispatched event, and has matching source application and source application instance ids"() {
+    def "should return archive instance id from event that is of type INFO, is a instance dispatched event, and has matching source application and source application instance ids"() {
         given:
         eventRepository.save(eventApplicableForGettingArchiveInstanceId)
 
@@ -73,7 +75,7 @@ class EventRepositorySpec extends Specification {
         archiveInstanceId.get() == "testArchiveInstanceId1"
     }
 
-    def "should not return case id of event with type ERROR"() {
+    def "should not return archive instance id of event with type ERROR"() {
         given:
         eventRepository.save(
                 eventApplicableForGettingArchiveInstanceId
@@ -83,35 +85,35 @@ class EventRepositorySpec extends Specification {
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveInstanceId(
+        Optional<String> result = eventRepository.findArchiveInstanceId(
                 1,
                 "testSourceApplicationInstanceId1"
         )
 
         then:
-        archiveCaseId.isEmpty()
+        result.isEmpty()
     }
 
-    def "should not return case id of event is not a case dispatched event"() {
+    def "should not return archive instance id if event is not a instance dispatched event"() {
         given:
         eventRepository.save(
                 eventApplicableForGettingArchiveInstanceId
                         .toBuilder()
-                        .name('new-case')
+                        .name(INSTANCE_MAPPED)
                         .build()
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveInstanceId(
+        Optional<String> result = eventRepository.findArchiveInstanceId(
                 1,
                 "testSourceApplicationInstanceId1"
         )
 
         then:
-        archiveCaseId.isEmpty()
+        result.isEmpty()
     }
 
-    def "should not return case id of event does not have a matching source application"() {
+    def "should not return archive instance id of event does not have a matching source application"() {
         given:
         eventRepository.save(
                 eventApplicableForGettingArchiveInstanceId
@@ -126,16 +128,16 @@ class EventRepositorySpec extends Specification {
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveInstanceId(
+        Optional<String> result = eventRepository.findArchiveInstanceId(
                 1,
                 "testSourceApplicationInstanceId1"
         )
 
         then:
-        archiveCaseId.isEmpty()
+        result.isEmpty()
     }
 
-    def "should not return case id of event does not have a matching source application instance id"() {
+    def "should not return archive instance id of event does not have a matching source application instance id"() {
         given:
         eventRepository.save(
                 eventApplicableForGettingArchiveInstanceId
@@ -150,37 +152,37 @@ class EventRepositorySpec extends Specification {
         )
 
         when:
-        Optional<String> archiveCaseId = eventRepository.findArchiveInstanceId(
+        Optional<String> result = eventRepository.findArchiveInstanceId(
                 1,
                 "testSourceApplicationInstanceId1"
         )
 
         then:
-        archiveCaseId.isEmpty()
+        result.isEmpty()
     }
 
     def 'should return number of dispatched instances'() {
         given:
         eventRepository.saveAll(List.of(
-                createNamedEvent("1", "1", EventType.INFO, "incoming-instance"),
-                createNamedEvent("1", "1", EventType.INFO, "new-instance"),
-                createNamedEvent("1", "1", EventType.INFO, "new-case"),
-                createNamedEvent("1", "1", EventType.INFO, "case-dispatched"),
+                createNamedEvent("1", "1", EventType.INFO, INSTANCE_RECEIVED),
+                createNamedEvent("1", "1", EventType.INFO, INSTANCE_REGISTERED),
+                createNamedEvent("1", "1", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("1", "1", EventType.INFO, INSTANCE_DISPATCHED),
 
-                createNamedEvent("1", "2", EventType.INFO, "incoming-instance"),
-                createNamedEvent("1", "2", EventType.INFO, "new-instance"),
-                createNamedEvent("1", "2", EventType.ERROR, "instance-to-case-mapping"),
+                createNamedEvent("1", "2", EventType.INFO, INSTANCE_RECEIVED),
+                createNamedEvent("1", "2", EventType.INFO, INSTANCE_REGISTERED),
+                createNamedEvent("1", "2", EventType.ERROR, INSTANCE_MAPPING_ERROR),
 
-                createNamedEvent("2", "3", EventType.INFO, "incoming-instance"),
-                createNamedEvent("2", "3", EventType.INFO, "new-instance"),
-                createNamedEvent("2", "3", EventType.INFO, "new-case"),
-                createNamedEvent("2", "3", EventType.INFO, "case-dispatched"),
-                createNamedEvent("2", "3", EventType.INFO, "case-dispatched"),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_RECEIVED),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_REGISTERED),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_DISPATCHED),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_DISPATCHED),
 
-                createNamedEvent("2", "4", EventType.INFO, "incoming-instance"),
-                createNamedEvent("2", "4", EventType.INFO, "new-instance"),
-                createNamedEvent("2", "4", EventType.INFO, "new-case"),
-                createNamedEvent("2", "4", EventType.INFO, "case-dispatched"),
+                createNamedEvent("2", "4", EventType.INFO, INSTANCE_RECEIVED),
+                createNamedEvent("2", "4", EventType.INFO, INSTANCE_REGISTERED),
+                createNamedEvent("2", "4", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("2", "4", EventType.INFO, INSTANCE_DISPATCHED),
         ))
 
         when:
@@ -193,25 +195,25 @@ class EventRepositorySpec extends Specification {
     def 'should return number of dispatched instances per integration id'() {
         given:
         eventRepository.saveAll(List.of(
-                createNamedEvent("1", "1", EventType.INFO, "incoming-instance"),
-                createNamedEvent("1", "1", EventType.INFO, "new-instance"),
-                createNamedEvent("1", "1", EventType.INFO, "new-case"),
-                createNamedEvent("1", "1", EventType.INFO, "case-dispatched"),
+                createNamedEvent("1", "1", EventType.INFO, INSTANCE_RECEIVED),
+                createNamedEvent("1", "1", EventType.INFO, INSTANCE_REGISTERED),
+                createNamedEvent("1", "1", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("1", "1", EventType.INFO, INSTANCE_DISPATCHED),
 
-                createNamedEvent("1", "2", EventType.INFO, "incoming-instance"),
-                createNamedEvent("1", "2", EventType.INFO, "new-instance"),
-                createNamedEvent("1", "2", EventType.ERROR, "instance-to-case-mapping"),
+                createNamedEvent("1", "2", EventType.INFO, INSTANCE_RECEIVED),
+                createNamedEvent("1", "2", EventType.INFO, INSTANCE_REGISTERED),
+                createNamedEvent("1", "2", EventType.ERROR, INSTANCE_MAPPING_ERROR),
 
-                createNamedEvent("2", "3", EventType.INFO, "incoming-instance"),
-                createNamedEvent("2", "3", EventType.INFO, "new-instance"),
-                createNamedEvent("2", "3", EventType.INFO, "new-case"),
-                createNamedEvent("2", "3", EventType.INFO, "case-dispatched"),
-                createNamedEvent("2", "3", EventType.INFO, "case-dispatched"),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_RECEIVED),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_REGISTERED),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_DISPATCHED),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_DISPATCHED),
 
-                createNamedEvent("2", "4", EventType.INFO, "incoming-instance"),
-                createNamedEvent("2", "4", EventType.INFO, "new-instance"),
-                createNamedEvent("2", "4", EventType.INFO, "new-case"),
-                createNamedEvent("2", "4", EventType.INFO, "case-dispatched"),
+                createNamedEvent("2", "4", EventType.INFO, INSTANCE_RECEIVED),
+                createNamedEvent("2", "4", EventType.INFO, INSTANCE_REGISTERED),
+                createNamedEvent("2", "4", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("2", "4", EventType.INFO, INSTANCE_DISPATCHED),
         ))
 
         when:

@@ -21,7 +21,7 @@ public class ArchiveInstanceIdRequestConsumerConfiguration {
     }
 
     @Bean
-    ConcurrentMessageListenerContainer<String, ArchiveInstanceIdRequestParams> archiveCaseIdRequestConsumer(
+    ConcurrentMessageListenerContainer<String, ArchiveInstanceIdRequestParams> archiveInstanceIdRequestConsumer(
             RequestTopicService requestTopicService,
             RequestConsumerFactoryService requestConsumerFactoryService
     ) {
