@@ -1,6 +1,8 @@
 package no.fintlabs.repositories;
 
 import no.fintlabs.model.Event;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -22,9 +24,10 @@ public interface EventRepository extends JpaRepository<Event, Long> {
         long getCount();
     }
 
-    Collection<Event> findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
+    Page<Event> findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
             Long sourceApplicationId,
-            String sourceApplicationInstanceId
+            String sourceApplicationInstanceId,
+            Pageable pageable
     );
 
     @Query(value = "SELECT e" +
@@ -35,7 +38,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             "   WHERE e.instanceFlowHeaders.sourceApplicationInstanceId = ie.instanceFlowHeaders.sourceApplicationInstanceId" +
             " )"
     )
-    Collection<Event> findLatestEventPerSourceApplicationInstanceId();
+    Page<Event> findLatestEventPerSourceApplicationInstanceId(Pageable pageable);
 
     @Query(value = "SELECT e.instanceFlowHeaders.archiveInstanceId" +
             " FROM Event e" +

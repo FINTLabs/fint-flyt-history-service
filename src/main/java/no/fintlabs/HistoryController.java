@@ -4,6 +4,9 @@ import no.fintlabs.model.Event;
 import no.fintlabs.model.IntegrationStatistics;
 import no.fintlabs.model.Statistics;
 import no.fintlabs.repositories.EventRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,26 +31,40 @@ public class HistoryController {
     }
 
     @GetMapping("hendelser")
-    public ResponseEntity<Collection<Event>> getEvents(
+    public ResponseEntity<Page<Event>> getEvents(
+            @RequestParam(name = "side") int page,
+            @RequestParam(name = "antall") int size,
             @RequestParam(name = "bareSistePerInstans") Optional<Boolean> onlyLatestPerInstance
     ) {
+        PageRequest pageRequest = PageRequest
+                .of(page, size)
+                .withSort(Sort.Direction.DESC, "timestamp");
+
         return ResponseEntity.ok(
                 onlyLatestPerInstance.orElse(false)
-                        ? eventRepository.findLatestEventPerSourceApplicationInstanceId()
-                        : eventRepository.findAll()
+                        ? eventRepository.findLatestEventPerSourceApplicationInstanceId(pageRequest)
+                        : eventRepository.findAll(pageRequest)
         );
     }
 
     @GetMapping(path = "hendelser", params = {"kildeapplikasjonId", "kildeapplikasjonInstansId"})
-    public ResponseEntity<Collection<Event>> getEventsWithInstanceId(
+    public ResponseEntity<Page<Event>> getEventsWithInstanceId(
+            @RequestParam(name = "side") int page,
+            @RequestParam(name = "antall") int size,
             @RequestParam(name = "kildeapplikasjonId") Long sourceApplicationId,
             @RequestParam(name = "kildeapplikasjonInstansId") String sourceApplicationInstanceId
     ) {
-        return ResponseEntity.ok(eventRepository
-                .findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
-                        sourceApplicationId,
-                        sourceApplicationInstanceId
-                )
+        PageRequest pageRequest = PageRequest
+                .of(page, size)
+                .withSort(Sort.Direction.DESC, "timestamp");
+
+        return ResponseEntity.ok(
+                eventRepository
+                        .findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
+                                sourceApplicationId,
+                                sourceApplicationInstanceId,
+                                pageRequest
+                        )
         );
     }
 
