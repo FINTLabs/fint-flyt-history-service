@@ -5,6 +5,8 @@ import no.fintlabs.model.EventType
 import no.fintlabs.model.InstanceFlowHeadersEmbeddable
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.test.annotation.DirtiesContext
 import spock.lang.Specification
 
@@ -53,7 +55,7 @@ class EventRepositorySpec extends Specification {
         eventRepository.saveAll(List.of(event1, event2, event3, event4))
 
         when:
-        Collection<Event> events = eventRepository.findLatestEventPerSourceApplicationInstanceId()
+        Page<Event> events = eventRepository.findLatestEventPerSourceApplicationInstanceId(Pageable.unpaged())
 
         then:
         events.size() == 2
