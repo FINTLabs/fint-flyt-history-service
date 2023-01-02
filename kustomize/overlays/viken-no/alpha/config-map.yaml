@@ -4,7 +4,7 @@ metadata:
   name: fint-flyt-history-service
 data:
   TZ: 'Europe/Oslo'
-  JAVA_TOOL_OPTIONS: '-XX:+ExitOnOutOfMemoryError -Xmx3G'
+  JAVA_TOOL_OPTIONS: '-XX:+ExitOnOutOfMemoryError -Xmx1840M'
   fint.org-id: 'viken.no'
   fint.flyt.resource-server.security.api.internal.enabled: 'true'
   fint.flyt.resource-server.security.api.internal.authorized-org-ids: 'viken.no, vigo.no'
