@@ -1,9 +1,11 @@
 package no.fintlabs.model;
 
-import lombok.Builder;
-import lombok.Data;
+import lombok.*;
+import lombok.extern.jackson.Jacksonized;
 
-@Data
+@Getter
+@EqualsAndHashCode
+@Jacksonized
 @Builder
 public class Statistics {
     private final Long dispatchedInstances;

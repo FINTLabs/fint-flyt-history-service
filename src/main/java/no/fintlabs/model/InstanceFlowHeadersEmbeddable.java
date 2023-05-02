@@ -1,16 +1,14 @@
 package no.fintlabs.model;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
+import lombok.extern.jackson.Jacksonized;
 
 import javax.persistence.Embeddable;
 import java.util.UUID;
 
-@AllArgsConstructor
-@NoArgsConstructor
-@Data
+@Getter
+@EqualsAndHashCode
+@Jacksonized
 @Builder(toBuilder = true)
 @Embeddable
 public class InstanceFlowHeadersEmbeddable {

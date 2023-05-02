@@ -1,5 +1,5 @@
 plugins {
-    id 'org.springframework.boot' version '2.6.5'
+    id 'org.springframework.boot' version '2.7.10'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'java'
     id 'groovy'
@@ -35,7 +35,7 @@ dependencies {
     implementation 'io.netty:netty-resolver-dns-native-macos:4.1.75.Final:osx-aarch_64'
 
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    implementation 'no.fintlabs:fint-flyt-resource-server:0.0.1'
+    implementation 'no.fintlabs:fint-flyt-resource-server:1.0.0'
 
     implementation 'org.springframework.kafka:spring-kafka:2.8.4'
     implementation 'no.fintlabs:fint-kafka:2.3.0'

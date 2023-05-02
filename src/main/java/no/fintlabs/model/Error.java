@@ -2,16 +2,17 @@ package no.fintlabs.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
+import lombok.extern.jackson.Jacksonized;
 
 import javax.persistence.*;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-@Data
+@Getter
+@Setter
+@EqualsAndHashCode
+@Jacksonized
 @Entity
 public class Error {
 
