@@ -15,6 +15,8 @@ spring:
     username: ${fint.database.username}
     url: ${fint.database.url}
     password: ${fint.database.password}
+    hikari:
+      schema: ${fint.database.username}
   flyway:
     locations: classpath:db/migration/
     lock-retry-count: 300
