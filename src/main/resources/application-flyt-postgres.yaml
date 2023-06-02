@@ -9,12 +9,14 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         enable_lazy_load_no_trans: true
     hibernate:
-      ddl-auto: validate
+      ddl-auto: none
   datasource:
     driver-class-name: org.postgresql.Driver
     username: ${fint.database.username}
     url: ${fint.database.url}
     password: ${fint.database.password}
+    hikari:
+      schema: ${fint.database.username}
   flyway:
     locations: classpath:db/migration/
     lock-retry-count: 300

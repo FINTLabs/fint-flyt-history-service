@@ -19,10 +19,10 @@ patches:
         value: "viken.no"
       - op: replace
         path: "/spec/url/basePath"
-        value: "/alpha/viken-no"
+        value: "/viken-no"
       - op: replace
         path: "/spec/ingress/basePath"
-        value: "/alpha/viken-no/api/intern/historikk"
+        value: "/viken-no/api/intern/historikk"
       - op: replace
         path: "/spec/env/1/value"
         value: "viken.no, vigo.no"
