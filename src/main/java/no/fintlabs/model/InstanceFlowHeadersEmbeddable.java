@@ -1,16 +1,17 @@
 package no.fintlabs.model;
 
 import lombok.*;
-import lombok.extern.jackson.Jacksonized;
 
 import javax.persistence.Embeddable;
 import java.util.UUID;
 
 @Getter
+@Setter
 @EqualsAndHashCode
-@Jacksonized
 @Builder(toBuilder = true)
 @Embeddable
+@NoArgsConstructor
+@AllArgsConstructor
 public class InstanceFlowHeadersEmbeddable {
     private Long sourceApplicationId;
     private String sourceApplicationIntegrationId;

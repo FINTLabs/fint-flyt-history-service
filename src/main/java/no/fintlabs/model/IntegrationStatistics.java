@@ -1,11 +1,11 @@
 package no.fintlabs.model;
 
-import lombok.*;
-import lombok.extern.jackson.Jacksonized;
+import lombok.Builder;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
 @Getter
 @EqualsAndHashCode
-@Jacksonized
 @Builder
 public class IntegrationStatistics {
     private String sourceApplicationIntegrationId;
