@@ -1,9 +1,11 @@
 package no.fintlabs.model;
 
 import lombok.Builder;
-import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
 
-@Data
+@Getter
+@EqualsAndHashCode
 @Builder
 public class IntegrationStatistics {
     private String sourceApplicationIntegrationId;

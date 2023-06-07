@@ -2,16 +2,20 @@ package no.fintlabs.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.*;
+import lombok.extern.jackson.Jacksonized;
 
 import javax.persistence.*;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
+@Getter
+@Setter
+@EqualsAndHashCode
+@Jacksonized
 @Entity
 @Builder(toBuilder = true)
+@NoArgsConstructor
+@AllArgsConstructor
 public class Event {
 
     @Id

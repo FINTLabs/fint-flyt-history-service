@@ -1,14 +1,14 @@
 package no.fintlabs.model;
 
-import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 
-@Data
+@Getter
+@EqualsAndHashCode
+@Jacksonized
 @Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class ArchiveInstanceIdRequestParams {
     private Long sourceApplicationId;
     private String sourceApplicationInstanceId;
