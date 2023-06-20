@@ -11,8 +11,10 @@ import java.util.Map;
 
 @Getter
 @Setter
-@EqualsAndHashCode
 @Jacksonized
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
 @Entity
 public class Error {
 

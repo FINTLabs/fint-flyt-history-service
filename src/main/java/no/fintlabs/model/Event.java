@@ -10,7 +10,6 @@ import java.util.Collection;
 
 @Getter
 @Setter
-@EqualsAndHashCode
 @Jacksonized
 @Entity
 @Builder(toBuilder = true)
