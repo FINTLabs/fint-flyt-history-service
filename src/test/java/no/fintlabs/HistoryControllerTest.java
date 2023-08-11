@@ -1,6 +1,8 @@
 package no.fintlabs;
 
 import no.fintlabs.model.Event;
+import no.fintlabs.model.IntegrationStatistics;
+import no.fintlabs.model.Statistics;
 import no.fintlabs.repositories.EventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,9 +15,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
@@ -28,6 +28,9 @@ public class HistoryControllerTest {
 
     @Mock
     private EventRepository eventRepository;
+
+    @Mock
+    private StatisticsService statisticsService;
 
     @BeforeEach
     public void setUp() {
@@ -68,6 +71,44 @@ public class HistoryControllerTest {
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(eventPage, response.getBody());
+    }
+
+    @Test
+    void testGetStatistics() {
+        Statistics expectedStatistics = Statistics.builder()
+                .dispatchedInstances(10L)
+                .currentErrors(5L)
+                .build();
+
+        when(statisticsService.getStatistics()).thenReturn(expectedStatistics);
+
+        ResponseEntity<Statistics> response = historyController.getStatistics();
+
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals(expectedStatistics, response.getBody());
+    }
+
+    @Test
+    void testGetIntegrationStatistics() {
+        IntegrationStatistics integrationStatistics1 = IntegrationStatistics.builder()
+                .sourceApplicationIntegrationId("app1")
+                .dispatchedInstances(10L)
+                .currentErrors(5L)
+                .build();
+
+        IntegrationStatistics integrationStatistics2 = IntegrationStatistics.builder()
+                .sourceApplicationIntegrationId("app2")
+                .dispatchedInstances(8L)
+                .currentErrors(3L)
+                .build();
+
+        List<IntegrationStatistics> expectedList = Arrays.asList(integrationStatistics1, integrationStatistics2);
+        when(statisticsService.getIntegrationStatistics()).thenReturn(expectedList);
+
+        ResponseEntity<Collection<IntegrationStatistics>> response = historyController.getIntegrationStatistics();
+
+        assertEquals(200, response.getStatusCodeValue());
+        assertEquals(expectedList, response.getBody());
     }
 
 }
