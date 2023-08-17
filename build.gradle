@@ -1,5 +1,5 @@
 plugins {
-    id 'org.springframework.boot' version '2.6.5'
+    id 'org.springframework.boot' version '2.7.14'
     id 'io.spring.dependency-management' version '1.0.11.RELEASE'
     id 'java'
 }
@@ -36,12 +36,12 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'no.fintlabs:fint-flyt-resource-server:1.1.0'
 
-    implementation 'org.springframework.kafka:spring-kafka:2.8.4'
-    implementation 'no.fintlabs:fint-kafka:2.3.0'
-    implementation 'no.fintlabs:fint-flyt-kafka:2.2.0'
+    implementation 'org.springframework.kafka:spring-kafka'
+    implementation 'no.fintlabs:fint-kafka:2.4.1'
+    implementation 'no.fintlabs:fint-flyt-kafka:2.4.1'
 
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.flywaydb:flyway-core:8.0.5'
+    implementation 'org.flywaydb:flyway-core'
     runtimeOnly 'org.postgresql:postgresql'
     testRuntimeOnly 'com.h2database:h2'
 
