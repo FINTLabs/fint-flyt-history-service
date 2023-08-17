@@ -32,7 +32,7 @@ public class Error {
             joinColumns = {@JoinColumn(name = "error_id", referencedColumnName = "id")}
     )
     @MapKeyColumn(name = "map_key")
-    @Column(name = "`value`", columnDefinition = "text")
+    @Column(name = "\"value\"", columnDefinition = "text")
     @JsonPropertyOrder(alphabetic = true)
     private Map<String, String> args;
 
