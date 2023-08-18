@@ -6,7 +6,6 @@ import lombok.*;
 import lombok.extern.jackson.Jacksonized;
 
 import javax.persistence.*;
-import java.time.LocalDateTime;
 import java.util.Map;
 
 @Getter
@@ -33,7 +32,7 @@ public class Error {
             joinColumns = {@JoinColumn(name = "error_id", referencedColumnName = "id")}
     )
     @MapKeyColumn(name = "map_key")
-    @Column(name = "value", columnDefinition = "text")
+    @Column(name = "\"value\"", columnDefinition = "text")
     @JsonPropertyOrder(alphabetic = true)
     private Map<String, String> args;
 
