@@ -8,7 +8,7 @@ create table error
 create table error_args
 (
     error_id int8         not null,
-    value    text,
+    "value"  text,
     map_key  varchar(255) not null,
     primary key (error_id, map_key)
 );
