@@ -162,6 +162,7 @@ public class EventRepositoryTest {
                 createNamedEvent("1", "1", EventType.INFO, INSTANCE_RECEIVED),
                 createNamedEvent("1", "1", EventType.INFO, INSTANCE_REGISTERED),
                 createNamedEvent("1", "1", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("1", "1", EventType.INFO, INSTANCE_READY_FOR_DISPATCH),
                 createNamedEvent("1", "1", EventType.INFO, INSTANCE_DISPATCHED),
 
                 createNamedEvent("1", "2", EventType.INFO, INSTANCE_RECEIVED),
@@ -171,12 +172,14 @@ public class EventRepositoryTest {
                 createNamedEvent("2", "3", EventType.INFO, INSTANCE_RECEIVED),
                 createNamedEvent("2", "3", EventType.INFO, INSTANCE_REGISTERED),
                 createNamedEvent("2", "3", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_READY_FOR_DISPATCH),
                 createNamedEvent("2", "3", EventType.INFO, INSTANCE_DISPATCHED),
                 createNamedEvent("2", "3", EventType.INFO, INSTANCE_DISPATCHED),
 
                 createNamedEvent("2", "4", EventType.INFO, INSTANCE_RECEIVED),
                 createNamedEvent("2", "4", EventType.INFO, INSTANCE_REGISTERED),
                 createNamedEvent("2", "4", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("2", "4", EventType.INFO, INSTANCE_READY_FOR_DISPATCH),
                 createNamedEvent("2", "4", EventType.INFO, INSTANCE_DISPATCHED)
         ));
 
@@ -191,6 +194,7 @@ public class EventRepositoryTest {
                 createNamedEvent("1", "1", EventType.INFO, INSTANCE_RECEIVED),
                 createNamedEvent("1", "1", EventType.INFO, INSTANCE_REGISTERED),
                 createNamedEvent("1", "1", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("1", "1", EventType.INFO, INSTANCE_READY_FOR_DISPATCH),
                 createNamedEvent("1", "1", EventType.INFO, INSTANCE_DISPATCHED),
 
                 createNamedEvent("1", "2", EventType.INFO, INSTANCE_RECEIVED),
@@ -200,12 +204,14 @@ public class EventRepositoryTest {
                 createNamedEvent("2", "3", EventType.INFO, INSTANCE_RECEIVED),
                 createNamedEvent("2", "3", EventType.INFO, INSTANCE_REGISTERED),
                 createNamedEvent("2", "3", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("2", "3", EventType.INFO, INSTANCE_READY_FOR_DISPATCH),
                 createNamedEvent("2", "3", EventType.INFO, INSTANCE_DISPATCHED),
                 createNamedEvent("2", "3", EventType.INFO, INSTANCE_DISPATCHED),
 
                 createNamedEvent("2", "4", EventType.INFO, INSTANCE_RECEIVED),
                 createNamedEvent("2", "4", EventType.INFO, INSTANCE_REGISTERED),
                 createNamedEvent("2", "4", EventType.INFO, INSTANCE_MAPPED),
+                createNamedEvent("2", "4", EventType.INFO, INSTANCE_READY_FOR_DISPATCH),
                 createNamedEvent("2", "4", EventType.INFO, INSTANCE_DISPATCHED)
         ));
 

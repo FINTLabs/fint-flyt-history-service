@@ -56,6 +56,11 @@ public class InfoEventConsumerConfiguration {
     }
 
     @Bean
+    public ConcurrentMessageListenerContainer<String, Object> instanceReadyForDispatchEventConsumer() {
+        return createInfoEventListener(INSTANCE_READY_FOR_DISPATCH);
+    }
+
+    @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceDispatchedEventConsumer() {
         return createInfoEventListener(INSTANCE_DISPATCHED);
     }
