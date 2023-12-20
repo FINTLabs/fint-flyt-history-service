@@ -41,7 +41,7 @@ public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguratio
 
         requestTopicService.ensureTopic(topicNameParameters, 0, TopicCleanupPolicyParameters.builder().build());
 
-        return requestConsumerFactoryService.createFactory(
+        return requestConsumerFactoryService.createRecordConsumerFactory(
                 Long.class,
                 InstanceFlowHeaders.class,
                 consumerRecord -> {
@@ -54,8 +54,7 @@ public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguratio
                             .map(instanceFlowHeadersEmbeddableMapper::toInstanceFlowHeaders)
                             .orElse(null);
                     return ReplyProducerRecord.<InstanceFlowHeaders>builder().value(instanceFlowHeaders).build();
-                },
-                null
+                }
         ).createContainer(topicNameParameters);
     }
 

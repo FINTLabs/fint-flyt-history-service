@@ -32,7 +32,7 @@ public class ArchiveInstanceIdRequestConsumerConfiguration {
 
         requestTopicService.ensureTopic(topicNameParameters, 0, TopicCleanupPolicyParameters.builder().build());
 
-        return requestConsumerFactoryService.createFactory(
+        return requestConsumerFactoryService.createRecordConsumerFactory(
                 ArchiveInstanceIdRequestParams.class,
                 String.class,
                 consumerRecord -> {
@@ -42,8 +42,7 @@ public class ArchiveInstanceIdRequestConsumerConfiguration {
                             )
                             .orElse(null);
                     return ReplyProducerRecord.<String>builder().value(archiveInstanceId).build();
-                },
-                null
+                }
         ).createContainer(topicNameParameters);
     }
 

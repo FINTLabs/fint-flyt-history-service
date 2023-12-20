@@ -9,7 +9,6 @@ import no.fintlabs.model.EventType;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.kafka.listener.CommonLoggingErrorHandler;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 
 import java.nio.charset.StandardCharsets;
@@ -66,7 +65,7 @@ public class InfoEventConsumerConfiguration {
     }
 
     private ConcurrentMessageListenerContainer<String, Object> createInfoEventListener(String eventName) {
-        return instanceFlowEventConsumerFactoryService.createFactory(
+        return instanceFlowEventConsumerFactoryService.createRecordFactory(
                 Object.class,
                 instanceFlowConsumerRecord -> {
                     Event event = new Event();
@@ -87,9 +86,7 @@ public class InfoEventConsumerConfiguration {
                             StandardCharsets.UTF_8
                     ));
                     eventRepository.save(event);
-                },
-                new CommonLoggingErrorHandler(),
-                false
+                }
         ).createContainer(createEventTopicNameParameters(eventName));
     }
 

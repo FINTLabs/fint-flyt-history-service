@@ -11,7 +11,6 @@ import no.fintlabs.model.EventType;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.kafka.listener.CommonLoggingErrorHandler;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 
 import java.nio.charset.StandardCharsets;
@@ -65,7 +64,7 @@ public class ErrorEventConsumerConfiguration {
     }
 
     private ConcurrentMessageListenerContainer<String, ErrorCollection> createErrorEventListener(String errorEventName) {
-        return instanceFlowErrorEventConsumerFactoryService.createFactory(
+        return instanceFlowErrorEventConsumerFactoryService.createRecordFactory(
                 instanceFlowConsumerRecord -> {
                     Event event = new Event();
                     event.setInstanceFlowHeaders(
@@ -86,9 +85,7 @@ public class ErrorEventConsumerConfiguration {
                             StandardCharsets.UTF_8
                     ));
                     eventRepository.save(event);
-                },
-                new CommonLoggingErrorHandler(),
-                false
+                }
         ).createContainer(createErrorEventTopicNameParameters(errorEventName));
     }
 
