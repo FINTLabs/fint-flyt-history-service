@@ -1,31 +1,31 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-namespace: trondelagfylke-no
+namespace: bfk-no
 
 resources:
   - ../../../base
 
 commonLabels:
-  app.kubernetes.io/instance: fint-flyt-history-service_trondelagfylke_no
-  fintlabs.no/org-id: trondelagfylke.no
+  app.kubernetes.io/instance: fint-flyt-history-service_bfk_no
+  fintlabs.no/org-id: bfk.no
 
 patches:
   - patch: |-
       - op: replace
         path: "/spec/kafka/acls/0/topic"
-        value: "trondelagfylke-no.flyt.*"
+        value: "bfk-no.flyt.*"
       - op: replace
         path: "/spec/orgId"
-        value: "trondelagfylke.no"
+        value: "bfk.no"
       - op: replace
         path: "/spec/url/basePath"
-        value: "/alpha/trondelagfylke-no"
+        value: "/bfk-no"
       - op: replace
         path: "/spec/ingress/basePath"
-        value: "/alpha/trondelagfylke-no/api/intern/historikk"
+        value: "/bfk-no/api/intern/historikk"
       - op: replace
         path: "/spec/env/1/value"
-        value: "trondelagfylke.no, vigo.no"
+        value: "bfk.no, vigo.no"
 
     target:
       kind: Application
