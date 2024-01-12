@@ -30,22 +30,25 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             Pageable pageable
     );
 
-    @Query(value = "SELECT e" +
-            " FROM Event e" +
-            " WHERE e.timestamp IN (" +
-            "   SELECT MAX(ie.timestamp)" +
-            "   FROM Event ie" +
-            "   WHERE e.instanceFlowHeaders.sourceApplicationInstanceId = ie.instanceFlowHeaders.sourceApplicationInstanceId" +
-            " )"
+    @Query(value = "SELECT e.* " +
+            "FROM event AS e " +
+            "INNER JOIN ( " +
+            "    SELECT source_application_instance_id, max(timestamp) AS timestampMax " +
+            "    FROM event " +
+            "    GROUP BY source_application_instance_id " +
+            ") AS eMax " +
+            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
+            "    AND e.timestamp = eMax.timestampMax",
+            nativeQuery = true
     )
     Page<Event> findLatestEventPerSourceApplicationInstanceId(Pageable pageable);
 
-    @Query(value = "SELECT e.instanceFlowHeaders.archiveInstanceId" +
-            " FROM Event e" +
-            " WHERE e.type = no.fintlabs.model.EventType.INFO" +
-            " and e.name = :name" +
-            " and e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId" +
-            " and e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId"
+    @Query(value = "SELECT e.instanceFlowHeaders.archiveInstanceId " +
+            "FROM Event e " +
+            "WHERE e.type = no.fintlabs.model.EventType.INFO " +
+            "   AND e.name = :name " +
+            "   AND e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId " +
+            "   AND e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId"
     )
     Optional<String> selectArchiveInstanceIdBySourceApplicationIdAndSourceApplicationInstanceIdAndName(
             @Param(value = "sourceApplicationId") Long sourceApplicationId,
@@ -74,35 +77,42 @@ public interface EventRepository extends JpaRepository<Event, Long> {
         return countNamedEventsPerIntegrationId(INSTANCE_DISPATCHED);
     }
 
-    @Query(value = "SELECT e.instanceFlowHeaders.sourceApplicationIntegrationId as integrationId, COUNT(e) as count" +
-            " FROM Event e" +
-            " WHERE e.name LIKE :eventName" +
-            " GROUP BY e.instanceFlowHeaders.sourceApplicationIntegrationId"
+    @Query(value = "SELECT e.instanceFlowHeaders.sourceApplicationIntegrationId AS integrationId, COUNT(e) AS count " +
+            "FROM Event e " +
+            "WHERE e.name LIKE :eventName " +
+            "GROUP BY e.instanceFlowHeaders.sourceApplicationIntegrationId"
     )
     Collection<IntegrationIdAndCount> countNamedEventsPerIntegrationId(
             @Param(value = "eventName") String eventName
     );
 
-    @Query(value = "SELECT COUNT(e)" +
-            " FROM Event e" +
-            " WHERE e.timestamp IN (" +
-            "   SELECT MAX(ie.timestamp)" +
-            "   FROM Event ie" +
-            "   WHERE e.instanceFlowHeaders.sourceApplicationInstanceId = ie.instanceFlowHeaders.sourceApplicationInstanceId" +
-            " )" +
-            " AND e.type = no.fintlabs.model.EventType.ERROR"
+    @Query(value = "SELECT COUNT(*) " +
+            "FROM event AS e " +
+            "INNER JOIN ( " +
+            "   SELECT source_application_instance_id, max(timestamp) AS timestampMax " +
+            "   FROM event " +
+            "   GROUP BY source_application_instance_id " +
+            ") AS eMax " +
+            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
+            "   AND e.timestamp = eMax.timestampMax " +
+            "WHERE type = 'ERROR' ",
+            nativeQuery = true
     )
     long countCurrentInstanceErrors();
 
-    @Query(value = "SELECT e.instanceFlowHeaders.sourceApplicationIntegrationId as integrationId, COUNT(e) as count" +
-            " FROM Event e" +
-            " WHERE e.timestamp IN (" +
-            "   SELECT MAX(ie.timestamp)" +
-            "   FROM Event ie" +
-            "   WHERE e.instanceFlowHeaders.sourceApplicationInstanceId = ie.instanceFlowHeaders.sourceApplicationInstanceId" +
-            " )" +
-            " AND e.type = no.fintlabs.model.EventType.ERROR" +
-            " GROUP BY e.instanceFlowHeaders.sourceApplicationIntegrationId"
+
+    @Query(value = "SELECT source_application_integration_id AS integrationId, COUNT(*) AS count " +
+            "FROM event AS e " +
+            "INNER JOIN ( " +
+            "   SELECT source_application_instance_id, max(timestamp) AS timestampMax " +
+            "   FROM event " +
+            "   GROUP BY source_application_instance_id " +
+            ") AS eMax " +
+            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
+            "   AND e.timestamp = eMax.timestampMax " +
+            "WHERE type = 'ERROR' " +
+            "GROUP BY source_application_integration_id",
+            nativeQuery = true
     )
     Collection<IntegrationIdAndCount> countCurrentInstanceErrorsPerIntegrationId();
 
