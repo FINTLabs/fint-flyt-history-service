@@ -30,15 +30,15 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             Pageable pageable
     );
 
-    @Query(value = "SELECT event.* " +
-            "FROM event " +
+    @Query(value = "SELECT e.* " +
+            "FROM event AS e " +
             "INNER JOIN ( " +
-            "    SELECT source_application_instance_id, max(timestamp) as maxTimestamp " +
+            "    SELECT source_application_instance_id, max(timestamp) AS timestampMax " +
             "    FROM event " +
             "    GROUP BY source_application_instance_id " +
-            ") AS maxEvent " +
-            "ON event.source_application_instance_id = maxEvent.source_application_instance_id " +
-            "    AND event.timestamp = maxEvent.maxTimestamp",
+            ") AS eMax " +
+            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
+            "    AND e.timestamp = eMax.timestampMax",
             nativeQuery = true
     )
     Page<Event> findLatestEventPerSourceApplicationInstanceId(Pageable pageable);
@@ -77,7 +77,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
         return countNamedEventsPerIntegrationId(INSTANCE_DISPATCHED);
     }
 
-    @Query(value = "SELECT e.instanceFlowHeaders.sourceApplicationIntegrationId as integrationId, COUNT(e) as count " +
+    @Query(value = "SELECT e.instanceFlowHeaders.sourceApplicationIntegrationId AS integrationId, COUNT(e) AS count " +
             "FROM Event e " +
             "WHERE e.name LIKE :eventName " +
             "GROUP BY e.instanceFlowHeaders.sourceApplicationIntegrationId"
@@ -87,29 +87,29 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     );
 
     @Query(value = "SELECT COUNT(*) " +
-            "FROM event " +
+            "FROM event AS e " +
             "INNER JOIN ( " +
-            "   SELECT source_application_instance_id, max(timestamp) as maxTimestamp " +
+            "   SELECT source_application_instance_id, max(timestamp) AS timestampMax " +
             "   FROM event " +
             "   GROUP BY source_application_instance_id " +
-            ") AS maxEvent " +
-            "ON event.source_application_instance_id = maxEvent.source_application_instance_id " +
-            "   AND event.timestamp = maxEvent.maxTimestamp " +
+            ") AS eMax " +
+            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
+            "   AND e.timestamp = eMax.timestampMax " +
             "WHERE type = 'ERROR' ",
             nativeQuery = true
     )
     long countCurrentInstanceErrors();
 
 
-    @Query(value = "SELECT source_application_integration_id as integrationId, COUNT(*) as count " +
-            "FROM event " +
+    @Query(value = "SELECT source_application_integration_id AS integrationId, COUNT(*) AS count " +
+            "FROM event AS e " +
             "INNER JOIN ( " +
-            "   SELECT source_application_instance_id, max(timestamp) as maxTimestamp " +
+            "   SELECT source_application_instance_id, max(timestamp) AS timestampMax " +
             "   FROM event " +
             "   GROUP BY source_application_instance_id " +
-            ") AS maxEvent " +
-            "ON event.source_application_instance_id = maxEvent.source_application_instance_id " +
-            "   AND event.timestamp = maxEvent.maxTimestamp " +
+            ") AS eMax " +
+            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
+            "   AND e.timestamp = eMax.timestampMax " +
             "WHERE type = 'ERROR' " +
             "GROUP BY source_application_integration_id",
             nativeQuery = true
