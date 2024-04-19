@@ -5,6 +5,7 @@ import no.fintlabs.repositories.EventRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -69,7 +70,7 @@ public class HistoryController {
     }
 
     @PostMapping("handlinger/instanser/sett-status/manuelt-behandlet-ok")
-    public ResponseEntity<Event> setManuallyProcessed(@RequestBody ManualEventDto manualEventDto) {
+    public ResponseEntity<?> setManuallyProcessed(@RequestBody ManualEventDto manualEventDto) {
 
         Optional<Event> optionalEvent = eventRepository.
                 findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
@@ -78,31 +79,36 @@ public class HistoryController {
                         manualEventDto.getSourceApplicationIntegrationId()
                 );
 
-        optionalEvent.ifPresent(
-                event -> {
-                    if (event.getType().equals(EventType.ERROR)) {
-                        InstanceFlowHeadersEmbeddable newInstanceFlowHeaders = event.getInstanceFlowHeaders()
-                                .toBuilder()
-                                .archiveInstanceId(manualEventDto.getArchiveInstanceId())
-                                .build();
+        if (optionalEvent.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Event not found.");
+        }
 
-                        Event newEvent = Event
-                                .builder()
-                                .instanceFlowHeaders(newInstanceFlowHeaders)
-                                .name("instance-manually-processed")
-                                .timestamp(OffsetDateTime.now())
-                                .type(EventType.INFO)
-                                .applicationId(event.getApplicationId())
-                                .build();
+        Event event = optionalEvent.get();
 
-                        newEvent.setInstanceFlowHeaders(newInstanceFlowHeaders);
+        if (!event.getType().equals(EventType.ERROR)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Event is not of type ERROR");
+        }
 
-                        eventRepository.save(newEvent);
-                    }
-                }
-        );
+        Event newEvent = createProcessedEvent(event, manualEventDto.getArchiveInstanceId());
+        eventRepository.save(newEvent);
 
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(newEvent);
+
+    }
+
+    private Event createProcessedEvent(Event event, String archiveId) {
+        InstanceFlowHeadersEmbeddable newInstanceFlowHeaders = event.getInstanceFlowHeaders()
+                .toBuilder()
+                .archiveInstanceId(archiveId)
+                .build();
+
+        return Event.builder()
+                .instanceFlowHeaders(newInstanceFlowHeaders)
+                .name("instance-manually-processed")
+                .timestamp(OffsetDateTime.now())
+                .type(EventType.INFO)
+                .applicationId(event.getApplicationId())
+                .build();
     }
 
 //    @PostMapping("handlinger/instanser/{instanceId}/sett-status/manuelt-avvist")
