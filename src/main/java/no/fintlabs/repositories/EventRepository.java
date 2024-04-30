@@ -118,4 +118,10 @@ public interface EventRepository extends JpaRepository<Event, Long> {
 
     Optional<Event> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(Long instanceId, String name);
 
+    Optional<Event> findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
+            Long sourceApplicationId,
+            String sourceApplicationInstanceId,
+            String sourceApplicationIntegrationId
+    );
+
 }
