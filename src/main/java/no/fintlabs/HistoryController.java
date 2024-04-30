@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Function;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 
@@ -71,15 +73,29 @@ public class HistoryController {
 
     @PostMapping("handlinger/instanser/sett-status/manuelt-behandlet-ok")
     public ResponseEntity<?> setManuallyProcessed(@RequestBody ManualEventDto manualEventDto) {
-        return getResponseEntity(manualEventDto, "instance-manually-processed");
+        return storeManualEvent(
+                manualEventDto,
+                existingEvent -> createManualEvent(
+                        existingEvent,
+                        "instance-manually-processed",
+                        manualEventDto.getArchiveInstanceId()
+                )
+        );
     }
 
     @PostMapping("handlinger/instanser/sett-status/manuelt-avvist")
     public ResponseEntity<?> setManuallyRejected(@RequestBody ManualEventDto manualEventDto) {
-        return getResponseEntity(manualEventDto, "instance-manually-rejected");
+        return storeManualEvent(
+                manualEventDto,
+                existingEvent -> createManualEvent(
+                        existingEvent,
+                        "instance-manually-rejected",
+                        null
+                )
+        );
     }
 
-    private ResponseEntity<?> getResponseEntity(ManualEventDto manualEventDto, String name) {
+    private ResponseEntity<?> storeManualEvent(ManualEventDto manualEventDto, Function<Event, Event> existingToNewEvent) {
         Optional<Event> optionalEvent = eventRepository.
                 findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
                         manualEventDto.getSourceApplicationId(),
@@ -97,7 +113,8 @@ public class HistoryController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Event is not of type ERROR");
         }
 
-        Event newEvent = createManualEvent(event, name, manualEventDto.getArchiveInstanceId());
+        Event newEvent = existingToNewEvent.apply(event);
+
         eventRepository.save(newEvent);
 
         return ResponseEntity.ok(newEvent);
@@ -106,7 +123,9 @@ public class HistoryController {
     private Event createManualEvent(Event event, String name, String archiveId) {
 
         InstanceFlowHeadersEmbeddable.InstanceFlowHeadersEmbeddableBuilder headersEmbeddableBuilder =
-                event.getInstanceFlowHeaders().toBuilder();
+                event.getInstanceFlowHeaders()
+                        .toBuilder()
+                        .correlationId(UUID.randomUUID());
 
         if (archiveId != null && !archiveId.isEmpty()) {
             headersEmbeddableBuilder.archiveInstanceId(archiveId);
