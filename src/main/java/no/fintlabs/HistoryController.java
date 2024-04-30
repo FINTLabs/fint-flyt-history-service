@@ -71,7 +71,15 @@ public class HistoryController {
 
     @PostMapping("handlinger/instanser/sett-status/manuelt-behandlet-ok")
     public ResponseEntity<?> setManuallyProcessed(@RequestBody ManualEventDto manualEventDto) {
+        return getResponseEntity(manualEventDto, "instance-manually-processed");
+    }
 
+    @PostMapping("handlinger/instanser/sett-status/manuelt-avvist")
+    public ResponseEntity<?> setManuallyRejected(@RequestBody ManualEventDto manualEventDto) {
+        return getResponseEntity(manualEventDto, "instance-manually-rejected");
+    }
+
+    private ResponseEntity<?> getResponseEntity(ManualEventDto manualEventDto, String name) {
         Optional<Event> optionalEvent = eventRepository.
                 findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
                         manualEventDto.getSourceApplicationId(),
@@ -89,31 +97,31 @@ public class HistoryController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Event is not of type ERROR");
         }
 
-        Event newEvent = createProcessedEvent(event, manualEventDto.getArchiveInstanceId());
+        Event newEvent = createManualEvent(event, name, manualEventDto.getArchiveInstanceId());
         eventRepository.save(newEvent);
 
         return ResponseEntity.ok(newEvent);
-
     }
 
-    private Event createProcessedEvent(Event event, String archiveId) {
-        InstanceFlowHeadersEmbeddable newInstanceFlowHeaders = event.getInstanceFlowHeaders()
-                .toBuilder()
-                .archiveInstanceId(archiveId)
-                .build();
+    private Event createManualEvent(Event event, String name, String archiveId) {
+
+        InstanceFlowHeadersEmbeddable.InstanceFlowHeadersEmbeddableBuilder headersEmbeddableBuilder =
+                event.getInstanceFlowHeaders().toBuilder();
+
+        if (archiveId != null && !archiveId.isEmpty()) {
+            headersEmbeddableBuilder.archiveInstanceId(archiveId);
+        }
+
+        InstanceFlowHeadersEmbeddable newInstanceFlowHeaders = headersEmbeddableBuilder.build();
 
         return Event.builder()
                 .instanceFlowHeaders(newInstanceFlowHeaders)
-                .name("instance-manually-processed")
+                .name(name)
                 .timestamp(OffsetDateTime.now())
                 .type(EventType.INFO)
                 .applicationId(event.getApplicationId())
                 .build();
     }
-
-//    @PostMapping("handlinger/instanser/{instanceId}/sett-status/manuelt-avvist")
-//    public ResponseEntity<Event> setManuallyRejected(
-
 
     @GetMapping("statistikk")
     public ResponseEntity<Statistics> getStatistics() {
