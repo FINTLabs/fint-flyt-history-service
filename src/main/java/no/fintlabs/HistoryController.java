@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.validation.Valid;
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Optional;
@@ -72,21 +73,21 @@ public class HistoryController {
     }
 
     @PostMapping("handlinger/instanser/sett-status/manuelt-behandlet-ok")
-    public ResponseEntity<?> setManuallyProcessed(@RequestBody ManualEventDto manualEventDto) {
+    public ResponseEntity<?> setManuallyProcessed(@RequestBody @Valid ManuallyProcessedEventDto manuallyProcessedEventDto) {
         return storeManualEvent(
-                manualEventDto,
+                manuallyProcessedEventDto,
                 existingEvent -> createManualEvent(
                         existingEvent,
                         "instance-manually-processed",
-                        manualEventDto.getArchiveInstanceId()
+                        manuallyProcessedEventDto.getArchiveInstanceId()
                 )
         );
     }
 
     @PostMapping("handlinger/instanser/sett-status/manuelt-avvist")
-    public ResponseEntity<?> setManuallyRejected(@RequestBody ManualEventDto manualEventDto) {
+    public ResponseEntity<?> setManuallyRejected(@RequestBody @Valid ManuallyRejectedEventDto manuallyRejectedEventDto) {
         return storeManualEvent(
-                manualEventDto,
+                manuallyRejectedEventDto,
                 existingEvent -> createManualEvent(
                         existingEvent,
                         "instance-manually-rejected",

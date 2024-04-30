@@ -1,13 +1,9 @@
 package no.fintlabs.model;
 
-import lombok.Getter;
-import lombok.Setter;
+public interface ManualEventDto {
+    Long getSourceApplicationId();
 
-@Getter
-@Setter
-public class ManualEventDto {
-    private Long sourceApplicationId;
-    private String sourceApplicationInstanceId;
-    private String sourceApplicationIntegrationId;
-    private String archiveInstanceId;
+    String getSourceApplicationInstanceId();
+
+    String getSourceApplicationIntegrationId();
 }
