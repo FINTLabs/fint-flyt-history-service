@@ -2,16 +2,22 @@ package no.fintlabs;
 
 import no.fintlabs.model.*;
 import no.fintlabs.repositories.EventRepository;
+import no.fintlabs.resourceserver.security.user.UserAuthorizationUtil;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
@@ -24,6 +30,8 @@ public class HistoryController {
 
     private final EventRepository eventRepository;
     private final StatisticsService statisticsService;
+    @Value("${fint.flyt.resource-server.user-permissions-consumer.enabled:false}")
+    private boolean userPermissionsConsumerEnabled;
 
     public HistoryController(EventRepository eventRepository, StatisticsService statisticsService) {
         this.eventRepository = eventRepository;
@@ -32,6 +40,7 @@ public class HistoryController {
 
     @GetMapping("hendelser")
     public ResponseEntity<Page<Event>> getEvents(
+            @AuthenticationPrincipal Authentication authentication,
             @RequestParam(name = "side") int page,
             @RequestParam(name = "antall") int size,
             @RequestParam(name = "sorteringFelt") String sortProperty,
@@ -42,15 +51,37 @@ public class HistoryController {
                 .of(page, size)
                 .withSort(sortDirection, sortProperty);
 
+        return getResponseEntityEvents(authentication, pageRequest, onlyLatestPerInstance);
+    }
+
+    private ResponseEntity<Page<Event>> getResponseEntityEvents(
+            Authentication authentication,
+            Pageable pageable,
+            Optional<Boolean> onlyLatestPerInstance
+    ) {
+        if (userPermissionsConsumerEnabled) {
+            List<Long> sourceApplicationIds =
+                    UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
+
+            return ResponseEntity.ok(
+                    onlyLatestPerInstance.orElse(false)
+                            ? eventRepository
+                            .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
+                                    sourceApplicationIds,
+                                    pageable
+                            )
+                            : eventRepository.findAllByInstanceFlowHeadersSourceApplicationIdIn(sourceApplicationIds, pageable));
+        }
         return ResponseEntity.ok(
                 onlyLatestPerInstance.orElse(false)
-                        ? eventRepository.findLatestEventPerSourceApplicationInstanceId(pageRequest)
-                        : eventRepository.findAll(pageRequest)
+                        ? eventRepository.findLatestEventPerSourceApplicationInstanceId(pageable)
+                        : eventRepository.findAll(pageable)
         );
     }
 
     @GetMapping(path = "hendelser", params = {"kildeapplikasjonId", "kildeapplikasjonInstansId"})
     public ResponseEntity<Page<Event>> getEventsWithInstanceId(
+            @AuthenticationPrincipal Authentication authentication,
             @RequestParam(name = "side") int page,
             @RequestParam(name = "antall") int size,
             @RequestParam(name = "sorteringFelt") String sortProperty,
@@ -58,6 +89,9 @@ public class HistoryController {
             @RequestParam(name = "kildeapplikasjonId") Long sourceApplicationId,
             @RequestParam(name = "kildeapplikasjonInstansId") String sourceApplicationInstanceId
     ) {
+        if (userPermissionsConsumerEnabled) {
+            UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, sourceApplicationId);
+        }
         PageRequest pageRequest = PageRequest
                 .of(page, size)
                 .withSort(sortDirection, sortProperty);
@@ -73,7 +107,13 @@ public class HistoryController {
     }
 
     @PostMapping("handlinger/instanser/sett-status/manuelt-behandlet-ok")
-    public ResponseEntity<?> setManuallyProcessed(@RequestBody @Valid ManuallyProcessedEventDto manuallyProcessedEventDto) {
+    public ResponseEntity<?> setManuallyProcessed(
+            @RequestBody @Valid ManuallyProcessedEventDto manuallyProcessedEventDto,
+            @AuthenticationPrincipal Authentication authentication
+    ) {
+        if (userPermissionsConsumerEnabled) {
+            UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyProcessedEventDto.getSourceApplicationId());
+        }
         return storeManualEvent(
                 manuallyProcessedEventDto,
                 existingEvent -> createManualEvent(
@@ -85,7 +125,13 @@ public class HistoryController {
     }
 
     @PostMapping("handlinger/instanser/sett-status/manuelt-avvist")
-    public ResponseEntity<?> setManuallyRejected(@RequestBody @Valid ManuallyRejectedEventDto manuallyRejectedEventDto) {
+    public ResponseEntity<?> setManuallyRejected(
+            @RequestBody @Valid ManuallyRejectedEventDto manuallyRejectedEventDto,
+            @AuthenticationPrincipal Authentication authentication
+    ) {
+        if (userPermissionsConsumerEnabled) {
+            UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventDto.getSourceApplicationId());
+        }
         return storeManualEvent(
                 manuallyRejectedEventDto,
                 existingEvent -> createManualEvent(

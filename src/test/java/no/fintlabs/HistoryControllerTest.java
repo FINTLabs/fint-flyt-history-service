@@ -14,6 +14,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 
 import java.util.*;
 
@@ -32,6 +33,9 @@ public class HistoryControllerTest {
     @Mock
     private StatisticsService statisticsService;
 
+    @Mock
+    Authentication authentication;
+
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
@@ -45,7 +49,7 @@ public class HistoryControllerTest {
         when(eventRepository.findAll(any(PageRequest.class))).thenReturn(page);
 
         ResponseEntity<Page<Event>> response = historyController.
-                getEvents(0, 10, "id", Sort.Direction.ASC, Optional.empty());
+                getEvents(authentication, 0, 10, "id", Sort.Direction.ASC, Optional.empty());
 
         assertEquals(page, response.getBody());
     }
@@ -56,7 +60,7 @@ public class HistoryControllerTest {
         when(eventRepository.findLatestEventPerSourceApplicationInstanceId(any())).thenReturn(eventPage);
 
         ResponseEntity<Page<Event>> response = historyController.
-                getEvents(0, 10, "id", Sort.Direction.ASC, Optional.of(true));
+                getEvents(authentication, 0, 10, "id", Sort.Direction.ASC, Optional.of(true));
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(eventPage, response.getBody());
@@ -67,7 +71,7 @@ public class HistoryControllerTest {
         Page<Event> eventPage = new PageImpl<>(Collections.emptyList());
         when(eventRepository.findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(anyLong(), anyString(), any())).thenReturn(eventPage);
 
-        ResponseEntity<Page<Event>> response = historyController.getEventsWithInstanceId(0, 10, "id", Sort.Direction.ASC, 1L, "instanceId");
+        ResponseEntity<Page<Event>> response = historyController.getEventsWithInstanceId(authentication,0, 10, "id", Sort.Direction.ASC, 1L, "instanceId");
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(eventPage, response.getBody());

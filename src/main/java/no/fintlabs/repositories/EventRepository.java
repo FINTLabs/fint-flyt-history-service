@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import static no.fintlabs.EventTopicNames.INSTANCE_DISPATCHED;
@@ -42,6 +43,18 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             nativeQuery = true
     )
     Page<Event> findLatestEventPerSourceApplicationInstanceId(Pageable pageable);
+
+    @Query(value = "SELECT e FROM Event e " +
+            "WHERE e.instanceFlowHeaders.sourceApplicationId IN :sourceApplicationIds " +
+            "AND e.timestamp = (SELECT MAX(e2.timestamp) " +
+            "FROM Event e2 " +
+            "WHERE e2.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId " +
+            "AND e2.instanceFlowHeaders.sourceApplicationId IN :sourceApplicationIds) ")
+    Page<Event> findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
+            @Param("sourceApplicationIds") List<Long> sourceApplicationIds,
+            Pageable pageable);
+
+    Page<Event> findAllByInstanceFlowHeadersSourceApplicationIdIn(List<Long> sourceApplicationIds, Pageable pageable);
 
     @Query(value = "SELECT e.instanceFlowHeaders.archiveInstanceId " +
             "FROM Event e " +
