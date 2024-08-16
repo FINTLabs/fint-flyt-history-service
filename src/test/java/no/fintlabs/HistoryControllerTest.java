@@ -86,7 +86,7 @@ public class HistoryControllerTest {
 
         when(statisticsService.getStatistics()).thenReturn(expectedStatistics);
 
-        ResponseEntity<Statistics> response = historyController.getStatistics();
+        ResponseEntity<Statistics> response = historyController.getStatistics(authentication);
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(expectedStatistics, response.getBody());

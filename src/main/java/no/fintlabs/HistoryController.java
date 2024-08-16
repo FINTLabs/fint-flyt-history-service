@@ -190,7 +190,13 @@ public class HistoryController {
     }
 
     @GetMapping("statistikk")
-    public ResponseEntity<Statistics> getStatistics() {
+    public ResponseEntity<Statistics> getStatistics(
+            @AuthenticationPrincipal Authentication authentication
+    ) {
+        if (userPermissionsConsumerEnabled) {
+            List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
+            return ResponseEntity.ok(statisticsService.getStatisticsBySourceApplicationIds(sourceApplicationIds));
+        }
         return ResponseEntity.ok(statisticsService.getStatistics());
     }
 

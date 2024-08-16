@@ -86,6 +86,12 @@ public interface EventRepository extends JpaRepository<Event, Long> {
         return countEventsByNameLike(INSTANCE_DISPATCHED);
     }
 
+    long countByNameAndInstanceFlowHeadersSourceApplicationIdIn(String name, List<Long> sourceApplicationIds);
+
+    default long countDispatchedInstancesBySourceApplicationIds(List<Long> sourceApplicationIds) {
+        return countByNameAndInstanceFlowHeadersSourceApplicationIdIn(INSTANCE_DISPATCHED, sourceApplicationIds);
+    }
+
     default Collection<IntegrationIdAndCount> countDispatchedInstancesPerIntegrationId() {
         return countNamedEventsPerIntegrationId(INSTANCE_DISPATCHED);
     }

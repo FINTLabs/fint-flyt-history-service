@@ -28,6 +28,14 @@ public class StatisticsService {
                 .build();
     }
 
+    public Statistics getStatisticsBySourceApplicationIds(List<Long> sourceApplicationIds) {
+        return Statistics
+                .builder()
+                .dispatchedInstances(eventRepository.countDispatchedInstancesBySourceApplicationIds(sourceApplicationIds))
+                .currentErrors(eventRepository.countCurrentInstanceErrors())
+                .build();
+    }
+
     public List<IntegrationStatistics> getIntegrationStatistics() {
         Map<String, Long> numberOfDispatchedInstancesPerIntegrationId = eventRepository.countDispatchedInstancesPerIntegrationId()
                 .stream()
