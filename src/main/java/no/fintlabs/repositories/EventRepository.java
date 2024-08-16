@@ -105,6 +105,22 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param(value = "eventName") String eventName
     );
 
+    default Collection<IntegrationIdAndCount> countDispatchedInstancesPerIntegrationIdBySourceApplicationIds(List<Long> sourceApplicationIds) {
+        return countNamedEventsPerIntegrationIdBySourceApplicationIds(INSTANCE_DISPATCHED, sourceApplicationIds);
+    }
+
+    @Query(value = "SELECT e.instanceFlowHeaders.sourceApplicationIntegrationId AS integrationId, COUNT(e) AS count " +
+            "FROM Event e " +
+            "WHERE e.name LIKE :eventName " +
+            "AND e.instanceFlowHeaders.sourceApplicationId IN :sourceApplicationIds " +
+            "GROUP BY e.instanceFlowHeaders.sourceApplicationIntegrationId"
+    )
+    Collection<IntegrationIdAndCount> countNamedEventsPerIntegrationIdBySourceApplicationIds(
+            @Param(value = "eventName") String eventName,
+            @Param(value = "sourceApplicationIds") List<Long> sourceApplicationIds
+    );
+
+
     @Query(value = "SELECT COUNT(*) " +
             "FROM event AS e " +
             "INNER JOIN ( " +
@@ -119,6 +135,21 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     )
     long countCurrentInstanceErrors();
 
+    @Query(value = "SELECT COUNT(*) " +
+            "FROM event AS e " +
+            "INNER JOIN ( " +
+            "   SELECT source_application_instance_id, max(timestamp) AS timestampMax " +
+            "   FROM event " +
+            "   WHERE source_application_id IN :sourceApplicationIds " +
+            "   GROUP BY source_application_instance_id " +
+            ") AS eMax " +
+            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
+            "   AND e.timestamp = eMax.timestampMax " +
+            "WHERE e.type = 'ERROR' " +
+            "AND e.source_application_id IN :sourceApplicationIds",
+            nativeQuery = true
+    )
+    long countCurrentInstanceErrorsBySourceApplicationIds(@Param("sourceApplicationIds") List<Long> sourceApplicationIds);
 
     @Query(value = "SELECT source_application_integration_id AS integrationId, COUNT(*) AS count " +
             "FROM event AS e " +
@@ -134,6 +165,25 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             nativeQuery = true
     )
     Collection<IntegrationIdAndCount> countCurrentInstanceErrorsPerIntegrationId();
+
+    @Query(value = "SELECT source_application_integration_id AS integrationId, COUNT(*) AS count " +
+            "FROM event AS e " +
+            "INNER JOIN ( " +
+            "   SELECT source_application_instance_id, max(timestamp) AS timestampMax " +
+            "   FROM event " +
+            "   WHERE source_application_id IN :sourceApplicationIds " +
+            "   GROUP BY source_application_instance_id " +
+            ") AS eMax " +
+            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
+            "   AND e.timestamp = eMax.timestampMax " +
+            "WHERE e.type = 'ERROR' " +
+            "AND e.source_application_id IN :sourceApplicationIds " +
+            "GROUP BY source_application_integration_id",
+            nativeQuery = true
+    )
+    Collection<IntegrationIdAndCount> countCurrentInstanceErrorsPerIntegrationIdBySourceApplicationIds(
+            @Param("sourceApplicationIds") List<Long> sourceApplicationIds);
+
 
     Optional<Event> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(Long instanceId, String name);
 

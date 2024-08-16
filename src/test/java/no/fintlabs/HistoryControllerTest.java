@@ -109,7 +109,7 @@ public class HistoryControllerTest {
         List<IntegrationStatistics> expectedList = Arrays.asList(integrationStatistics1, integrationStatistics2);
         when(statisticsService.getIntegrationStatistics()).thenReturn(expectedList);
 
-        ResponseEntity<Collection<IntegrationStatistics>> response = historyController.getIntegrationStatistics();
+        ResponseEntity<Collection<IntegrationStatistics>> response = historyController.getIntegrationStatistics(authentication);
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(expectedList, response.getBody());

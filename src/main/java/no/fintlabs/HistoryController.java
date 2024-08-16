@@ -195,13 +195,20 @@ public class HistoryController {
     ) {
         if (userPermissionsConsumerEnabled) {
             List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
-            return ResponseEntity.ok(statisticsService.getStatisticsBySourceApplicationIds(sourceApplicationIds));
+            return ResponseEntity.ok(statisticsService.getStatistics(sourceApplicationIds));
         }
         return ResponseEntity.ok(statisticsService.getStatistics());
     }
 
     @GetMapping("statistikk/integrasjoner")
-    public ResponseEntity<Collection<IntegrationStatistics>> getIntegrationStatistics() {
+    public ResponseEntity<Collection<IntegrationStatistics>> getIntegrationStatistics(
+            @AuthenticationPrincipal Authentication authentication
+    ) {
+        if (userPermissionsConsumerEnabled) {
+            List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
+            return ResponseEntity.ok(statisticsService.getIntegrationStatisticsBySourceApplicationId(sourceApplicationIds));
+        }
+
         return ResponseEntity.ok(statisticsService.getIntegrationStatistics());
     }
 
