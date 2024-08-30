@@ -28,6 +28,14 @@ public class StatisticsService {
                 .build();
     }
 
+    public Statistics getStatistics(List<Long> sourceApplicationIds) {
+        return Statistics
+                .builder()
+                .dispatchedInstances(eventRepository.countDispatchedInstancesBySourceApplicationIds(sourceApplicationIds))
+                .currentErrors(eventRepository.countCurrentInstanceErrorsBySourceApplicationIds(sourceApplicationIds))
+                .build();
+    }
+
     public List<IntegrationStatistics> getIntegrationStatistics() {
         Map<String, Long> numberOfDispatchedInstancesPerIntegrationId = eventRepository.countDispatchedInstancesPerIntegrationId()
                 .stream()
@@ -37,6 +45,42 @@ public class StatisticsService {
                 ));
 
         Map<String, Long> numberOfCurrentErrorsPerIntegrationId = eventRepository.countCurrentInstanceErrorsPerIntegrationId()
+                .stream()
+                .collect(Collectors.toMap(
+                        EventRepository.IntegrationIdAndCount::getIntegrationId,
+                        EventRepository.IntegrationIdAndCount::getCount
+                ));
+
+        Set<String> integrationIds = Stream.concat(
+                        numberOfDispatchedInstancesPerIntegrationId.keySet().stream(),
+                        numberOfCurrentErrorsPerIntegrationId.keySet().stream()
+                )
+                .collect(Collectors.toSet());
+
+        return integrationIds
+                .stream()
+                .map(
+                        integrationId -> IntegrationStatistics
+                                .builder()
+                                .sourceApplicationIntegrationId(integrationId)
+                                .dispatchedInstances(numberOfDispatchedInstancesPerIntegrationId.getOrDefault(integrationId, 0L))
+                                .currentErrors(numberOfCurrentErrorsPerIntegrationId.getOrDefault(integrationId, 0L))
+                                .build()
+                )
+                .toList();
+    }
+
+    public List<IntegrationStatistics> getIntegrationStatisticsBySourceApplicationId(List<Long> sourceApplicationIds) {
+        Map<String, Long> numberOfDispatchedInstancesPerIntegrationId = eventRepository
+                .countDispatchedInstancesPerIntegrationIdBySourceApplicationIds(sourceApplicationIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        EventRepository.IntegrationIdAndCount::getIntegrationId,
+                        EventRepository.IntegrationIdAndCount::getCount
+                ));
+
+        Map<String, Long> numberOfCurrentErrorsPerIntegrationId = eventRepository
+                .countCurrentInstanceErrorsPerIntegrationIdBySourceApplicationIds(sourceApplicationIds)
                 .stream()
                 .collect(Collectors.toMap(
                         EventRepository.IntegrationIdAndCount::getIntegrationId,
