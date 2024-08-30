@@ -42,7 +42,7 @@ spec:
     - name: fint.flyt.resource-server.security.api.internal.enabled
       value: "true"
     - name: fint.flyt.resource-server.user-permissions-consumer.enabled
-      value: "true"
+      value: "false"
   resources:
     limits:
       memory: "2048Mi"
