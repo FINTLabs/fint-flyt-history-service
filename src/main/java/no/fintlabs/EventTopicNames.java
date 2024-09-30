@@ -11,6 +11,7 @@ public class EventTopicNames {
     public static String INSTANCE_MAPPED = "instance-mapped";
     public static String INSTANCE_READY_FOR_DISPATCH = "instance-ready-for-dispatch";
     public static String INSTANCE_DISPATCHED = "instance-dispatched";
+    public static String INSTANCE_DELETED = "instance-deleted";
 
     public static String INSTANCE_RECEIVAL_ERROR = "instance-receival-error";
     public static String INSTANCE_REGISTRATION_ERROR = "instance-registration-error";

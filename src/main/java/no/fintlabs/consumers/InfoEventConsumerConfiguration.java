@@ -64,6 +64,11 @@ public class InfoEventConsumerConfiguration {
         return createInfoEventListener(INSTANCE_DISPATCHED);
     }
 
+    @Bean
+    public ConcurrentMessageListenerContainer<String, Object> instanceDeletedEventConsumer() {
+        return createInfoEventListener(INSTANCE_DELETED);
+    }
+
     private ConcurrentMessageListenerContainer<String, Object> createInfoEventListener(String eventName) {
         return instanceFlowEventConsumerFactoryService.createRecordFactory(
                 Object.class,

@@ -54,9 +54,17 @@ public class EventRepositoryTest {
     @Test
     public void shouldReturnOnlyLatestEventForEachSourceApplicationInstanceId() {
         Event event1 = createUnnamedTimestampEvent("1", "1", EventType.INFO, LocalDateTime.of(2001, 1, 1, 13, 30));
+        event1.setName("instance-received");
+
         Event event2 = createUnnamedTimestampEvent("1", "1", EventType.INFO, LocalDateTime.of(2001, 1, 1, 13, 32));
+        event2.setName("instance-received");
+
         Event event3 = createUnnamedTimestampEvent("1", "1", EventType.ERROR, LocalDateTime.of(2001, 1, 1, 13, 31));
+        event3.setName("instance-deleted");
+
         Event event4 = createUnnamedTimestampEvent("1", "2", EventType.ERROR, LocalDateTime.of(2001, 1, 1, 13, 29));
+        event4.setName("instance-received");
+
         eventRepository.saveAll(List.of(event1, event2, event3, event4));
 
         Page<Event> events = eventRepository.findLatestEventPerSourceApplicationInstanceId(Pageable.unpaged());
