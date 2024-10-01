@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 
-import static no.fintlabs.EventTopicNames.INSTANCE_REGISTERED;
+import static no.fintlabs.EventNames.INSTANCE_REGISTERED;
 
 @Configuration
 public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguration {

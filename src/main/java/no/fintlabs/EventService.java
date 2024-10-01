@@ -16,6 +16,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static no.fintlabs.EventNames.INSTANCE_DELETED;
+
 @Service
 @AllArgsConstructor
 public class EventService {
@@ -71,12 +73,12 @@ public class EventService {
         List<EventDto> mergedEvents = new ArrayList<>();
 
         for (Event latestEvent : latestEvents) {
-            if ("instance-deleted".equals(latestEvent.getName())) {
+            if (INSTANCE_DELETED.equals(latestEvent.getName())) {
                 Event nonDeletedEvent = nonDeletedEventMap
                         .get(latestEvent.getInstanceFlowHeaders().getSourceApplicationInstanceId());
                 if (nonDeletedEvent != null) {
                     EventDto updatedEventDto = EventToEventDto(nonDeletedEvent);
-                    updatedEventDto.setStatus("deleted");
+                    updatedEventDto.setStatus(INSTANCE_DELETED);
                     mergedEvents.add(updatedEventDto);
                 }
             } else {

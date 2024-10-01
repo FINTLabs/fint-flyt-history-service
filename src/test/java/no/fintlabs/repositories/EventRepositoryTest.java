@@ -16,7 +16,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
 
-import static no.fintlabs.EventTopicNames.*;
+import static no.fintlabs.EventNames.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -54,16 +54,16 @@ public class EventRepositoryTest {
     @Test
     public void shouldReturnOnlyLatestEventForEachSourceApplicationInstanceId() {
         Event event1 = createUnnamedTimestampEvent("1", "1", EventType.INFO, LocalDateTime.of(2001, 1, 1, 13, 30));
-        event1.setName("instance-received");
+        event1.setName(INSTANCE_RECEIVED);
 
         Event event2 = createUnnamedTimestampEvent("1", "1", EventType.INFO, LocalDateTime.of(2001, 1, 1, 13, 32));
-        event2.setName("instance-received");
+        event2.setName(INSTANCE_RECEIVED);
 
         Event event3 = createUnnamedTimestampEvent("1", "1", EventType.ERROR, LocalDateTime.of(2001, 1, 1, 13, 31));
-        event3.setName("instance-deleted");
+        event3.setName(INSTANCE_DELETED);
 
         Event event4 = createUnnamedTimestampEvent("1", "2", EventType.ERROR, LocalDateTime.of(2001, 1, 1, 13, 29));
-        event4.setName("instance-received");
+        event4.setName(INSTANCE_RECEIVED);
 
         eventRepository.saveAll(List.of(event1, event2, event3, event4));
 

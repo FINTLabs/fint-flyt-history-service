@@ -1,8 +1,8 @@
 package no.fintlabs;
 
-public class EventTopicNames {
+public class EventNames {
 
-    private EventTopicNames() {
+    private EventNames() {
     }
 
     public static String INSTANCE_RECEIVED = "instance-received";

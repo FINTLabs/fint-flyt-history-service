@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 
-import static no.fintlabs.EventTopicNames.*;
+import static no.fintlabs.EventNames.*;
 
 @Configuration
 public class InfoEventConsumerConfiguration {

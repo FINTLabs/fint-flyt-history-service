@@ -12,7 +12,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-import static no.fintlabs.EventTopicNames.INSTANCE_DISPATCHED;
+import static no.fintlabs.EventNames.INSTANCE_DISPATCHED;
 
 @Repository
 public interface EventRepository extends JpaRepository<Event, Long> {
