@@ -7,15 +7,19 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
+import java.util.function.Function;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 
@@ -112,9 +116,9 @@ public class HistoryController {
         if (userPermissionsConsumerEnabled) {
             UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyProcessedEventDto.getSourceApplicationId());
         }
-        return eventService.storeManualEvent(
+        return this.storeManualEvent(
                 manuallyProcessedEventDto,
-                existingEvent -> eventService.createManualEvent(
+                existingEvent -> this.createManualEvent(
                         existingEvent,
                         "instance-manually-processed",
                         manuallyProcessedEventDto.getArchiveInstanceId()
@@ -130,9 +134,9 @@ public class HistoryController {
         if (userPermissionsConsumerEnabled) {
             UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventDto.getSourceApplicationId());
         }
-        return eventService.storeManualEvent(
+        return this.storeManualEvent(
                 manuallyRejectedEventDto,
-                existingEvent -> eventService.createManualEvent(
+                existingEvent -> this.createManualEvent(
                         existingEvent,
                         "instance-manually-rejected",
                         null
@@ -140,6 +144,49 @@ public class HistoryController {
         );
     }
 
+    public ResponseEntity<?> storeManualEvent(ManualEventDto manualEventDto, Function<Event, Event> existingToNewEvent) {
+        Optional<Event> optionalEvent = eventService.
+                findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
+                        manualEventDto
+                );
+
+        if (optionalEvent.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Event not found.");
+        }
+
+        Event event = optionalEvent.get();
+
+        if (!event.getType().equals(EventType.ERROR)) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Event is not of type ERROR");
+        }
+
+        Event newEvent = existingToNewEvent.apply(event);
+
+        eventService.save(newEvent);
+
+        return ResponseEntity.ok(newEvent);
+    }
+
+    public Event createManualEvent(Event event, String name, String archiveId) {
+        InstanceFlowHeadersEmbeddable.InstanceFlowHeadersEmbeddableBuilder headersEmbeddableBuilder =
+                event.getInstanceFlowHeaders()
+                        .toBuilder()
+                        .correlationId(UUID.randomUUID());
+
+        if (archiveId != null && !archiveId.isEmpty()) {
+            headersEmbeddableBuilder.archiveInstanceId(archiveId);
+        }
+
+        InstanceFlowHeadersEmbeddable newInstanceFlowHeaders = headersEmbeddableBuilder.build();
+
+        return Event.builder()
+                .instanceFlowHeaders(newInstanceFlowHeaders)
+                .name(name)
+                .timestamp(OffsetDateTime.now())
+                .type(EventType.INFO)
+                .applicationId(event.getApplicationId())
+                .build();
+    }
 
     @GetMapping("statistikk")
     public ResponseEntity<Statistics> getStatistics(

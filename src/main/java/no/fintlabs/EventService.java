@@ -1,18 +1,19 @@
 package no.fintlabs;
 
 import lombok.AllArgsConstructor;
-import no.fintlabs.model.*;
+import no.fintlabs.model.Event;
+import no.fintlabs.model.EventDto;
+import no.fintlabs.model.ManualEventDto;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
-import java.time.OffsetDateTime;
-import java.util.*;
-import java.util.function.Function;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -92,51 +93,15 @@ public class EventService {
         return new PageImpl<>(paginatedList, pageable, mergedEvents.size());
     }
 
-    public ResponseEntity<?> storeManualEvent(ManualEventDto manualEventDto, Function<Event, Event> existingToNewEvent) {
-        Optional<Event> optionalEvent = eventRepository.
+    public Optional<Event> findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
+            ManualEventDto manualEventDto
+    ) {
+        return eventRepository.
                 findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
                         manualEventDto.getSourceApplicationId(),
                         manualEventDto.getSourceApplicationInstanceId(),
                         manualEventDto.getSourceApplicationIntegrationId()
                 );
-
-        if (optionalEvent.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Event not found.");
-        }
-
-        Event event = optionalEvent.get();
-
-        if (!event.getType().equals(EventType.ERROR)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Event is not of type ERROR");
-        }
-
-        Event newEvent = existingToNewEvent.apply(event);
-
-        this.save(newEvent);
-
-        return ResponseEntity.ok(newEvent);
-    }
-
-    public Event createManualEvent(Event event, String name, String archiveId) {
-
-        InstanceFlowHeadersEmbeddable.InstanceFlowHeadersEmbeddableBuilder headersEmbeddableBuilder =
-                event.getInstanceFlowHeaders()
-                        .toBuilder()
-                        .correlationId(UUID.randomUUID());
-
-        if (archiveId != null && !archiveId.isEmpty()) {
-            headersEmbeddableBuilder.archiveInstanceId(archiveId);
-        }
-
-        InstanceFlowHeadersEmbeddable newInstanceFlowHeaders = headersEmbeddableBuilder.build();
-
-        return Event.builder()
-                .instanceFlowHeaders(newInstanceFlowHeaders)
-                .name(name)
-                .timestamp(OffsetDateTime.now())
-                .type(EventType.INFO)
-                .applicationId(event.getApplicationId())
-                .build();
     }
 
     public Page<EventDto> findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(

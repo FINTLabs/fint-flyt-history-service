@@ -224,7 +224,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     Collection<IntegrationIdAndCount> countCurrentInstanceErrorsPerIntegrationIdBySourceApplicationIds(
             @Param("sourceApplicationIds") List<Long> sourceApplicationIds);
 
-
     Optional<Event> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(Long instanceId, String name);
 
     Optional<Event> findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
