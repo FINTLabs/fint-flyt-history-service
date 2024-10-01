@@ -67,7 +67,7 @@ public class EventRepositoryTest {
 
         eventRepository.saveAll(List.of(event1, event2, event3, event4));
 
-        Page<Event> events = eventRepository.findLatestEventPerSourceApplicationInstanceId(Pageable.unpaged());
+        Page<Event> events = eventRepository.findLatestEventNotDeletedPerSourceApplicationInstanceId(Pageable.unpaged());
 
         assertEquals(2, events.getTotalElements());
         assertTrue(events.getContent().containsAll(Arrays.asList(event2, event4)));

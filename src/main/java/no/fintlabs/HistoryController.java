@@ -1,26 +1,21 @@
 package no.fintlabs;
 
 import no.fintlabs.model.*;
-import no.fintlabs.repositories.EventRepository;
 import no.fintlabs.resourceserver.security.user.UserAuthorizationUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
-import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Function;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 
@@ -28,18 +23,21 @@ import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 @RequestMapping(INTERNAL_API + "/historikk")
 public class HistoryController {
 
-    private final EventRepository eventRepository;
+    private final EventService eventService;
     private final StatisticsService statisticsService;
     @Value("${fint.flyt.resource-server.user-permissions-consumer.enabled:false}")
     private boolean userPermissionsConsumerEnabled;
 
-    public HistoryController(EventRepository eventRepository, StatisticsService statisticsService) {
-        this.eventRepository = eventRepository;
+    public HistoryController(
+            EventService eventService,
+            StatisticsService statisticsService
+    ) {
+        this.eventService = eventService;
         this.statisticsService = statisticsService;
     }
 
     @GetMapping("hendelser")
-    public ResponseEntity<Page<Event>> getEvents(
+    public ResponseEntity<Page<EventDto>> getEvents(
             @AuthenticationPrincipal Authentication authentication,
             @RequestParam(name = "side") int page,
             @RequestParam(name = "antall") int size,
@@ -54,7 +52,7 @@ public class HistoryController {
         return getResponseEntityEvents(authentication, pageRequest, onlyLatestPerInstance);
     }
 
-    private ResponseEntity<Page<Event>> getResponseEntityEvents(
+    private ResponseEntity<Page<EventDto>> getResponseEntityEvents(
             Authentication authentication,
             Pageable pageable,
             Optional<Boolean> onlyLatestPerInstance
@@ -65,22 +63,22 @@ public class HistoryController {
 
             return ResponseEntity.ok(
                     onlyLatestPerInstance.orElse(false)
-                            ? eventRepository
-                            .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
+                            ? eventService
+                            .getMergedLatestEventsWhereSourceApplicationIdIn(
                                     sourceApplicationIds,
                                     pageable
                             )
-                            : eventRepository.findAllByInstanceFlowHeadersSourceApplicationIdIn(sourceApplicationIds, pageable));
+                            : eventService.findAllByInstanceFlowHeadersSourceApplicationIdIn(sourceApplicationIds, pageable));
         }
         return ResponseEntity.ok(
                 onlyLatestPerInstance.orElse(false)
-                        ? eventRepository.findLatestEventPerSourceApplicationInstanceId(pageable)
-                        : eventRepository.findAll(pageable)
+                        ? eventService.getMergedLatestEvents(pageable)
+                        : eventService.findAll(pageable)
         );
     }
 
     @GetMapping(path = "hendelser", params = {"kildeapplikasjonId", "kildeapplikasjonInstansId"})
-    public ResponseEntity<Page<Event>> getEventsWithInstanceId(
+    public ResponseEntity<Page<EventDto>> getEventsWithInstanceId(
             @AuthenticationPrincipal Authentication authentication,
             @RequestParam(name = "side") int page,
             @RequestParam(name = "antall") int size,
@@ -97,7 +95,7 @@ public class HistoryController {
                 .withSort(sortDirection, sortProperty);
 
         return ResponseEntity.ok(
-                eventRepository
+                eventService
                         .findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
                                 sourceApplicationId,
                                 sourceApplicationInstanceId,
@@ -114,9 +112,9 @@ public class HistoryController {
         if (userPermissionsConsumerEnabled) {
             UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyProcessedEventDto.getSourceApplicationId());
         }
-        return storeManualEvent(
+        return eventService.storeManualEvent(
                 manuallyProcessedEventDto,
-                existingEvent -> createManualEvent(
+                existingEvent -> eventService.createManualEvent(
                         existingEvent,
                         "instance-manually-processed",
                         manuallyProcessedEventDto.getArchiveInstanceId()
@@ -132,9 +130,9 @@ public class HistoryController {
         if (userPermissionsConsumerEnabled) {
             UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventDto.getSourceApplicationId());
         }
-        return storeManualEvent(
+        return eventService.storeManualEvent(
                 manuallyRejectedEventDto,
-                existingEvent -> createManualEvent(
+                existingEvent -> eventService.createManualEvent(
                         existingEvent,
                         "instance-manually-rejected",
                         null
@@ -142,52 +140,6 @@ public class HistoryController {
         );
     }
 
-    private ResponseEntity<?> storeManualEvent(ManualEventDto manualEventDto, Function<Event, Event> existingToNewEvent) {
-        Optional<Event> optionalEvent = eventRepository.
-                findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
-                        manualEventDto.getSourceApplicationId(),
-                        manualEventDto.getSourceApplicationInstanceId(),
-                        manualEventDto.getSourceApplicationIntegrationId()
-                );
-
-        if (optionalEvent.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Event not found.");
-        }
-
-        Event event = optionalEvent.get();
-
-        if (!event.getType().equals(EventType.ERROR)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Event is not of type ERROR");
-        }
-
-        Event newEvent = existingToNewEvent.apply(event);
-
-        eventRepository.save(newEvent);
-
-        return ResponseEntity.ok(newEvent);
-    }
-
-    private Event createManualEvent(Event event, String name, String archiveId) {
-
-        InstanceFlowHeadersEmbeddable.InstanceFlowHeadersEmbeddableBuilder headersEmbeddableBuilder =
-                event.getInstanceFlowHeaders()
-                        .toBuilder()
-                        .correlationId(UUID.randomUUID());
-
-        if (archiveId != null && !archiveId.isEmpty()) {
-            headersEmbeddableBuilder.archiveInstanceId(archiveId);
-        }
-
-        InstanceFlowHeadersEmbeddable newInstanceFlowHeaders = headersEmbeddableBuilder.build();
-
-        return Event.builder()
-                .instanceFlowHeaders(newInstanceFlowHeaders)
-                .name(name)
-                .timestamp(OffsetDateTime.now())
-                .type(EventType.INFO)
-                .applicationId(event.getApplicationId())
-                .build();
-    }
 
     @GetMapping("statistikk")
     public ResponseEntity<Statistics> getStatistics(
