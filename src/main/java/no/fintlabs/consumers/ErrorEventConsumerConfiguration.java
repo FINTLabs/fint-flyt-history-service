@@ -19,7 +19,7 @@ import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.stream.Collectors;
 
-import static no.fintlabs.EventTopicNames.*;
+import static no.fintlabs.EventNames.*;
 
 @Configuration
 public class ErrorEventConsumerConfiguration {

@@ -1,9 +1,8 @@
 package no.fintlabs;
 
-import no.fintlabs.model.Event;
+import no.fintlabs.model.EventDto;
 import no.fintlabs.model.IntegrationStatistics;
 import no.fintlabs.model.Statistics;
-import no.fintlabs.repositories.EventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -28,7 +27,7 @@ public class HistoryControllerTest {
     private HistoryController historyController;
 
     @Mock
-    private EventRepository eventRepository;
+    private EventService eventService;
 
     @Mock
     private StatisticsService statisticsService;
@@ -43,12 +42,12 @@ public class HistoryControllerTest {
 
     @Test
     public void testGetEvents() {
-        Event event = new Event();
-        List<Event> events = List.of(event);
-        Page<Event> page = new PageImpl<>(events);
-        when(eventRepository.findAll(any(PageRequest.class))).thenReturn(page);
+        EventDto event = new EventDto();
+        List<EventDto> events = List.of(event);
+        Page<EventDto> page = new PageImpl<>(events);
+        when(eventService.findAll(any(PageRequest.class))).thenReturn(page);
 
-        ResponseEntity<Page<Event>> response = historyController.
+        ResponseEntity<Page<EventDto>> response = historyController.
                 getEvents(authentication, 0, 10, "id", Sort.Direction.ASC, Optional.empty());
 
         assertEquals(page, response.getBody());
@@ -56,10 +55,10 @@ public class HistoryControllerTest {
 
     @Test
     void testGetEvents_onlyLatestPerInstanceTrue() {
-        Page<Event> eventPage = new PageImpl<>(Collections.emptyList());
-        when(eventRepository.findLatestEventPerSourceApplicationInstanceId(any())).thenReturn(eventPage);
+        Page<EventDto> eventPage = new PageImpl<>(Collections.emptyList());
+        when(eventService.getMergedLatestEvents(any())).thenReturn(eventPage);
 
-        ResponseEntity<Page<Event>> response = historyController.
+        ResponseEntity<Page<EventDto>> response = historyController.
                 getEvents(authentication, 0, 10, "id", Sort.Direction.ASC, Optional.of(true));
 
         assertEquals(200, response.getStatusCodeValue());
@@ -68,10 +67,14 @@ public class HistoryControllerTest {
 
     @Test
     void testGetEventsWithInstanceId() {
-        Page<Event> eventPage = new PageImpl<>(Collections.emptyList());
-        when(eventRepository.findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(anyLong(), anyString(), any())).thenReturn(eventPage);
+        Page<EventDto> eventPage = new PageImpl<>(Collections.emptyList());
+        when(eventService
+                .findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
+                        anyLong(), anyString(), any()
+                )
+        ).thenReturn(eventPage);
 
-        ResponseEntity<Page<Event>> response = historyController.getEventsWithInstanceId(authentication,0, 10, "id", Sort.Direction.ASC, 1L, "instanceId");
+        ResponseEntity<Page<EventDto>> response = historyController.getEventsWithInstanceId(authentication, 0, 10, "id", Sort.Direction.ASC, 1L, "instanceId");
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(eventPage, response.getBody());

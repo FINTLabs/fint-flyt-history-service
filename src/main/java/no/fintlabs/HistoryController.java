@@ -1,7 +1,6 @@
 package no.fintlabs;
 
 import no.fintlabs.model.*;
-import no.fintlabs.repositories.EventRepository;
 import no.fintlabs.resourceserver.security.user.UserAuthorizationUtil;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -28,18 +27,21 @@ import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 @RequestMapping(INTERNAL_API + "/historikk")
 public class HistoryController {
 
-    private final EventRepository eventRepository;
+    private final EventService eventService;
     private final StatisticsService statisticsService;
     @Value("${fint.flyt.resource-server.user-permissions-consumer.enabled:false}")
     private boolean userPermissionsConsumerEnabled;
 
-    public HistoryController(EventRepository eventRepository, StatisticsService statisticsService) {
-        this.eventRepository = eventRepository;
+    public HistoryController(
+            EventService eventService,
+            StatisticsService statisticsService
+    ) {
+        this.eventService = eventService;
         this.statisticsService = statisticsService;
     }
 
     @GetMapping("hendelser")
-    public ResponseEntity<Page<Event>> getEvents(
+    public ResponseEntity<Page<EventDto>> getEvents(
             @AuthenticationPrincipal Authentication authentication,
             @RequestParam(name = "side") int page,
             @RequestParam(name = "antall") int size,
@@ -54,7 +56,7 @@ public class HistoryController {
         return getResponseEntityEvents(authentication, pageRequest, onlyLatestPerInstance);
     }
 
-    private ResponseEntity<Page<Event>> getResponseEntityEvents(
+    private ResponseEntity<Page<EventDto>> getResponseEntityEvents(
             Authentication authentication,
             Pageable pageable,
             Optional<Boolean> onlyLatestPerInstance
@@ -65,22 +67,22 @@ public class HistoryController {
 
             return ResponseEntity.ok(
                     onlyLatestPerInstance.orElse(false)
-                            ? eventRepository
-                            .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
+                            ? eventService
+                            .getMergedLatestEventsWhereSourceApplicationIdIn(
                                     sourceApplicationIds,
                                     pageable
                             )
-                            : eventRepository.findAllByInstanceFlowHeadersSourceApplicationIdIn(sourceApplicationIds, pageable));
+                            : eventService.findAllByInstanceFlowHeadersSourceApplicationIdIn(sourceApplicationIds, pageable));
         }
         return ResponseEntity.ok(
                 onlyLatestPerInstance.orElse(false)
-                        ? eventRepository.findLatestEventPerSourceApplicationInstanceId(pageable)
-                        : eventRepository.findAll(pageable)
+                        ? eventService.getMergedLatestEvents(pageable)
+                        : eventService.findAll(pageable)
         );
     }
 
     @GetMapping(path = "hendelser", params = {"kildeapplikasjonId", "kildeapplikasjonInstansId"})
-    public ResponseEntity<Page<Event>> getEventsWithInstanceId(
+    public ResponseEntity<Page<EventDto>> getEventsWithInstanceId(
             @AuthenticationPrincipal Authentication authentication,
             @RequestParam(name = "side") int page,
             @RequestParam(name = "antall") int size,
@@ -97,7 +99,7 @@ public class HistoryController {
                 .withSort(sortDirection, sortProperty);
 
         return ResponseEntity.ok(
-                eventRepository
+                eventService
                         .findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
                                 sourceApplicationId,
                                 sourceApplicationInstanceId,
@@ -114,9 +116,9 @@ public class HistoryController {
         if (userPermissionsConsumerEnabled) {
             UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyProcessedEventDto.getSourceApplicationId());
         }
-        return storeManualEvent(
+        return this.storeManualEvent(
                 manuallyProcessedEventDto,
-                existingEvent -> createManualEvent(
+                existingEvent -> this.createManualEvent(
                         existingEvent,
                         "instance-manually-processed",
                         manuallyProcessedEventDto.getArchiveInstanceId()
@@ -132,9 +134,9 @@ public class HistoryController {
         if (userPermissionsConsumerEnabled) {
             UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventDto.getSourceApplicationId());
         }
-        return storeManualEvent(
+        return this.storeManualEvent(
                 manuallyRejectedEventDto,
-                existingEvent -> createManualEvent(
+                existingEvent -> this.createManualEvent(
                         existingEvent,
                         "instance-manually-rejected",
                         null
@@ -142,12 +144,10 @@ public class HistoryController {
         );
     }
 
-    private ResponseEntity<?> storeManualEvent(ManualEventDto manualEventDto, Function<Event, Event> existingToNewEvent) {
-        Optional<Event> optionalEvent = eventRepository.
+    public ResponseEntity<?> storeManualEvent(ManualEventDto manualEventDto, Function<Event, Event> existingToNewEvent) {
+        Optional<Event> optionalEvent = eventService.
                 findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
-                        manualEventDto.getSourceApplicationId(),
-                        manualEventDto.getSourceApplicationInstanceId(),
-                        manualEventDto.getSourceApplicationIntegrationId()
+                        manualEventDto
                 );
 
         if (optionalEvent.isEmpty()) {
@@ -162,13 +162,12 @@ public class HistoryController {
 
         Event newEvent = existingToNewEvent.apply(event);
 
-        eventRepository.save(newEvent);
+        eventService.save(newEvent);
 
         return ResponseEntity.ok(newEvent);
     }
 
-    private Event createManualEvent(Event event, String name, String archiveId) {
-
+    public Event createManualEvent(Event event, String name, String archiveId) {
         InstanceFlowHeadersEmbeddable.InstanceFlowHeadersEmbeddableBuilder headersEmbeddableBuilder =
                 event.getInstanceFlowHeaders()
                         .toBuilder()
