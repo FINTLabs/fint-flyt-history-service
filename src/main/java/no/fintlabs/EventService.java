@@ -55,6 +55,7 @@ public class EventService {
             List<Long> sourceApplicationIds,
             Pageable pageable
     ) {
+        // Fetch the paginated results for the first query
         Page<Event> latestEventsPage = eventRepository
                 .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
                         sourceApplicationIds,
@@ -64,7 +65,7 @@ public class EventService {
         List<Event> latestNonDeletedEvents = eventRepository
                 .findLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
                         sourceApplicationIds,
-                        Pageable.unpaged()  // Fetch all results, no pagination
+                        Pageable.unpaged()
                 ).getContent();
 
         long totalLatestEvents = eventRepository.countLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(sourceApplicationIds);
@@ -72,14 +73,23 @@ public class EventService {
 
         long totalElements = totalLatestEvents + totalLatestNonDeletedEvents;
 
-        log.info("Total Elements: {}", totalElements);
+        if (totalElements == 0) {
+            return new PageImpl<>(new ArrayList<>(), pageable, totalElements);
+        }
 
         List<EventDto> mergedEvents = mergeEvents(latestEventsPage.getContent(), latestNonDeletedEvents);
 
-        totalElements = Math.min(totalElements, mergedEvents.size());
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), mergedEvents.size());
 
-        return new PageImpl<>(mergedEvents, pageable, totalElements);
+        if (start > mergedEvents.size()) {
+            return new PageImpl<>(new ArrayList<>(), pageable, totalElements);
+        }
+
+        List<EventDto> paginatedList = mergedEvents.subList(start, end);
+        return new PageImpl<>(paginatedList, pageable, totalElements);
     }
+
 
     private List<EventDto> mergeEvents(List<Event> latestEvents, List<Event> latestNonDeletedEvents) {
         Map<String, Event> nonDeletedEventMap = latestNonDeletedEvents.stream()
