@@ -125,7 +125,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("sourceApplicationIds") List<Long> sourceApplicationIds
     );
 
-    @Query(value = "SELECT COUNT(e.*) " +
+    @Query(value = "SELECT COUNT(*) " +
             "FROM event AS e " +
             "INNER JOIN ( " +
             "    SELECT source_application_instance_id, MAX(timestamp) AS timestampMax " +
@@ -137,7 +137,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             nativeQuery = true)
     long countLatestEventPerSourceApplicationInstanceId();
 
-    @Query(value = "SELECT COUNT(e.*) " +
+    @Query(value = "SELECT COUNT(*) " +
             "FROM event AS e " +
             "INNER JOIN ( " +
             "    SELECT source_application_instance_id, MAX(timestamp) AS timestampMax " +

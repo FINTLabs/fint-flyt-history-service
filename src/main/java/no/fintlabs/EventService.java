@@ -42,9 +42,9 @@ public class EventService {
         long totalLatestEvents = eventRepository.countLatestEventPerSourceApplicationInstanceId();
         long totalLatestNonDeletedEvents = eventRepository.countLatestEventNotDeletedPerSourceApplicationInstanceId();
 
-        long totalElements = totalLatestEvents + totalLatestNonDeletedEvents;
-
         List<EventDto> mergedEvents = mergeEvents(latestEventsPage.getContent(), latestNonDeletedEventsPage.getContent());
+
+        long totalElements = totalLatestEvents + totalLatestNonDeletedEvents;
 
         return new PageImpl<>(mergedEvents, pageable, totalElements);
     }
@@ -59,33 +59,30 @@ public class EventService {
                         pageable
                 );
 
-        Page<Event> latestNonDeletedEventsPage = eventRepository
+        List<Event> latestNonDeletedEvents = eventRepository
                 .findLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
                         sourceApplicationIds,
-                        pageable
-                );
+                        Pageable.unpaged()
+                ).getContent();
 
         long totalLatestEvents = eventRepository.countLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(sourceApplicationIds);
         long totalLatestNonDeletedEvents = eventRepository.countLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(sourceApplicationIds);
 
         long totalElements = totalLatestEvents + totalLatestNonDeletedEvents;
 
-        List<EventDto> mergedEvents = mergeEvents(latestEventsPage.getContent(), latestNonDeletedEventsPage.getContent());
+        List<EventDto> mergedEvents = mergeEvents(latestEventsPage.getContent(), latestNonDeletedEvents);
 
         return new PageImpl<>(mergedEvents, pageable, totalElements);
     }
 
     private List<EventDto> mergeEvents(List<Event> latestEvents, List<Event> latestNonDeletedEvents) {
         Map<String, Event> nonDeletedEventMap = latestNonDeletedEvents.stream()
-                .collect(
-                        Collectors.toMap(
-                                event -> event.getInstanceFlowHeaders().getSourceApplicationInstanceId(),
-                                event -> event
-                        )
-                );
+                .collect(Collectors.toMap(
+                        event -> event.getInstanceFlowHeaders().getSourceApplicationInstanceId(),
+                        event -> event
+                ));
 
         List<EventDto> mergedEvents = new ArrayList<>();
-
         for (Event latestEvent : latestEvents) {
             if (INSTANCE_DELETED.equals(latestEvent.getName())) {
                 Event nonDeletedEvent = nonDeletedEventMap
@@ -96,11 +93,9 @@ public class EventService {
                     mergedEvents.add(updatedEventDto);
                 }
             } else {
-                EventDto eventDto = EventToEventDto(latestEvent);
-                mergedEvents.add(eventDto);
+                mergedEvents.add(EventToEventDto(latestEvent));
             }
         }
-
         return mergedEvents;
     }
 
