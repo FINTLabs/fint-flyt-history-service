@@ -55,7 +55,6 @@ public class EventService {
             List<Long> sourceApplicationIds,
             Pageable pageable
     ) {
-        // Fetch the paginated results for the first query
         Page<Event> latestEventsPage = eventRepository
                 .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
                         sourceApplicationIds,
