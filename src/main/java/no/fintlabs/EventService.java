@@ -118,7 +118,8 @@ public class EventService {
         Map<String, Event> nonDeletedEventMap = latestNonDeletedEvents.stream()
                 .collect(Collectors.toMap(
                         event -> event.getInstanceFlowHeaders().getSourceApplicationInstanceId(),
-                        event -> event
+                        event -> event,
+                        (existingEvent, newEvent) -> existingEvent
                 ));
 
         List<EventDto> mergedEvents = new ArrayList<>();
