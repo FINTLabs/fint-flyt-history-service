@@ -58,7 +58,7 @@ public class EventService {
         Page<Event> latestEventsPage = eventRepository
                 .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
                         sourceApplicationIds,
-                        pageable
+                        Pageable.unpaged()
                 );
 
         List<Event> latestNonDeletedEvents = eventRepository
@@ -67,14 +67,7 @@ public class EventService {
                         Pageable.unpaged()
                 ).getContent();
 
-        long totalLatestEvents = eventRepository.countLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(sourceApplicationIds);
-        long totalLatestNonDeletedEvents = eventRepository.countLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(sourceApplicationIds);
-
-        long totalElements = totalLatestEvents + totalLatestNonDeletedEvents;
-
-        if (totalElements == 0) {
-            return new PageImpl<>(new ArrayList<>(), pageable, totalElements);
-        }
+        long totalElements = latestEventsPage.getTotalElements() + latestNonDeletedEvents.size();
 
         List<EventDto> mergedEvents = mergeEvents(latestEventsPage.getContent(), latestNonDeletedEvents);
 
@@ -88,7 +81,6 @@ public class EventService {
         List<EventDto> paginatedList = mergedEvents.subList(start, end);
         return new PageImpl<>(paginatedList, pageable, totalElements);
     }
-
 
     private List<EventDto> mergeEvents(List<Event> latestEvents, List<Event> latestNonDeletedEvents) {
         Map<String, Event> nonDeletedEventMap = latestNonDeletedEvents.stream()
