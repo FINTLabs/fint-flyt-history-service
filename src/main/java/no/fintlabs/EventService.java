@@ -1,6 +1,7 @@
 package no.fintlabs;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import no.fintlabs.model.Event;
 import no.fintlabs.model.EventDto;
 import no.fintlabs.model.ManualEventDto;
@@ -20,6 +21,7 @@ import static no.fintlabs.EventNames.INSTANCE_DELETED;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 public class EventService {
 
     private final EventRepository eventRepository;
@@ -62,7 +64,7 @@ public class EventService {
         List<Event> latestNonDeletedEvents = eventRepository
                 .findLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
                         sourceApplicationIds,
-                        Pageable.unpaged()
+                        Pageable.unpaged()  // Fetch all results, no pagination
                 ).getContent();
 
         long totalLatestEvents = eventRepository.countLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(sourceApplicationIds);
@@ -70,7 +72,11 @@ public class EventService {
 
         long totalElements = totalLatestEvents + totalLatestNonDeletedEvents;
 
+        log.info("Total Elements: {}", totalElements);
+
         List<EventDto> mergedEvents = mergeEvents(latestEventsPage.getContent(), latestNonDeletedEvents);
+
+        totalElements = Math.min(totalElements, mergedEvents.size());
 
         return new PageImpl<>(mergedEvents, pageable, totalElements);
     }
