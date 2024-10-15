@@ -91,67 +91,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             @Param("sourceApplicationIds") List<Long> sourceApplicationIds,
             Pageable pageable);
 
-    @Query(value = "SELECT COUNT(e.*) " +
-            "FROM event AS e " +
-            "INNER JOIN ( " +
-            "    SELECT source_application_instance_id, MAX(timestamp) AS timestampMax " +
-            "    FROM event " +
-            "    WHERE source_application_id IN :sourceApplicationIds " +
-            "    GROUP BY source_application_instance_id " +
-            ") AS eMax " +
-            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
-            "AND e.timestamp = eMax.timestampMax " +
-            "WHERE e.source_application_id IN :sourceApplicationIds",
-            nativeQuery = true)
-    long countLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
-            @Param("sourceApplicationIds") List<Long> sourceApplicationIds
-    );
-
-    @Query(value = "SELECT COUNT(e.*) " +
-            "FROM event AS e " +
-            "INNER JOIN ( " +
-            "    SELECT source_application_instance_id, MAX(timestamp) AS timestampMax " +
-            "    FROM event " +
-            "    WHERE source_application_id IN :sourceApplicationIds " +
-            "    AND name <> 'instance-deleted' " +
-            "    GROUP BY source_application_instance_id " +
-            ") AS eMax " +
-            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
-            "AND e.timestamp = eMax.timestampMax " +
-            "WHERE e.source_application_id IN :sourceApplicationIds " +
-            "AND e.name <> 'instance-deleted'",
-            nativeQuery = true)
-    long countLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
-            @Param("sourceApplicationIds") List<Long> sourceApplicationIds
-    );
-
-    @Query(value = "SELECT COUNT(*) " +
-            "FROM event AS e " +
-            "INNER JOIN ( " +
-            "    SELECT source_application_instance_id, MAX(timestamp) AS timestampMax " +
-            "    FROM event " +
-            "    GROUP BY source_application_instance_id " +
-            ") AS eMax " +
-            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
-            "AND e.timestamp = eMax.timestampMax",
-            nativeQuery = true)
-    long countLatestEventPerSourceApplicationInstanceId();
-
-    @Query(value = "SELECT COUNT(*) " +
-            "FROM event AS e " +
-            "INNER JOIN ( " +
-            "    SELECT source_application_instance_id, MAX(timestamp) AS timestampMax " +
-            "    FROM event " +
-            "    WHERE name <> 'instance-deleted' " +
-            "    GROUP BY source_application_instance_id " +
-            ") AS eMax " +
-            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
-            "AND e.timestamp = eMax.timestampMax " +
-            "AND e.name <> 'instance-deleted'",
-            nativeQuery = true)
-    long countLatestEventNotDeletedPerSourceApplicationInstanceId();
-
-
     Page<Event> findAllByInstanceFlowHeadersSourceApplicationIdIn(
             List<Long> sourceApplicationIds,
             Pageable pageable
