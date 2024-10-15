@@ -36,52 +36,23 @@ public class EventService {
     }
 
     public Page<EventDto> getMergedLatestEvents(Pageable pageable) {
-        Page<Event> latestEventsPage = eventRepository
-                .findLatestEventPerSourceApplicationInstanceId(pageable);
+        List<EventDto> mergedEvents = fetchAndMergeEvents();
 
-        Page<Event> latestNonDeletedEventsPage = eventRepository
-                .findLatestEventNotDeletedPerSourceApplicationInstanceId(pageable);
-
-        long totalLatestEvents = eventRepository.countLatestEventPerSourceApplicationInstanceId();
-        long totalLatestNonDeletedEvents = eventRepository.countLatestEventNotDeletedPerSourceApplicationInstanceId();
-
-        List<EventDto> mergedEvents = mergeEvents(latestEventsPage.getContent(), latestNonDeletedEventsPage.getContent());
-
-        long totalElements = totalLatestEvents + totalLatestNonDeletedEvents;
-
-        return new PageImpl<>(mergedEvents, pageable, totalElements);
+        return getEventDtos(pageable, mergedEvents);
     }
+
 
     public Page<EventDto> getMergedLatestEventsWhereSourceApplicationIdIn(
             List<Long> sourceApplicationIds,
             Pageable pageable
     ) {
-        List<Event> latestEvents = eventRepository
-                .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
-                        sourceApplicationIds,
-                        Pageable.unpaged()
-                ).getContent();
+        List<EventDto> mergedEvents = fetchAndMergeEventsWithSourceApplicationIds(sourceApplicationIds);
 
-        List<Event> latestNonDeletedEvents = eventRepository
-                .findLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
-                        sourceApplicationIds,
-                        Pageable.unpaged()
-                ).getContent();
+        return getEventDtos(pageable, mergedEvents);
+    }
 
-        List<EventDto> mergedEvents = mergeEvents(latestEvents, latestNonDeletedEvents);
-
-        Sort sort = pageable.getSort();
-        if (sort.isSorted()) {
-            mergedEvents.sort((e1, e2) -> {
-                for (Sort.Order order : sort) {
-                    int comparisonResult = compareEvents(e1, e2, order);
-                    if (comparisonResult != 0) {
-                        return order.isAscending() ? comparisonResult : -comparisonResult;
-                    }
-                }
-                return 0;
-            });
-        }
+    private PageImpl<EventDto> getEventDtos(Pageable pageable, List<EventDto> mergedEvents) {
+        sortMergedEvents(mergedEvents, pageable.getSort());
 
         long totalElements = mergedEvents.size();
 
@@ -94,6 +65,48 @@ public class EventService {
 
         List<EventDto> paginatedList = mergedEvents.subList(start, end);
         return new PageImpl<>(paginatedList, pageable, totalElements);
+    }
+
+    private List<EventDto> fetchAndMergeEvents() {
+        List<Event> latestEvents = eventRepository
+                .findLatestEventPerSourceApplicationInstanceId(Pageable.unpaged())
+                .getContent();
+
+        List<Event> latestNonDeletedEvents = eventRepository
+                .findLatestEventNotDeletedPerSourceApplicationInstanceId(Pageable.unpaged())
+                .getContent();
+
+        return mergeEvents(latestEvents, latestNonDeletedEvents);
+    }
+
+    private List<EventDto> fetchAndMergeEventsWithSourceApplicationIds(List<Long> sourceApplicationIds) {
+        List<Event> latestEvents = eventRepository
+                .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
+                        sourceApplicationIds,
+                        Pageable.unpaged()
+                ).getContent();
+
+        List<Event> latestNonDeletedEvents = eventRepository
+                .findLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
+                        sourceApplicationIds,
+                        Pageable.unpaged()
+                ).getContent();
+
+        return mergeEvents(latestEvents, latestNonDeletedEvents);
+    }
+
+    private void sortMergedEvents(List<EventDto> mergedEvents, Sort sort) {
+        if (sort.isSorted()) {
+            mergedEvents.sort((e1, e2) -> {
+                for (Sort.Order order : sort) {
+                    int comparisonResult = compareEvents(e1, e2, order);
+                    if (comparisonResult != 0) {
+                        return order.isAscending() ? comparisonResult : -comparisonResult;
+                    }
+                }
+                return 0;
+            });
+        }
     }
 
     private int compareEvents(EventDto e1, EventDto e2, Sort.Order order) {
