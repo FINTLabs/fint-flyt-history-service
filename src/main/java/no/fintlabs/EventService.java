@@ -9,6 +9,7 @@ import no.fintlabs.repositories.EventRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -55,11 +56,11 @@ public class EventService {
             List<Long> sourceApplicationIds,
             Pageable pageable
     ) {
-        Page<Event> latestEventsPage = eventRepository
+        List<Event> latestEvents = eventRepository
                 .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
                         sourceApplicationIds,
                         Pageable.unpaged()
-                );
+                ).getContent();
 
         List<Event> latestNonDeletedEvents = eventRepository
                 .findLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
@@ -67,19 +68,39 @@ public class EventService {
                         Pageable.unpaged()
                 ).getContent();
 
-        long totalElements = latestEventsPage.getTotalElements() + latestNonDeletedEvents.size();
+        List<EventDto> mergedEvents = mergeEvents(latestEvents, latestNonDeletedEvents);
 
-        List<EventDto> mergedEvents = mergeEvents(latestEventsPage.getContent(), latestNonDeletedEvents);
+        Sort sort = pageable.getSort();
+        if (sort.isSorted()) {
+            mergedEvents.sort((e1, e2) -> {
+                for (Sort.Order order : sort) {
+                    int comparisonResult = compareEvents(e1, e2, order);
+                    if (comparisonResult != 0) {
+                        return order.isAscending() ? comparisonResult : -comparisonResult;
+                    }
+                }
+                return 0;
+            });
+        }
+
+        long totalElements = mergedEvents.size();
 
         int start = (int) pageable.getOffset();
         int end = Math.min(start + pageable.getPageSize(), mergedEvents.size());
 
-        if (start > mergedEvents.size()) {
+        if (start >= mergedEvents.size()) {
             return new PageImpl<>(new ArrayList<>(), pageable, totalElements);
         }
 
         List<EventDto> paginatedList = mergedEvents.subList(start, end);
         return new PageImpl<>(paginatedList, pageable, totalElements);
+    }
+
+    private int compareEvents(EventDto e1, EventDto e2, Sort.Order order) {
+        if ("timestamp".equals(order.getProperty())) {
+            return e1.getTimestamp().compareTo(e2.getTimestamp());
+        }
+        return 0;
     }
 
     private List<EventDto> mergeEvents(List<Event> latestEvents, List<Event> latestNonDeletedEvents) {
