@@ -2,7 +2,8 @@ package no.fintlabs.model;
 
 import lombok.*;
 
-import javax.persistence.Embeddable;
+import javax.persistence.*;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -16,6 +17,14 @@ public class InstanceFlowHeadersEmbeddable {
     private Long sourceApplicationId;
     private String sourceApplicationIntegrationId;
     private String sourceApplicationInstanceId;
+
+    @ElementCollection
+    @CollectionTable(
+            name = "file_ids",
+            joinColumns = @JoinColumn(name = "event_id")
+    )
+    @Column(name = "file_id")
+    private List<UUID> fileIds;
 
     private UUID correlationId;
     private Long integrationId;
