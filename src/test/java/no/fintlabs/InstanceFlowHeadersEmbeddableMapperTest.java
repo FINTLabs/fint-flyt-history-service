@@ -4,6 +4,7 @@ import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
 import no.fintlabs.model.InstanceFlowHeadersEmbeddable;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -45,6 +46,7 @@ class InstanceFlowHeadersEmbeddableMapperTest {
                 .sourceApplicationId(1L)
                 .sourceApplicationIntegrationId("integrationId")
                 .sourceApplicationInstanceId("instanceId")
+                .fileIds(List.of(UUID.randomUUID()))
                 .correlationId(UUID.randomUUID())
                 .integrationId(1L)
                 .instanceId(1L)
@@ -59,6 +61,7 @@ class InstanceFlowHeadersEmbeddableMapperTest {
         assertEquals(embeddable.getSourceApplicationIntegrationId(), instanceFlowHeaders.getSourceApplicationIntegrationId());
         assertEquals(embeddable.getSourceApplicationInstanceId(), instanceFlowHeaders.getSourceApplicationInstanceId());
         assertEquals(embeddable.getCorrelationId(), instanceFlowHeaders.getCorrelationId());
+        assertEquals(embeddable.getFileIds(), instanceFlowHeaders.getFileIds());
         assertEquals(embeddable.getIntegrationId(), instanceFlowHeaders.getIntegrationId());
         assertEquals(embeddable.getInstanceId(), instanceFlowHeaders.getInstanceId());
         assertEquals(embeddable.getConfigurationId(), instanceFlowHeaders.getConfigurationId());
