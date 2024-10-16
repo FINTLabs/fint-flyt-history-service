@@ -20,7 +20,7 @@ public class InstanceFlowHeadersEmbeddable {
 
     @ElementCollection
     @CollectionTable(
-            name = "file_ids",
+            name = "file_id",
             joinColumns = @JoinColumn(name = "event_id")
     )
     @Column(name = "file_id")
