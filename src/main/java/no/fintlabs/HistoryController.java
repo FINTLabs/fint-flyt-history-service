@@ -40,43 +40,69 @@ public class HistoryController {
         this.statisticsService = statisticsService;
     }
 
-    @GetMapping("hendelser")
+//    @GetMapping("hendelser")
+//    public ResponseEntity<Page<EventDto>> getEvents(
+//            @AuthenticationPrincipal Authentication authentication,
+//            @RequestParam(name = "side") int page,
+//            @RequestParam(name = "antall") int size,
+//            @RequestParam(name = "sorteringFelt") String sortProperty,
+//            @RequestParam(name = "sorteringRetning") Sort.Direction sortDirection,
+//            @RequestParam(name = "bareSistePerInstans") Optional<Boolean> onlyLatestPerInstance
+//    ) {
+//        PageRequest pageRequest = PageRequest
+//                .of(page, size)
+//                .withSort(sortDirection, sortProperty);
+//
+//        return getResponseEntityEvents(authentication, pageRequest, onlyLatestPerInstance);
+//    }
+
+    @GetMapping(value = "hendelser")
     public ResponseEntity<Page<EventDto>> getEvents(
             @AuthenticationPrincipal Authentication authentication,
             @RequestParam(name = "side") int page,
             @RequestParam(name = "antall") int size,
             @RequestParam(name = "sorteringFelt") String sortProperty,
             @RequestParam(name = "sorteringRetning") Sort.Direction sortDirection,
-            @RequestParam(name = "bareSistePerInstans") Optional<Boolean> onlyLatestPerInstance
+            @RequestParam(name = "bareSistePerInstans") Optional<Boolean> onlyLatestPerInstance,
+            @RequestBody(required = false) InstanceSearchParameters instanceSearchParameters
     ) {
         PageRequest pageRequest = PageRequest
                 .of(page, size)
                 .withSort(sortDirection, sortProperty);
 
-        return getResponseEntityEvents(authentication, pageRequest, onlyLatestPerInstance);
+        Optional<InstanceSearchParameters> optionalInstanceSearchParameters = Optional.ofNullable(instanceSearchParameters);
+
+        return getResponseEntityEvents(authentication, pageRequest, onlyLatestPerInstance, optionalInstanceSearchParameters);
     }
 
     private ResponseEntity<Page<EventDto>> getResponseEntityEvents(
             Authentication authentication,
             Pageable pageable,
-            Optional<Boolean> onlyLatestPerInstance
+            Optional<Boolean> onlyLatestPerInstance,
+            Optional<InstanceSearchParameters> optionalInstanceSearchParameters
     ) {
+
         if (userPermissionsConsumerEnabled) {
             List<Long> sourceApplicationIds =
                     UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
 
             return ResponseEntity.ok(
                     onlyLatestPerInstance.orElse(false)
-                            ? eventService
-                            .getMergedLatestEventsWhereSourceApplicationIdIn(
-                                    sourceApplicationIds,
-                                    pageable
-                            )
-                            : eventService.findAllByInstanceFlowHeadersSourceApplicationIdIn(sourceApplicationIds, pageable));
+                            ? eventService.getMergedLatestEventsWhereSourceApplicationIdIn(
+                            sourceApplicationIds,
+                            optionalInstanceSearchParameters,
+                            pageable
+                    )
+                            : eventService.findAllByInstanceFlowHeadersSourceApplicationIdIn(
+                            sourceApplicationIds,
+                            optionalInstanceSearchParameters,
+                            pageable
+                    )
+            );
         }
         return ResponseEntity.ok(
                 onlyLatestPerInstance.orElse(false)
-                        ? eventService.getMergedLatestEvents(pageable)
+                        ? eventService.getMergedLatestEvents(optionalInstanceSearchParameters, pageable)
                         : eventService.findAll(pageable)
         );
     }

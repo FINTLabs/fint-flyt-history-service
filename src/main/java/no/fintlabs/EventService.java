@@ -1,9 +1,7 @@
 package no.fintlabs;
 
 import lombok.AllArgsConstructor;
-import no.fintlabs.model.Event;
-import no.fintlabs.model.EventDto;
-import no.fintlabs.model.ManualEventDto;
+import no.fintlabs.model.*;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -33,23 +31,34 @@ public class EventService {
         return convertPageOfEventIntoPageOfEventDto(eventRepository.findAll(pageable));
     }
 
-    public Page<EventDto> getMergedLatestEvents(Pageable pageable) {
+    public Page<EventDto> getMergedLatestEvents(
+            Optional<InstanceSearchParameters> optionalInstanceSearchParameters,
+            Pageable pageable
+    ) {
         List<EventDto> mergedEvents = fetchAndMergeEvents();
 
         return getPageableEventDtos(pageable, mergedEvents);
     }
 
-
     public Page<EventDto> getMergedLatestEventsWhereSourceApplicationIdIn(
             List<Long> sourceApplicationIds,
+            Optional<InstanceSearchParameters> optionalInstanceSearchParameters,
             Pageable pageable
     ) {
-        List<EventDto> mergedEvents = fetchAndMergeEventsWithSourceApplicationIds(sourceApplicationIds);
+        List<EventDto> mergedEvents = optionalInstanceSearchParameters
+                .map(params -> fetchAndMergeEventsWithSourceApplicationIdsWithSearchParameters(
+                        sourceApplicationIds,
+                        params
+                ))
+                .orElseGet(() -> fetchAndMergeEventsWithSourceApplicationIds(sourceApplicationIds));
 
         return getPageableEventDtos(pageable, mergedEvents);
     }
 
-    private PageImpl<EventDto> getPageableEventDtos(Pageable pageable, List<EventDto> mergedEvents) {
+    private PageImpl<EventDto> getPageableEventDtos(
+            Pageable pageable,
+            List<EventDto> mergedEvents
+    ) {
         sortMergedEvents(mergedEvents, pageable.getSort());
 
         long totalElements = mergedEvents.size();
@@ -81,6 +90,30 @@ public class EventService {
         List<Event> latestEvents = eventRepository
                 .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
                         sourceApplicationIds,
+                        Pageable.unpaged()
+                ).getContent();
+
+        List<Event> latestNonDeletedEvents = eventRepository
+                .findLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
+                        sourceApplicationIds,
+                        Pageable.unpaged()
+                ).getContent();
+
+        return mergeEvents(latestEvents, latestNonDeletedEvents);
+    }
+
+    private List<EventDto> fetchAndMergeEventsWithSourceApplicationIdsWithSearchParameters(
+            List<Long> sourceApplicationIds,
+            InstanceSearchParameters instanceSearchParameters
+    ) {
+        List<Long> integrationIds = instanceSearchParameters.integrationIds()
+                .filter(ids -> !ids.isEmpty())
+                .orElse(null);
+
+        List<Event> latestEvents = eventRepository
+                .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdWithSearchParamIn(
+                        sourceApplicationIds,
+                        integrationIds,
                         Pageable.unpaged()
                 ).getContent();
 
@@ -164,6 +197,7 @@ public class EventService {
 
     public Page<EventDto> findAllByInstanceFlowHeadersSourceApplicationIdIn(
             List<Long> sourceApplicationIds,
+            Optional<InstanceSearchParameters> optionalInstanceSearchParameters,
             Pageable pageable
     ) {
         return convertPageOfEventIntoPageOfEventDto(

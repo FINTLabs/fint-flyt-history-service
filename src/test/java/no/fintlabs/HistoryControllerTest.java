@@ -1,6 +1,7 @@
 package no.fintlabs;
 
 import no.fintlabs.model.EventDto;
+import no.fintlabs.model.InstanceSearchParameters;
 import no.fintlabs.model.IntegrationStatistics;
 import no.fintlabs.model.Statistics;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,9 +36,15 @@ public class HistoryControllerTest {
     @Mock
     Authentication authentication;
 
+    private InstanceSearchParameters instanceSearchParameters;
+
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
+        instanceSearchParameters = new InstanceSearchParameters(
+                Optional.empty(),
+                Optional.empty()
+        );
     }
 
     @Test
@@ -48,7 +55,15 @@ public class HistoryControllerTest {
         when(eventService.findAll(any(PageRequest.class))).thenReturn(page);
 
         ResponseEntity<Page<EventDto>> response = historyController.
-                getEvents(authentication, 0, 10, "id", Sort.Direction.ASC, Optional.empty());
+                getEvents(
+                        authentication,
+                        0,
+                        10,
+                        "id",
+                        Sort.Direction.ASC,
+                        Optional.empty(),
+                        instanceSearchParameters
+                );
 
         assertEquals(page, response.getBody());
     }
@@ -56,10 +71,18 @@ public class HistoryControllerTest {
     @Test
     void testGetEvents_onlyLatestPerInstanceTrue() {
         Page<EventDto> eventPage = new PageImpl<>(Collections.emptyList());
-        when(eventService.getMergedLatestEvents(any())).thenReturn(eventPage);
+        when(eventService.getMergedLatestEvents(any(), any())).thenReturn(eventPage);
 
         ResponseEntity<Page<EventDto>> response = historyController.
-                getEvents(authentication, 0, 10, "id", Sort.Direction.ASC, Optional.of(true));
+                getEvents(
+                        authentication,
+                        0,
+                        10,
+                        "id",
+                        Sort.Direction.ASC,
+                        Optional.of(true),
+                        instanceSearchParameters
+                );
 
         assertEquals(200, response.getStatusCodeValue());
         assertEquals(eventPage, response.getBody());

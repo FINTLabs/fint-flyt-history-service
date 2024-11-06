@@ -79,6 +79,25 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             "    SELECT source_application_instance_id, MAX(timestamp) AS timestampMax " +
             "    FROM event " +
             "    WHERE source_application_id IN :sourceApplicationIds " +
+            "    AND integration_id IN :integrationIds " +
+            "    GROUP BY source_application_instance_id " +
+            ") AS eMax " +
+            "ON e.source_application_instance_id = eMax.source_application_instance_id " +
+            "AND e.timestamp = eMax.timestampMax " +
+            "WHERE e.source_application_id IN :sourceApplicationIds " +
+            "AND e.integration_id IN :integrationIds",
+            nativeQuery = true)
+    Page<Event> findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdWithSearchParamIn(
+            @Param("sourceApplicationIds") List<Long> sourceApplicationIds,
+            @Param("integrationIds") List<Long> integrationIds,
+            Pageable pageable);
+
+    @Query(value = "SELECT e.* " +
+            "FROM event AS e " +
+            "INNER JOIN ( " +
+            "    SELECT source_application_instance_id, MAX(timestamp) AS timestampMax " +
+            "    FROM event " +
+            "    WHERE source_application_id IN :sourceApplicationIds " +
             "    AND name <> 'instance-deleted' " +
             "    GROUP BY source_application_instance_id " +
             ") AS eMax " +
