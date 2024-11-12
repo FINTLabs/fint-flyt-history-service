@@ -51,6 +51,13 @@ public class StatisticsService {
                         EventRepository.IntegrationIdAndCount::getCount
                 ));
 
+        Map<String, Long> numberOfIntancesPerIntegrationId = eventRepository.countAllInstancesPerIntegrationId()
+                .stream()
+                .collect(Collectors.toMap(
+                        EventRepository.IntegrationIdAndCount::getIntegrationId,
+                        EventRepository.IntegrationIdAndCount::getCount
+                ));
+
         Set<String> integrationIds = Stream.concat(
                         numberOfDispatchedInstancesPerIntegrationId.keySet().stream(),
                         numberOfCurrentErrorsPerIntegrationId.keySet().stream()
@@ -65,6 +72,7 @@ public class StatisticsService {
                                 .sourceApplicationIntegrationId(integrationId)
                                 .dispatchedInstances(numberOfDispatchedInstancesPerIntegrationId.getOrDefault(integrationId, 0L))
                                 .currentErrors(numberOfCurrentErrorsPerIntegrationId.getOrDefault(integrationId, 0L))
+                                .totalInstances(numberOfIntancesPerIntegrationId.getOrDefault(integrationId, 0L))
                                 .build()
                 )
                 .toList();
@@ -87,6 +95,14 @@ public class StatisticsService {
                         EventRepository.IntegrationIdAndCount::getCount
                 ));
 
+        Map<String, Long> numberOfIntancesPerIntegrationId = eventRepository
+                .countAllInstancesPerIntegrationIdBySourceApplicationIds(sourceApplicationIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        EventRepository.IntegrationIdAndCount::getIntegrationId,
+                        EventRepository.IntegrationIdAndCount::getCount
+                ));
+
         Set<String> integrationIds = Stream.concat(
                         numberOfDispatchedInstancesPerIntegrationId.keySet().stream(),
                         numberOfCurrentErrorsPerIntegrationId.keySet().stream()
@@ -101,6 +117,7 @@ public class StatisticsService {
                                 .sourceApplicationIntegrationId(integrationId)
                                 .dispatchedInstances(numberOfDispatchedInstancesPerIntegrationId.getOrDefault(integrationId, 0L))
                                 .currentErrors(numberOfCurrentErrorsPerIntegrationId.getOrDefault(integrationId, 0L))
+                                .totalInstances(numberOfIntancesPerIntegrationId.getOrDefault(integrationId, 0L))
                                 .build()
                 )
                 .toList();
