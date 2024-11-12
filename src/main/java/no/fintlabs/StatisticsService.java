@@ -5,6 +5,7 @@ import no.fintlabs.model.Statistics;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.stereotype.Service;
 
+import javax.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -58,24 +59,7 @@ public class StatisticsService {
                         EventRepository.IntegrationIdAndCount::getCount
                 ));
 
-        Set<String> integrationIds = Stream.concat(
-                        numberOfDispatchedInstancesPerIntegrationId.keySet().stream(),
-                        numberOfCurrentErrorsPerIntegrationId.keySet().stream()
-                )
-                .collect(Collectors.toSet());
-
-        return integrationIds
-                .stream()
-                .map(
-                        integrationId -> IntegrationStatistics
-                                .builder()
-                                .sourceApplicationIntegrationId(integrationId)
-                                .dispatchedInstances(numberOfDispatchedInstancesPerIntegrationId.getOrDefault(integrationId, 0L))
-                                .currentErrors(numberOfCurrentErrorsPerIntegrationId.getOrDefault(integrationId, 0L))
-                                .totalInstances(numberOfIntancesPerIntegrationId.getOrDefault(integrationId, 0L))
-                                .build()
-                )
-                .toList();
+        return getIntegrationStatistics(numberOfDispatchedInstancesPerIntegrationId, numberOfCurrentErrorsPerIntegrationId, numberOfIntancesPerIntegrationId);
     }
 
     public List<IntegrationStatistics> getIntegrationStatisticsBySourceApplicationId(List<Long> sourceApplicationIds) {
@@ -103,6 +87,11 @@ public class StatisticsService {
                         EventRepository.IntegrationIdAndCount::getCount
                 ));
 
+        return getIntegrationStatistics(numberOfDispatchedInstancesPerIntegrationId, numberOfCurrentErrorsPerIntegrationId, numberOfIntancesPerIntegrationId);
+    }
+
+    @NotNull
+    private List<IntegrationStatistics> getIntegrationStatistics(Map<String, Long> numberOfDispatchedInstancesPerIntegrationId, Map<String, Long> numberOfCurrentErrorsPerIntegrationId, Map<String, Long> numberOfIntancesPerIntegrationId) {
         Set<String> integrationIds = Stream.concat(
                         numberOfDispatchedInstancesPerIntegrationId.keySet().stream(),
                         numberOfCurrentErrorsPerIntegrationId.keySet().stream()
