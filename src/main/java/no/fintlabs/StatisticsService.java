@@ -91,7 +91,11 @@ public class StatisticsService {
     }
 
     @NotNull
-    private List<IntegrationStatistics> getIntegrationStatistics(Map<String, Long> numberOfDispatchedInstancesPerIntegrationId, Map<String, Long> numberOfCurrentErrorsPerIntegrationId, Map<String, Long> numberOfIntancesPerIntegrationId) {
+    private List<IntegrationStatistics> getIntegrationStatistics(
+            Map<String, Long> numberOfDispatchedInstancesPerIntegrationId,
+            Map<String, Long> numberOfCurrentErrorsPerIntegrationId,
+            Map<String, Long> numberOfIntancesPerIntegrationId
+    ) {
         Set<String> integrationIds = Stream.concat(
                         numberOfDispatchedInstancesPerIntegrationId.keySet().stream(),
                         numberOfCurrentErrorsPerIntegrationId.keySet().stream()
