@@ -91,13 +91,49 @@ class StatisticsServiceTest {
                 }
         ));
 
+        when(eventRepository.countAllInstancesPerIntegrationId()).thenReturn(List.of(
+                new EventRepository.IntegrationIdAndCount() {
+                    @Override
+                    public String getIntegrationId() {
+                        return "1";
+                    }
+
+                    @Override
+                    public long getCount() {
+                        return 27;
+                    }
+                },
+                new EventRepository.IntegrationIdAndCount() {
+                    @Override
+                    public String getIntegrationId() {
+                        return "3";
+                    }
+
+                    @Override
+                    public long getCount() {
+                        return 126L;
+                    }
+                },
+                new EventRepository.IntegrationIdAndCount() {
+                    @Override
+                    public String getIntegrationId() {
+                        return "4";
+                    }
+
+                    @Override
+                    public long getCount() {
+                        return 1;
+                    }
+                }
+        ));
+
         Collection<IntegrationStatistics> integrationStatistics = statisticsService.getIntegrationStatistics();
 
         assertEquals(3, integrationStatistics.size());
         assertTrue(integrationStatistics.containsAll(List.of(
-                IntegrationStatistics.builder().sourceApplicationIntegrationId("1").dispatchedInstances(27L).currentErrors(0L).build(),
-                IntegrationStatistics.builder().sourceApplicationIntegrationId("3").dispatchedInstances(102L).currentErrors(24L).build(),
-                IntegrationStatistics.builder().sourceApplicationIntegrationId("4").dispatchedInstances(0L).currentErrors(1L).build()
+                IntegrationStatistics.builder().sourceApplicationIntegrationId("1").dispatchedInstances(27L).currentErrors(0L).totalInstances(27L).build(),
+                IntegrationStatistics.builder().sourceApplicationIntegrationId("3").dispatchedInstances(102L).currentErrors(24L).totalInstances(126L).build(),
+                IntegrationStatistics.builder().sourceApplicationIntegrationId("4").dispatchedInstances(0L).currentErrors(1L).totalInstances(1L).build()
         )));
     }
 }
