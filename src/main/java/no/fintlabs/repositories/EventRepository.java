@@ -96,13 +96,16 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             Pageable pageable
     );
 
-    @Query(value = "SELECT e.instanceFlowHeaders.archiveInstanceId " +
-            "FROM Event e " +
-            "WHERE e.type = no.fintlabs.model.EventType.INFO " +
-            "   AND e.name = :name " +
-            "   AND e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId " +
-            "   AND e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId"
-    )
+    @Query(value = "SELECT archiveInstanceId" +
+            "          FROM (" +
+            "              SELECT archiveInstanceId, ROW_NUMBER() OVER (ORDER BY timestamp DESC) AS timestampRowNumber" +
+            "              FROM event " +
+            "              WHERE type = no.fintlabs.model.EventType.INFO " +
+            "               AND name = :name " +
+            "               AND sourceApplicationId = :sourceApplicationId " +
+            "               AND sourceApplicationInstanceId = :sourceApplicationInstanceId" +
+            "          ) AS timestampOrderedArchiveInstanceIds" +
+            "          WHERE timestampRowNumber = 1")
     Optional<String> selectArchiveInstanceIdBySourceApplicationIdAndSourceApplicationInstanceIdAndName(
             @Param(value = "sourceApplicationId") Long sourceApplicationId,
             @Param(value = "sourceApplicationInstanceId") String sourceApplicationInstanceId,
