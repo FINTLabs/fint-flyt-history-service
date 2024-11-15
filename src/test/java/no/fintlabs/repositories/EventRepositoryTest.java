@@ -31,7 +31,14 @@ public class EventRepositoryTest {
 
     @BeforeEach
     public void setup() {
-        eventApplicableForGettingArchiveInstanceId = Event
+        eventApplicableForGettingArchiveInstanceId = createEventApplicableForGettingArchiveInstanceId(
+                OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 12, 30), ZoneOffset.UTC),
+                "testArchiveInstanceId1"
+        );
+    }
+
+    private Event createEventApplicableForGettingArchiveInstanceId(OffsetDateTime timestamp, String archiveInstanceId) {
+        return Event
                 .builder()
                 .instanceFlowHeaders(
                         InstanceFlowHeadersEmbeddable
@@ -42,12 +49,12 @@ public class EventRepositoryTest {
                                 .correlationId(UUID.fromString("2ee6f95e-44c3-11ed-b878-0242ac120002"))
                                 .instanceId(2L)
                                 .configurationId(3L)
-                                .archiveInstanceId("testArchiveInstanceId1")
+                                .archiveInstanceId(archiveInstanceId)
                                 .build()
                 )
                 .name(INSTANCE_DISPATCHED)
                 .type(EventType.INFO)
-                .timestamp(OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 12, 30), ZoneOffset.UTC))
+                .timestamp(timestamp)
                 .build();
     }
 
@@ -84,6 +91,64 @@ public class EventRepositoryTest {
 
         assertTrue(archiveInstanceId.isPresent());
         assertEquals("testArchiveInstanceId1", archiveInstanceId.get());
+    }
+
+    @Test
+    public void givenMultipleDispatchEventsWithSameArchiveInstanceIdsShouldReturnArchiveInstanceIdFromLatestEvent() {
+        eventRepository.saveAll(List.of(
+                eventRepository.save(
+                        createEventApplicableForGettingArchiveInstanceId(
+                                OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 12, 30), ZoneOffset.UTC),
+                                "testArchiveInstanceId1"
+                        )
+                ),
+                eventRepository.save(
+                        createEventApplicableForGettingArchiveInstanceId(
+                                OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 13, 30), ZoneOffset.UTC),
+                                "testArchiveInstanceId1"
+                        )
+                )
+        ));
+
+        Optional<String> archiveInstanceId = eventRepository.findArchiveInstanceId(
+                1L,
+                "testSourceApplicationInstanceId1"
+        );
+
+        assertTrue(archiveInstanceId.isPresent());
+        assertEquals("testArchiveInstanceId1", archiveInstanceId.get());
+    }
+
+    @Test
+    public void givenMultipleDispatchEventsWithDifferentArchiveInstanceIdsShouldReturnArchiveInstanceIdFromLatestEvent() {
+        eventRepository.saveAll(List.of(
+                eventRepository.save(
+                        createEventApplicableForGettingArchiveInstanceId(
+                                OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 12, 30), ZoneOffset.UTC),
+                                "testArchiveInstanceId1"
+                        )
+                ),
+                eventRepository.save(
+                        createEventApplicableForGettingArchiveInstanceId(
+                                OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 13, 30), ZoneOffset.UTC),
+                                "testArchiveInstanceId1"
+                        )
+                ),
+                eventRepository.save(
+                        createEventApplicableForGettingArchiveInstanceId(
+                                OffsetDateTime.of(LocalDateTime.of(2001, 1, 1, 14, 30), ZoneOffset.UTC),
+                                "testArchiveInstanceId2"
+                        )
+                )
+        ));
+
+        Optional<String> archiveInstanceId = eventRepository.findArchiveInstanceId(
+                1L,
+                "testSourceApplicationInstanceId1"
+        );
+
+        assertTrue(archiveInstanceId.isPresent());
+        assertEquals("testArchiveInstanceId2", archiveInstanceId.get());
     }
 
     @Test
