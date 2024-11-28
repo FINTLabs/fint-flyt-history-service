@@ -12,6 +12,11 @@ fint:
   kafka:
     default-replicas: 1
 spring:
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
   kafka:
     bootstrap-servers: localhost:9092
   datasource:
@@ -22,3 +27,10 @@ spring:
     password: password
 server:
   port: 8083
+logging:
+  level:
+    org:
+      hibernate:
+        type:
+          descriptor:
+            sql: trace

@@ -1,15 +1,13 @@
 package no.fintlabs.model;
 
-import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
+public interface IntegrationStatistics {
+    String getIntegrationId();
 
-@Getter
-@EqualsAndHashCode
-@Builder
-public class IntegrationStatistics {
-    private String sourceApplicationIntegrationId;
-    private Long dispatchedInstances;
-    private Long currentErrors;
-    private Long totalInstances;
+    Long getNumberOfCurrentStatuses();
+
+    Long getNumberOfCurrentDispatchedStatuses();
+
+    Long getNumberOfCurrentInProgressStatuses();
+
+    Long getNumberOfCurrentErrorStatuses();
 }

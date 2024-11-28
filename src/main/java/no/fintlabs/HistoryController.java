@@ -15,10 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import java.time.OffsetDateTime;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.function.Function;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
@@ -82,29 +79,29 @@ public class HistoryController {
             Optional<InstanceSearchParameters> optionalInstanceSearchParameters
     ) {
 
-        if (userPermissionsConsumerEnabled) {
-            List<Long> sourceApplicationIds =
-                    UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
+//        if (userPermissionsConsumerEnabled) {
+        List<Long> sourceApplicationIds =
+                UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
 
-            return ResponseEntity.ok(
-                    onlyLatestPerInstance.orElse(false)
-                            ? eventService.getMergedLatestEventsWhereSourceApplicationIdIn(
-                            sourceApplicationIds,
-                            optionalInstanceSearchParameters,
-                            pageable
-                    )
-                            : eventService.findAllByInstanceFlowHeadersSourceApplicationIdIn(
-                            sourceApplicationIds,
-                            optionalInstanceSearchParameters,
-                            pageable
-                    )
-            );
-        }
         return ResponseEntity.ok(
                 onlyLatestPerInstance.orElse(false)
-                        ? eventService.getMergedLatestEvents(optionalInstanceSearchParameters, pageable)
-                        : eventService.findAll(pageable)
+                        ? eventService.getMergedLatestEventsWhereSourceApplicationIdIn(
+                        sourceApplicationIds,
+                        optionalInstanceSearchParameters,
+                        pageable
+                )
+                        : eventService.findAllByInstanceFlowHeadersSourceApplicationIdIn(
+                        sourceApplicationIds,
+                        optionalInstanceSearchParameters,
+                        pageable
+                )
         );
+//        }
+//        return ResponseEntity.ok(
+//                onlyLatestPerInstance.orElse(false)
+//                        ? eventService.getMergedLatestEvents(optionalInstanceSearchParameters, pageable)
+//                        : eventService.findAll(pageable)
+//        );
     }
 
     @GetMapping(path = "hendelser", params = {"kildeapplikasjonId", "kildeapplikasjonInstansId"})
@@ -117,9 +114,9 @@ public class HistoryController {
             @RequestParam(name = "kildeapplikasjonId") Long sourceApplicationId,
             @RequestParam(name = "kildeapplikasjonInstansId") String sourceApplicationInstanceId
     ) {
-        if (userPermissionsConsumerEnabled) {
-            UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, sourceApplicationId);
-        }
+//        if (userPermissionsConsumerEnabled) {
+        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, sourceApplicationId);
+//        }
         PageRequest pageRequest = PageRequest
                 .of(page, size)
                 .withSort(sortDirection, sortProperty);
@@ -139,9 +136,9 @@ public class HistoryController {
             @RequestBody @Valid ManuallyProcessedEventDto manuallyProcessedEventDto,
             @AuthenticationPrincipal Authentication authentication
     ) {
-        if (userPermissionsConsumerEnabled) {
-            UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyProcessedEventDto.getSourceApplicationId());
-        }
+//        if (userPermissionsConsumerEnabled) {
+        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyProcessedEventDto.getSourceApplicationId());
+//        }
         return this.storeManualEvent(
                 manuallyProcessedEventDto,
                 existingEvent -> this.createManualEvent(
@@ -157,9 +154,9 @@ public class HistoryController {
             @RequestBody @Valid ManuallyRejectedEventDto manuallyRejectedEventDto,
             @AuthenticationPrincipal Authentication authentication
     ) {
-        if (userPermissionsConsumerEnabled) {
-            UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventDto.getSourceApplicationId());
-        }
+//        if (userPermissionsConsumerEnabled) {
+        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventDto.getSourceApplicationId());
+//        }
         return this.storeManualEvent(
                 manuallyRejectedEventDto,
                 existingEvent -> this.createManualEvent(
@@ -218,23 +215,34 @@ public class HistoryController {
     public ResponseEntity<Statistics> getStatistics(
             @AuthenticationPrincipal Authentication authentication
     ) {
-        if (userPermissionsConsumerEnabled) {
-            List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
-            return ResponseEntity.ok(statisticsService.getStatistics(sourceApplicationIds));
-        }
-        return ResponseEntity.ok(statisticsService.getStatistics());
+//        if (userPermissionsConsumerEnabled) {
+        List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
+        return ResponseEntity.ok(statisticsService.getStatistics(sourceApplicationIds));
+//        }
+//        return ResponseEntity.ok(statisticsService.getStatistics());
     }
 
-    @GetMapping("statistikk/integrasjoner")
-    public ResponseEntity<Collection<IntegrationStatistics>> getIntegrationStatistics(
-            @AuthenticationPrincipal Authentication authentication
-    ) {
-        if (userPermissionsConsumerEnabled) {
-            List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
-            return ResponseEntity.ok(statisticsService.getIntegrationStatisticsBySourceApplicationId(sourceApplicationIds));
-        }
 
-        return ResponseEntity.ok(statisticsService.getIntegrationStatistics());
+    @GetMapping("statistikk/integrasjoner")
+    public ResponseEntity<Page<IntegrationStatistics>> getIntegrationStatistics(
+            @AuthenticationPrincipal Authentication authentication,
+            @RequestParam Optional<Set<Long>> filterSourceApplicationIds,
+            @RequestParam Optional<Set<String>> filterSourceApplicationIntegrationIds,
+            @RequestParam Optional<Set<Long>> filterIntegrationIds,
+            Pageable pageable
+    ) {
+        Set<Long> userAuthorizationSourceApplicationIds =
+                new HashSet<>(UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication));
+
+        return ResponseEntity.ok(
+                statisticsService.getIntegrationStatistics(
+                        userAuthorizationSourceApplicationIds,
+                        filterSourceApplicationIds.orElse(null),
+                        filterSourceApplicationIntegrationIds.orElse(null),
+                        filterIntegrationIds.orElse(null),
+                        pageable
+                )
+        );
     }
 
 }

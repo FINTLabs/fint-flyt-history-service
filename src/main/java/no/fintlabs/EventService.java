@@ -27,18 +27,18 @@ public class EventService {
         eventRepository.save(event);
     }
 
-    public Page<EventDto> findAll(Pageable pageable) {
-        return convertPageOfEventIntoPageOfEventDto(eventRepository.findAll(pageable));
-    }
+//    public Page<EventDto> findAll(Pageable pageable) {
+//        return convertPageOfEventIntoPageOfEventDto(eventRepository.findAll(pageable));
+//    }
 
-    public Page<EventDto> getMergedLatestEvents(
-            Optional<InstanceSearchParameters> optionalInstanceSearchParameters,
-            Pageable pageable
-    ) {
-        List<EventDto> mergedEvents = fetchAndMergeEvents();
-
-        return getPageableEventDtos(pageable, mergedEvents);
-    }
+//    public Page<EventDto> getMergedLatestEvents(
+//            Optional<InstanceSearchParameters> optionalInstanceSearchParameters,
+//            Pageable pageable
+//    ) {
+//        List<EventDto> mergedEvents = fetchAndMergeEvents();
+//
+//        return getPageableEventDtos(pageable, mergedEvents);
+//    }
 
     public Page<EventDto> getMergedLatestEventsWhereSourceApplicationIdIn(
             List<Long> sourceApplicationIds,
@@ -74,17 +74,17 @@ public class EventService {
         return new PageImpl<>(paginatedList, pageable, totalElements);
     }
 
-    private List<EventDto> fetchAndMergeEvents() {
-        List<Event> latestEvents = eventRepository
-                .findLatestEventPerSourceApplicationInstanceId(Pageable.unpaged())
-                .getContent();
-
-        List<Event> latestNonDeletedEvents = eventRepository
-                .findLatestEventNotDeletedPerSourceApplicationInstanceId(Pageable.unpaged())
-                .getContent();
-
-        return mergeEvents(latestEvents, latestNonDeletedEvents);
-    }
+//    private List<EventDto> fetchAndMergeEvents() {
+//        List<Event> latestEvents = eventRepository
+//                .findLatestEventPerSourceApplicationInstanceId(Pageable.unpaged())
+//                .getContent();
+//
+//        List<Event> latestNonDeletedEvents = eventRepository
+//                .findLatestEventNotDeletedPerSourceApplicationInstanceId(Pageable.unpaged())
+//                .getContent();
+//
+//        return mergeEvents(latestEvents, latestNonDeletedEvents);
+//    }
 
     private List<EventDto> fetchAndMergeEventsWithSourceApplicationIds(List<Long> sourceApplicationIds) {
         List<Event> latestEvents = eventRepository
