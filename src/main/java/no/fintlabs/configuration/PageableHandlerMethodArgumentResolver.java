@@ -4,18 +4,23 @@ import org.springframework.core.MethodParameter;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.BindingContext;
 import org.springframework.web.reactive.result.method.HandlerMethodArgumentResolver;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 public class PageableHandlerMethodArgumentResolver implements HandlerMethodArgumentResolver {
 
-    private static final String DEFAULT_PAGE = "0";
-    private static final String DEFAULT_SIZE = "10";
-    private static final Integer MAX_SIZE = 50;
+    private static final Integer DEFAULT_PAGE = 0;
+    private static final Integer DEFAULT_SIZE = 10;
+    private static final Integer MAX_SIZE = 1000;
 
     @Override
     public boolean supportsParameter(MethodParameter parameter) {
@@ -24,29 +29,50 @@ public class PageableHandlerMethodArgumentResolver implements HandlerMethodArgum
 
     @Override
     public Mono<Object> resolveArgument(MethodParameter methodParameter, BindingContext bindingContext, ServerWebExchange serverWebExchange) {
-        List<String> pageValues = serverWebExchange.getRequest().getQueryParams().getOrDefault("page", List.of(DEFAULT_PAGE));
-        List<String> sizeValues = serverWebExchange.getRequest().getQueryParams().getOrDefault("size", List.of(DEFAULT_SIZE));
+        MultiValueMap<String, String> queryParams = serverWebExchange.getRequest().getQueryParams();
+        Integer page = Optional.ofNullable(queryParams.getFirst("page"))
+                .map(Integer::parseInt)
+                .orElse(DEFAULT_PAGE);
+        Integer size = Optional.ofNullable(queryParams.getFirst("size"))
+                .map(Integer::parseInt)
+                .map(s -> Math.min(s, MAX_SIZE))
+                .orElse(DEFAULT_SIZE);
+        Sort sort = getSort(queryParams.get("sort"));
 
-        String page = pageValues.get(0);
+        return Mono.just(PageRequest.of(page, size, sort));
+    }
 
-        String sortParam = serverWebExchange.getRequest().getQueryParams().getFirst("sort");
-        Sort sort = Sort.unsorted();
+    private Sort getSort(List<String> sortParams) {
+        List<Sort.Order> sortOrderList = sortParams.stream()
+                .map(this::createOrderFromSortParam)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .toList();
 
-        if (sortParam != null) {
-            String[] parts = sortParam.split(",");
-            if (parts.length == 2) {
-                String property = parts[0];
-                Sort.Direction direction = Sort.Direction.fromString(parts[1]);
-                sort = Sort.by(direction, property);
-            }
+        return sortOrderList.isEmpty()
+                ? Sort.unsorted()
+                : Sort.by(sortOrderList);
+    }
+
+    private Optional<Sort.Order> createOrderFromSortParam(String sortParam) {
+        if (Objects.isNull(sortParam) || sortParam.isBlank()) {
+            return Optional.empty();
         }
 
-        return Mono.just(
-                PageRequest.of(
-                        Integer.parseInt(page),
-                        Math.min(Integer.parseInt(sizeValues.get(0)),
-                                MAX_SIZE), sort
-                )
-        );
+        String[] parts = sortParam.split(",");
+
+        if (parts.length > 2) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid sort parameter: " + sortParam);
+        }
+
+        if (parts.length == 1) {
+            return Optional.of(Sort.Order.by(sortParam));
+        }
+
+        String property = parts[0];
+        Sort.Direction direction = Sort.Direction.fromString(parts[1]);
+
+        return Optional.of(new Sort.Order(direction, property));
     }
+
 }

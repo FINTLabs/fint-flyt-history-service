@@ -36,15 +36,6 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             Pageable pageable
     );
 
-
-//    @Query(value = "" +
-//            "SELECT name " +
-//            "FROM event " +
-//            "WHERE CAST(:a AS VARCHAR) IS NULL OR integration_id = ANY(:a)",
-//            nativeQuery = true
-//    )
-//    List<String> a(@Param("a") TypedParameterValue aArray);
-
     @Query(value = "WITH " +
             "   LatestStatusEventsPerSourceApplicationInstance AS (" +
             "       SELECT source_application_id, source_application_integration_id, integration_id, name AS lastStatusEventName " +

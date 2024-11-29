@@ -154,9 +154,7 @@ public class HistoryController {
             @RequestBody @Valid ManuallyRejectedEventDto manuallyRejectedEventDto,
             @AuthenticationPrincipal Authentication authentication
     ) {
-//        if (userPermissionsConsumerEnabled) {
         UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventDto.getSourceApplicationId());
-//        }
         return this.storeManualEvent(
                 manuallyRejectedEventDto,
                 existingEvent -> this.createManualEvent(
@@ -215,11 +213,8 @@ public class HistoryController {
     public ResponseEntity<Statistics> getStatistics(
             @AuthenticationPrincipal Authentication authentication
     ) {
-//        if (userPermissionsConsumerEnabled) {
         List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
         return ResponseEntity.ok(statisticsService.getStatistics(sourceApplicationIds));
-//        }
-//        return ResponseEntity.ok(statisticsService.getStatistics());
     }
 
 

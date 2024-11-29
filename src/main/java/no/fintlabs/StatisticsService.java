@@ -36,31 +36,6 @@ public class StatisticsService {
                 .build();
     }
 
-//    public List<IntegrationStatistics> getIntegrationStatistics() {
-//        Map<String, Long> numberOfDispatchedInstancesPerIntegrationId = eventRepository.countDispatchedInstancesPerIntegrationId()
-//                .stream()
-//                .collect(Collectors.toMap(
-//                        EventRepository.IntegrationIdAndCount::getIntegrationId,
-//                        EventRepository.IntegrationIdAndCount::getCount
-//                ));
-//
-//        Map<String, Long> numberOfCurrentErrorsPerIntegrationId = eventRepository.countCurrentInstanceErrorsPerIntegrationId()
-//                .stream()
-//                .collect(Collectors.toMap(
-//                        EventRepository.IntegrationIdAndCount::getIntegrationId,
-//                        EventRepository.IntegrationIdAndCount::getCount
-//                ));
-//
-//        Map<String, Long> numberOfIntancesPerIntegrationId = eventRepository.countAllInstancesPerIntegrationId()
-//                .stream()
-//                .collect(Collectors.toMap(
-//                        EventRepository.IntegrationIdAndCount::getIntegrationId,
-//                        EventRepository.IntegrationIdAndCount::getCount
-//                ));
-//
-//        return getIntegrationStatistics(numberOfDispatchedInstancesPerIntegrationId, numberOfCurrentErrorsPerIntegrationId, numberOfIntancesPerIntegrationId);
-//    }
-
     public Page<IntegrationStatistics> getIntegrationStatistics(
             Set<Long> userAuthorizationSourceApplicationIds,
             Set<Long> filterSourceApplicationIds,
@@ -71,22 +46,12 @@ public class StatisticsService {
         Set<Long> intersectedAuthorizationAndFilterSourceApplicationIds =
                 intersectAuthorizationAndFilterSourceApplicationIds(userAuthorizationSourceApplicationIds, filterSourceApplicationIds);
 
-//
-//        EventRepository.QueryFilter queryFilter = EventRepository.QueryFilter
-//                .builder()
-//                .sourceApplicationIds(intersectedAuthorizationAndFilterSourceApplicationIds)
-//                .sourceApplicationIntegrationIds(filterSourceApplicationIntegrationIds)
-//                .integrationIds(filterIntegrationIds)
-//                .build();
-
         return eventRepository.getIntegrationStatistics(
                 intersectedAuthorizationAndFilterSourceApplicationIds,
                 filterSourceApplicationIntegrationIds,
                 filterIntegrationIds,
                 pageable
         );
-
-
     }
 
     private Set<Long> intersectAuthorizationAndFilterSourceApplicationIds(
