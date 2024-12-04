@@ -19,7 +19,7 @@ public class ArchiveInstanceIdRequestConsumerConfiguration {
     public ArchiveInstanceIdRequestConsumerConfiguration(EventRepository eventRepository) {
         this.eventRepository = eventRepository;
     }
-
+    // TODO 04/12/2024 eivindmorch: Change in services that use this topic
     @Bean
     ConcurrentMessageListenerContainer<String, ArchiveInstanceIdRequestParams> archiveInstanceIdRequestConsumer(
             RequestTopicService requestTopicService,
@@ -27,7 +27,7 @@ public class ArchiveInstanceIdRequestConsumerConfiguration {
     ) {
         RequestTopicNameParameters topicNameParameters = RequestTopicNameParameters.builder()
                 .resource("archive.instance.id")
-                .parameterName("source-application-instance-id")
+                .parameterName("source-application-aggregate-instance-id")
                 .build();
 
         requestTopicService.ensureTopic(topicNameParameters, 0, TopicCleanupPolicyParameters.builder().build());
@@ -36,10 +36,7 @@ public class ArchiveInstanceIdRequestConsumerConfiguration {
                 ArchiveInstanceIdRequestParams.class,
                 String.class,
                 consumerRecord -> {
-                    String archiveInstanceId = eventRepository.findArchiveInstanceId(
-                                    consumerRecord.value().getSourceApplicationId(),
-                                    consumerRecord.value().getSourceApplicationInstanceId()
-                            )
+                    String archiveInstanceId = eventRepository.findLatestArchiveInstanceId(consumerRecord.value())
                             .orElse(null);
                     return ReplyProducerRecord.<String>builder().value(archiveInstanceId).build();
                 }

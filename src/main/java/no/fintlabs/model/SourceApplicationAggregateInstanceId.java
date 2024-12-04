@@ -1,9 +1,9 @@
 package no.fintlabs.model;
 
-public interface ManualEventDto {
+public interface SourceApplicationAggregateInstanceId {
     Long getSourceApplicationId();
 
-    String getSourceApplicationInstanceId();
-
     String getSourceApplicationIntegrationId();
+
+    String getSourceApplicationInstanceId();
 }

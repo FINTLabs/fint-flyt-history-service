@@ -1,220 +1,150 @@
 package no.fintlabs;
 
-import lombok.AllArgsConstructor;
+import no.fintlabs.exceptions.LatesStatusEventNotOfTypeErrorException;
+import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
+import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
 import no.fintlabs.model.*;
 import no.fintlabs.repositories.EventRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.time.OffsetDateTime;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.UUID;
 
-import static no.fintlabs.EventNames.INSTANCE_DELETED;
+import static no.fintlabs.EventNames.INSTANCE_MANUALLY_PROCESSED;
+import static no.fintlabs.EventNames.INSTANCE_MANUALLY_REJECTED;
 
 @Service
-@AllArgsConstructor
 public class EventService {
 
+    private final String applicationId;
     private final EventRepository eventRepository;
 
-    public void save(Event event) {
-        eventRepository.save(event);
-    }
-
-//    public Page<EventDto> findAll(Pageable pageable) {
-//        return convertPageOfEventIntoPageOfEventDto(eventRepository.findAll(pageable));
-//    }
-
-//    public Page<EventDto> getMergedLatestEvents(
-//            Optional<InstanceSearchParameters> optionalInstanceSearchParameters,
-//            Pageable pageable
-//    ) {
-//        List<EventDto> mergedEvents = fetchAndMergeEvents();
-//
-//        return getPageableEventDtos(pageable, mergedEvents);
-//    }
-
-    public Page<EventDto> getMergedLatestEventsWhereSourceApplicationIdIn(
-            List<Long> sourceApplicationIds,
-            Optional<InstanceSearchParameters> optionalInstanceSearchParameters,
-            Pageable pageable
+    public EventService(
+            @Value("${fint.application-id}") String applicationId,
+            EventRepository eventRepository
     ) {
-        List<EventDto> mergedEvents = optionalInstanceSearchParameters
-                .map(params -> fetchAndMergeEventsWithSourceApplicationIdsWithSearchParameters(
-                        sourceApplicationIds,
-                        params
-                ))
-                .orElseGet(() -> fetchAndMergeEventsWithSourceApplicationIds(sourceApplicationIds));
-
-        return getPageableEventDtos(pageable, mergedEvents);
+        this.applicationId = applicationId;
+        this.eventRepository = eventRepository;
     }
 
-    private PageImpl<EventDto> getPageableEventDtos(
-            Pageable pageable,
-            List<EventDto> mergedEvents
-    ) {
-        sortMergedEvents(mergedEvents, pageable.getSort());
+    // TODO 04/12/2024 eivindmorch: Get instance status with filter and sort and page (instance table in frontend)
 
-        long totalElements = mergedEvents.size();
-
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), mergedEvents.size());
-
-        if (start >= mergedEvents.size()) {
-            return new PageImpl<>(new ArrayList<>(), pageable, totalElements);
-        }
-
-        List<EventDto> paginatedList = mergedEvents.subList(start, end);
-        return new PageImpl<>(paginatedList, pageable, totalElements);
-    }
-
-//    private List<EventDto> fetchAndMergeEvents() {
-//        List<Event> latestEvents = eventRepository
-//                .findLatestEventPerSourceApplicationInstanceId(Pageable.unpaged())
-//                .getContent();
-//
-//        List<Event> latestNonDeletedEvents = eventRepository
-//                .findLatestEventNotDeletedPerSourceApplicationInstanceId(Pageable.unpaged())
-//                .getContent();
-//
-//        return mergeEvents(latestEvents, latestNonDeletedEvents);
-//    }
-
-    private List<EventDto> fetchAndMergeEventsWithSourceApplicationIds(List<Long> sourceApplicationIds) {
-        List<Event> latestEvents = eventRepository
-                .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
-                        sourceApplicationIds,
-                        Pageable.unpaged()
-                ).getContent();
-
-        List<Event> latestNonDeletedEvents = eventRepository
-                .findLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
-                        sourceApplicationIds,
-                        Pageable.unpaged()
-                ).getContent();
-
-        return mergeEvents(latestEvents, latestNonDeletedEvents);
-    }
-
-    private List<EventDto> fetchAndMergeEventsWithSourceApplicationIdsWithSearchParameters(
-            List<Long> sourceApplicationIds,
-            InstanceSearchParameters instanceSearchParameters
-    ) {
-        List<Long> integrationIds = instanceSearchParameters.integrationIds()
-                .filter(ids -> !ids.isEmpty())
-                .orElse(null);
-
-        List<Event> latestEvents = eventRepository
-                .findLatestEventPerSourceApplicationInstanceIdAndSourceApplicationIdWithSearchParamIn(
-                        sourceApplicationIds,
-                        integrationIds,
-                        Pageable.unpaged()
-                ).getContent();
-
-        List<Event> latestNonDeletedEvents = eventRepository
-                .findLatestEventNotDeletedPerSourceApplicationInstanceIdAndSourceApplicationIdIn(
-                        sourceApplicationIds,
-                        Pageable.unpaged()
-                ).getContent();
-
-        return mergeEvents(latestEvents, latestNonDeletedEvents);
-    }
-
-    private void sortMergedEvents(List<EventDto> mergedEvents, Sort sort) {
-        if (sort.isSorted()) {
-            mergedEvents.sort((e1, e2) -> {
-                for (Sort.Order order : sort) {
-                    int comparisonResult = compareEvents(e1, e2, order);
-                    if (comparisonResult != 0) {
-                        return order.isAscending() ? comparisonResult : -comparisonResult;
-                    }
-                }
-                return 0;
-            });
-        }
-    }
-
-    private int compareEvents(EventDto e1, EventDto e2, Sort.Order order) {
-        if ("timestamp".equals(order.getProperty())) {
-            return e1.getTimestamp().compareTo(e2.getTimestamp());
-        }
-        return 0;
-    }
-
-    private List<EventDto> mergeEvents(List<Event> latestEvents, List<Event> latestNonDeletedEvents) {
-        Map<String, Event> nonDeletedEventMap = latestNonDeletedEvents.stream()
-                .collect(Collectors.toMap(
-                        event -> event.getInstanceFlowHeaders().getSourceApplicationInstanceId(),
-                        event -> event,
-                        (existingEvent, newEvent) -> existingEvent
-                ));
-
-        List<EventDto> mergedEvents = new ArrayList<>();
-        for (Event latestEvent : latestEvents) {
-            if (INSTANCE_DELETED.equals(latestEvent.getName())) {
-                Event nonDeletedEvent = nonDeletedEventMap
-                        .get(latestEvent.getInstanceFlowHeaders().getSourceApplicationInstanceId());
-                if (nonDeletedEvent != null) {
-                    EventDto updatedEventDto = EventToEventDto(nonDeletedEvent);
-                    updatedEventDto.setStatus(INSTANCE_DELETED);
-                    mergedEvents.add(updatedEventDto);
-                }
-            } else {
-                mergedEvents.add(EventToEventDto(latestEvent));
-            }
-        }
-        return mergedEvents;
-    }
-
-    public Optional<Event> findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
-            ManualEventDto manualEventDto
-    ) {
-        return eventRepository.
-                findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
-                        manualEventDto.getSourceApplicationId(),
-                        manualEventDto.getSourceApplicationInstanceId(),
-                        manualEventDto.getSourceApplicationIntegrationId()
-                );
-    }
-
-    public Page<EventDto> findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
+    public Page<EventDto> getAllEventsBySourceApplicationAggregateInstanceId(
             Long sourceApplicationId,
+            String sourceApplicationIntegrationId,
             String sourceApplicationInstanceId,
             Pageable pageable
     ) {
         return convertPageOfEventIntoPageOfEventDto(
-                eventRepository.findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
-                        sourceApplicationId, sourceApplicationInstanceId, pageable
-                )
-        );
-    }
-
-    public Page<EventDto> findAllByInstanceFlowHeadersSourceApplicationIdIn(
-            List<Long> sourceApplicationIds,
-            Optional<InstanceSearchParameters> optionalInstanceSearchParameters,
-            Pageable pageable
-    ) {
-        return convertPageOfEventIntoPageOfEventDto(
-                eventRepository.findAllByInstanceFlowHeadersSourceApplicationIdIn(
-                        sourceApplicationIds,
+                eventRepository.getAllBySourceApplicationAggregateInstanceId(
+                        sourceApplicationId,
+                        sourceApplicationIntegrationId,
+                        sourceApplicationInstanceId,
                         pageable
                 )
         );
     }
 
-    private Page<EventDto> convertPageOfEventIntoPageOfEventDto(Page<Event> events) {
-        return events.map(this::EventToEventDto);
+    public EventDto addManuallyProcessedEvent(ManuallyProcessedEventDto manuallyProcessedEventDto) {
+        Optional<EventDto> latestBySourceApplicationAggregateInstanceId =
+                findLatestStatusEventBySourceApplicationAggregateInstanceId(manuallyProcessedEventDto);
+        if (latestBySourceApplicationAggregateInstanceId.isEmpty()) {
+            throw new NoPreviousStatusEventsFoundException();
+        }
+        EventDto latestStatusEvent = latestBySourceApplicationAggregateInstanceId.get();
+        if (latestStatusEvent.getType() != EventType.INFO) {
+            throw new LatesStatusEventNotOfTypeErrorException();
+        }
+        return eventToEventDto(
+                eventRepository.save(
+                        Event.builder()
+                                .instanceFlowHeaders(
+                                        sourceApplicationAggregateInstanceIdToInstanceFlowHeadersEmbeddable(
+                                                manuallyProcessedEventDto,
+                                                latestStatusEvent.getInstanceFlowHeaders().getIntegrationId(),
+                                                UUID.randomUUID(),
+                                                manuallyProcessedEventDto.getArchiveInstanceId()
+                                        )
+                                )
+                                .name(INSTANCE_MANUALLY_PROCESSED)
+                                .timestamp(OffsetDateTime.now())
+                                .type(EventType.INFO)
+                                .applicationId(applicationId)
+                                .build()
+                )
+        );
     }
 
-    private EventDto EventToEventDto(Event event) {
+    public EventDto addManuallyRejectedEvent(ManuallyRejectedEventDto manuallyRejectedEventDto) {
+        Optional<EventDto> latestBySourceApplicationAggregateInstanceId =
+                findLatestStatusEventBySourceApplicationAggregateInstanceId(manuallyRejectedEventDto);
+        if (latestBySourceApplicationAggregateInstanceId.isEmpty()) {
+            throw new NoPreviousStatusEventsFoundException();
+        }
+        EventDto latestStatusEvent = latestBySourceApplicationAggregateInstanceId.get();
+        if (latestStatusEvent.getType() != EventType.INFO) {
+            throw new LatesStatusEventNotOfTypeErrorException();
+        }
+        return eventToEventDto(
+                eventRepository.save(
+                        Event.builder()
+                                .instanceFlowHeaders(
+                                        sourceApplicationAggregateInstanceIdToInstanceFlowHeadersEmbeddable(
+                                                manuallyRejectedEventDto,
+                                                latestStatusEvent.getInstanceFlowHeaders().getIntegrationId(),
+                                                UUID.randomUUID(),
+                                                null
+                                        )
+                                )
+                                .name(INSTANCE_MANUALLY_REJECTED)
+                                .timestamp(OffsetDateTime.now())
+                                .type(EventType.INFO)
+                                .applicationId(applicationId)
+                                .build()
+                )
+        );
+    }
+
+    // TODO 04/12/2024 eivindmorch: Only get status events. Smaller version of instance status query
+    public Optional<EventDto> findLatestStatusEventBySourceApplicationAggregateInstanceId(
+            SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId
+    ) {
+        return eventRepository.
+                findLatestBySourceApplicationIdAndSourceApplicationIntegrationIdAndSourceApplicationInstanceId(
+                        sourceApplicationAggregateInstanceId.getSourceApplicationId(),
+                        sourceApplicationAggregateInstanceId.getSourceApplicationIntegrationId(),
+                        sourceApplicationAggregateInstanceId.getSourceApplicationInstanceId()
+                );
+    }
+
+    private InstanceFlowHeadersEmbeddable sourceApplicationAggregateInstanceIdToInstanceFlowHeadersEmbeddable(
+            SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId,
+            Long integrationId,
+            UUID correlationId,
+            String archiveInstanceId
+    ) {
+        return InstanceFlowHeadersEmbeddable
+                .builder()
+                .sourceApplicationId(sourceApplicationAggregateInstanceId.getSourceApplicationId())
+                .sourceApplicationIntegrationId(sourceApplicationAggregateInstanceId.getSourceApplicationIntegrationId())
+                .sourceApplicationInstanceId(sourceApplicationAggregateInstanceId.getSourceApplicationInstanceId())
+                .integrationId(integrationId)
+                .correlationId(correlationId)
+                .archiveInstanceId(archiveInstanceId)
+                .build();
+    }
+
+    private Page<EventDto> convertPageOfEventIntoPageOfEventDto(Page<Event> events) {
+        return events.map(this::eventToEventDto);
+    }
+
+    private EventDto eventToEventDto(Event event) {
         return EventDto.builder()
-                .instanceFlowHeaders(event.getInstanceFlowHeaders())
+                .instanceFlowHeaders(instanceFlowHeadersEmbeddableToInstanceFlowHeaders(event.getInstanceFlowHeaders()))
                 .name(event.getName())
                 .timestamp(event.getTimestamp())
                 .type(event.getType())
@@ -222,4 +152,22 @@ public class EventService {
                 .errors(event.getErrors())
                 .build();
     }
+
+    private InstanceFlowHeaders instanceFlowHeadersEmbeddableToInstanceFlowHeaders(
+            InstanceFlowHeadersEmbeddable instanceFlowHeadersEmbeddable
+    ) {
+        return InstanceFlowHeaders
+                .builder()
+                .sourceApplicationId(instanceFlowHeadersEmbeddable.getSourceApplicationId())
+                .sourceApplicationIntegrationId(instanceFlowHeadersEmbeddable.getSourceApplicationIntegrationId())
+                .sourceApplicationInstanceId(instanceFlowHeadersEmbeddable.getSourceApplicationInstanceId())
+                .fileIds(instanceFlowHeadersEmbeddable.getFileIds())
+                .correlationId(instanceFlowHeadersEmbeddable.getCorrelationId())
+                .integrationId(instanceFlowHeadersEmbeddable.getIntegrationId())
+                .instanceId(instanceFlowHeadersEmbeddable.getInstanceId())
+                .configurationId(instanceFlowHeadersEmbeddable.getConfigurationId())
+                .archiveInstanceId(instanceFlowHeadersEmbeddable.getArchiveInstanceId())
+                .build();
+    }
+
 }

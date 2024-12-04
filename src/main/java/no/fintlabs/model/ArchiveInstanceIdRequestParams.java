@@ -9,7 +9,8 @@ import lombok.extern.jackson.Jacksonized;
 @EqualsAndHashCode
 @Jacksonized
 @Builder
-public class ArchiveInstanceIdRequestParams {
+public class ArchiveInstanceIdRequestParams implements SourceApplicationAggregateInstanceId {
     private Long sourceApplicationId;
+    private String sourceApplicationIntegrationId;
     private String sourceApplicationInstanceId;
 }

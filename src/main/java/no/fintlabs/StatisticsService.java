@@ -20,14 +20,7 @@ public class StatisticsService {
         this.eventRepository = eventRepository;
     }
 
-//    public Statistics getStatistics() {
-//        return Statistics
-//                .builder()
-//                .dispatchedInstances(eventRepository.countDispatchedInstances())
-//                .currentErrors(eventRepository.countCurrentInstanceErrors())
-//                .build();
-//    }
-
+    // TODO 04/12/2024 eivindmorch: Replace with query that doesnt include duplicate dispatches and errors
     public Statistics getStatistics(List<Long> sourceApplicationIds) {
         return Statistics
                 .builder()
@@ -66,66 +59,5 @@ public class StatisticsService {
         intersection.retainAll(filterSourceApplicationIds);
         return intersection;
     }
-
-
-//    public List<IntegrationStatistics> getIntegrationStatisticsBySourceApplicationId(List<Long> sourceApplicationIds) {
-//        Map<String, Long> numberOfDispatchedInstancesPerIntegrationId = eventRepository
-//                .countDispatchedInstancesPerIntegrationIdBySourceApplicationIds(sourceApplicationIds)
-//                .stream()
-//                .collect(Collectors.toMap(
-//                        EventRepository.IntegrationIdAndCount::getIntegrationId,
-//                        EventRepository.IntegrationIdAndCount::getCount
-//                ));
-//
-//        Collection<Event> dispathedInstancesPerIntegrationIdBySourceApplicationIds =
-//                eventRepository.findDispathedInstancesPerIntegrationIdBySourceApplicationIds(INSTANCE_DISPATCHED, sourceApplicationIds);
-//
-//        Map<String, Long> numberOfDispatchedInstancesPerIntegrationId =
-//
-//
-//        Map<String, Long> numberOfCurrentErrorsPerIntegrationId = eventRepository
-//                .countCurrentInstanceErrorsPerIntegrationIdBySourceApplicationIds(sourceApplicationIds)
-//                .stream()
-//                .collect(Collectors.toMap(
-//                        EventRepository.IntegrationIdAndCount::getIntegrationId,
-//                        EventRepository.IntegrationIdAndCount::getCount
-//                ));
-//
-//        Map<String, Long> numberOfIntancesPerIntegrationId = eventRepository
-//                .countAllInstancesPerIntegrationIdBySourceApplicationIds(sourceApplicationIds)
-//                .stream()
-//                .collect(Collectors.toMap(
-//                        EventRepository.IntegrationIdAndCount::getIntegrationId,
-//                        EventRepository.IntegrationIdAndCount::getCount
-//                ));
-//
-//        return getIntegrationStatistics(numberOfDispatchedInstancesPerIntegrationId, numberOfCurrentErrorsPerIntegrationId, numberOfIntancesPerIntegrationId);
-//    }
-
-//    @NotNull
-//    private List<IntegrationStatistics> getIntegrationStatistics(
-//            Map<String, Long> numberOfDispatchedInstancesPerIntegrationId,
-//            Map<String, Long> numberOfCurrentErrorsPerIntegrationId,
-//            Map<String, Long> numberOfIntancesPerIntegrationId
-//    ) {
-//        Set<String> integrationIds = Stream.concat(
-//                        numberOfDispatchedInstancesPerIntegrationId.keySet().stream(),
-//                        numberOfCurrentErrorsPerIntegrationId.keySet().stream()
-//                )
-//                .collect(Collectors.toSet());
-//
-//        return integrationIds
-//                .stream()
-//                .map(
-//                        integrationId -> IntegrationStatistics
-//                                .builder()
-//                                .sourceApplicationIntegrationId(integrationId)
-//                                .dispatchedInstances(numberOfDispatchedInstancesPerIntegrationId.getOrDefault(integrationId, 0L))
-//                                .currentErrors(numberOfCurrentErrorsPerIntegrationId.getOrDefault(integrationId, 0L))
-//                                .totalInstances(numberOfIntancesPerIntegrationId.getOrDefault(integrationId, 0L))
-//                                .build()
-//                )
-//                .toList();
-//    }
 
 }

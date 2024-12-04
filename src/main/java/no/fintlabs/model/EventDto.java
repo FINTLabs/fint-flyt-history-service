@@ -1,6 +1,7 @@
 package no.fintlabs.model;
 
 import lombok.*;
+import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
 
 import java.time.OffsetDateTime;
 import java.util.Collection;
@@ -10,13 +11,12 @@ import java.util.Collection;
 @Builder(toBuilder = true)
 @AllArgsConstructor
 public class EventDto {
-    private InstanceFlowHeadersEmbeddable instanceFlowHeaders;
+    private InstanceFlowHeaders instanceFlowHeaders;
     private String name;
     private OffsetDateTime timestamp;
     private EventType type;
     private String applicationId;
     private Collection<Error> errors;
-    private String status;
 
     public EventDto() {
     }

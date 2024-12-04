@@ -8,13 +8,13 @@ import javax.validation.constraints.NotNull;
 
 @Getter
 @Setter
-public class ManuallyProcessedEventDto implements ManualEventDto {
+public class ManuallyProcessedEventDto implements SourceApplicationAggregateInstanceId {
     @NotNull
     private Long sourceApplicationId;
     @NotEmpty
-    private String sourceApplicationInstanceId;
-    @NotEmpty
     private String sourceApplicationIntegrationId;
+    @NotEmpty
+    private String sourceApplicationInstanceId;
     @NotEmpty
     private String archiveInstanceId;
 }
