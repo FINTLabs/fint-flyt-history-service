@@ -51,7 +51,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             "   AND e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId" +
             "   AND e.name = :name "
     )
-    Optional<String> selectArchiveInstanceIdBySourceApplicationAggregateInstanceIdAndName(
+    Optional<String> findArchiveInstanceIdBySourceApplicationAggregateInstanceIdAndName(
             @Param(value = "sourceApplicationId") Long sourceApplicationId,
             @Param(value = "sourceApplicationIntegrationId") String sourceApplicationIntegrationId,
             @Param(value = "sourceApplicationInstanceId") String sourceApplicationInstanceId,
@@ -61,7 +61,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     default Optional<String> findLatestArchiveInstanceId(
             SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId
     ) {
-        return selectArchiveInstanceIdBySourceApplicationAggregateInstanceIdAndName(
+        return findArchiveInstanceIdBySourceApplicationAggregateInstanceIdAndName(
                 sourceApplicationAggregateInstanceId.getSourceApplicationId(),
                 sourceApplicationAggregateInstanceId.getSourceApplicationIntegrationId(),
                 sourceApplicationAggregateInstanceId.getSourceApplicationInstanceId(),
@@ -123,7 +123,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
                             "AND (CAST(:integrationIds AS BIGINT[]) IS NULL OR integration_id = ANY(:integrationIds)) ",
             nativeQuery = true
     )
-    Page<IntegrationStatistics> getIntegrationStatisticsABC(
+    Page<IntegrationStatistics> getIntegrationStatistics(
             @Param("sourceApplicationIds") TypedParameterValue sourceApplicationIds,
             @Param("sourceApplicationIntegrationIds") TypedParameterValue sourceApplicationIntegrationIds,
             @Param("integrationIds") TypedParameterValue integrationIds,
@@ -136,7 +136,7 @@ public interface EventRepository extends JpaRepository<Event, Long> {
             Collection<Long> integrationIds,
             Pageable pageable
     ) {
-        return getIntegrationStatisticsABC(
+        return getIntegrationStatistics(
                 mapToArrayType(
                         LongArrayType.INSTANCE,
                         sourceApplicationIds,
