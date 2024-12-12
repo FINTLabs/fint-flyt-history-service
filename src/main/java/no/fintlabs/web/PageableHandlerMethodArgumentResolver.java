@@ -1,4 +1,4 @@
-package no.fintlabs.configuration;
+package no.fintlabs.web;
 
 import org.springframework.core.MethodParameter;
 import org.springframework.data.domain.PageRequest;

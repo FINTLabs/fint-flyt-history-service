@@ -29,7 +29,17 @@ create table event
     type                              varchar(255),
     primary key (id)
 );
+create table file_id
+(
+    event_id int8 not null,
+    file_id  uuid
+);
+create index sourceApplicationIndex on event (source_application_id, source_application_integration_id,
+                                              source_application_instance_id);
+create index timestampIndex on event (timestamp);
 alter table error
     add constraint FK7xmwq897wsr8gttga5gtw7r04 foreign key (event_id) references event;
 alter table error_args
     add constraint FKecq6ndoidl3jtr5s2cik283h7 foreign key (error_id) references error;
+alter table file_id
+    add constraint FK5k2a6mwnqrpqctw3qmgcbtl6n foreign key (event_id) references event;

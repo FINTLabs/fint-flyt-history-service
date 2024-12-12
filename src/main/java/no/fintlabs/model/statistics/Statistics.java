@@ -1,4 +1,4 @@
-package no.fintlabs.model;
+package no.fintlabs.model.statistics;
 
 import lombok.Builder;
 import lombok.EqualsAndHashCode;

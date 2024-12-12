@@ -1,4 +1,4 @@
-package no.fintlabs.configuration;
+package no.fintlabs.web;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.config.WebFluxConfigurer;

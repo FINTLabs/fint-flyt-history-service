@@ -1,19 +1,20 @@
-package no.fintlabs.consumers;
+package no.fintlabs.kafka;
 
-import no.fintlabs.InstanceFlowHeadersEmbeddableMapper;
 import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
 import no.fintlabs.kafka.common.topic.TopicCleanupPolicyParameters;
 import no.fintlabs.kafka.requestreply.ReplyProducerRecord;
 import no.fintlabs.kafka.requestreply.RequestConsumerFactoryService;
 import no.fintlabs.kafka.requestreply.topic.RequestTopicNameParameters;
 import no.fintlabs.kafka.requestreply.topic.RequestTopicService;
-import no.fintlabs.model.Event;
+import no.fintlabs.mapping.InstanceFlowHeadersEmbeddableMapper;
+import no.fintlabs.model.entities.EventEntity;
+import no.fintlabs.model.eventinfo.InstanceStatusEvent;
+import no.fintlabs.model.eventinfo.InstanceStatusEventCategory;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 
-import static no.fintlabs.EventNames.INSTANCE_REGISTERED;
 
 @Configuration
 public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguration {
@@ -46,11 +47,14 @@ public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguratio
                 InstanceFlowHeaders.class,
                 consumerRecord -> {
                     InstanceFlowHeaders instanceFlowHeaders = eventRepository
-                            .findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(
+                            .findFirstByInstanceFlowHeadersInstanceIdAndNameInOrderByTimestampDesc( // TODO 05/12/2024 eivindmorch: Bruk service
                                     consumerRecord.value(),
-                                    INSTANCE_REGISTERED
+                                    InstanceStatusEvent.getAllEventNames(
+                                            InstanceStatusEventCategory.AUTOMATICALLY_DISPATCHED,
+                                            InstanceStatusEventCategory.MANUALLY_PROCESSED
+                                    )
                             )
-                            .map(Event::getInstanceFlowHeaders)
+                            .map(EventEntity::getInstanceFlowHeaders)
                             .map(instanceFlowHeadersEmbeddableMapper::toInstanceFlowHeaders)
                             .orElse(null);
                     return ReplyProducerRecord.<InstanceFlowHeaders>builder().value(instanceFlowHeaders).build();

@@ -1,9 +1,10 @@
-package no.fintlabs.model;
+package no.fintlabs.kafka;
 
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.extern.jackson.Jacksonized;
+import no.fintlabs.model.SourceApplicationAggregateInstanceId;
 
 @Getter
 @EqualsAndHashCode

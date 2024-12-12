@@ -1,4 +1,4 @@
-package no.fintlabs.model;
+package no.fintlabs.model.entities;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
@@ -15,7 +15,8 @@ import java.util.Map;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-public class Error {
+@Table(name = "error")
+public class ErrorEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

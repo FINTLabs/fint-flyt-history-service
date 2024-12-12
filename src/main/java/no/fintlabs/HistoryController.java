@@ -2,7 +2,14 @@ package no.fintlabs;
 
 import no.fintlabs.exceptions.LatesStatusEventNotOfTypeErrorException;
 import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
-import no.fintlabs.model.*;
+import no.fintlabs.model.Event;
+import no.fintlabs.model.InstanceStatus;
+import no.fintlabs.model.InstanceStatusFilter;
+import no.fintlabs.model.action.ManuallyProcessedEventAction;
+import no.fintlabs.model.action.ManuallyRejectedEventAction;
+import no.fintlabs.model.statistics.IntegrationStatistics;
+import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
+import no.fintlabs.model.statistics.Statistics;
 import no.fintlabs.resourceserver.security.user.UserAuthorizationUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,10 +20,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
-import java.util.Set;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 
@@ -24,14 +28,11 @@ import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 @RequestMapping(INTERNAL_API + "/history")
 public class HistoryController {
 
-    private final StatisticsService statisticsService;
     private final EventService eventService;
 
     public HistoryController(
-            StatisticsService statisticsService,
             EventService eventService
     ) {
-        this.statisticsService = statisticsService;
         this.eventService = eventService;
     }
 
@@ -40,39 +41,45 @@ public class HistoryController {
             @AuthenticationPrincipal Authentication authentication
     ) {
         List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
-        return ResponseEntity.ok(statisticsService.getStatistics(sourceApplicationIds));
+        return ResponseEntity.ok(eventService.getStatistics(sourceApplicationIds));
     }
 
     @GetMapping("statistics/integrations")
     public ResponseEntity<Page<IntegrationStatistics>> getIntegrationStatistics(
             @AuthenticationPrincipal Authentication authentication,
-            @RequestParam Optional<Set<Long>> filterSourceApplicationIds,
-            @RequestParam Optional<Set<String>> filterSourceApplicationIntegrationIds,
-            @RequestParam Optional<Set<Long>> filterIntegrationIds,
+            IntegrationStatisticsFilter integrationStatisticsFilter,
             Pageable pageable
     ) {
-        Set<Long> userAuthorizationSourceApplicationIds =
-                new HashSet<>(UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication));
-
         return ResponseEntity.ok(
-                statisticsService.getIntegrationStatistics(
-                        userAuthorizationSourceApplicationIds,
-                        filterSourceApplicationIds.orElse(null),
-                        filterSourceApplicationIntegrationIds.orElse(null),
-                        filterIntegrationIds.orElse(null),
+                eventService.getIntegrationStatistics(
+                        UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication),
+                        integrationStatisticsFilter,
                         pageable
                 )
         );
     }
 
-    // TODO 04/12/2024 eivindmorch: Get instance status with filter and sort and page (instance table in frontend)
+    @GetMapping(path = "instance-statuses")
+    public ResponseEntity<Page<InstanceStatus>> getInstanceStatus(
+            @AuthenticationPrincipal Authentication authentication,
+            InstanceStatusFilter instanceStatusFilter,
+            Pageable pageable
+    ) {
+        return ResponseEntity.ok(
+                eventService.getInstanceStatuses(
+                        UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication),
+                        instanceStatusFilter,
+                        pageable
+                )
+        );
+    }
 
     @GetMapping(path = "event", params = {
             "sourceApplicationId",
             "sourceApplicationIntegrationId",
             "sourceApplicationInstanceId"
     })
-    public ResponseEntity<Page<EventDto>> getEventsWithSourceApplicationAggregateInstanceId(
+    public ResponseEntity<Page<Event>> getEventsWithSourceApplicationAggregateInstanceId(
             @AuthenticationPrincipal Authentication authentication,
             @RequestParam Long sourceApplicationId,
             @RequestParam String sourceApplicationIntegrationId,
@@ -96,11 +103,11 @@ public class HistoryController {
     @PostMapping("action/event/instance-manually-processed")
     public ResponseEntity<?> setManuallyProcessed(
             @AuthenticationPrincipal Authentication authentication,
-            @RequestBody @Valid ManuallyProcessedEventDto manuallyProcessedEventDto
+            @RequestBody @Valid ManuallyProcessedEventAction manuallyProcessedEventAction
     ) {
-        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyProcessedEventDto.getSourceApplicationId());
+        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyProcessedEventAction.getSourceApplicationId());
         try {
-            return ResponseEntity.ok(eventService.addManuallyProcessedEvent(manuallyProcessedEventDto));
+            return ResponseEntity.ok(eventService.addManuallyProcessedEvent(manuallyProcessedEventAction));
         } catch (NoPreviousStatusEventsFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event not found");
         } catch (LatesStatusEventNotOfTypeErrorException e) {
@@ -111,11 +118,11 @@ public class HistoryController {
     @PostMapping("action/event/instance-manually-rejected")
     public ResponseEntity<?> setManuallyRejected(
             @AuthenticationPrincipal Authentication authentication,
-            @RequestBody @Valid ManuallyRejectedEventDto manuallyRejectedEventDto
+            @RequestBody @Valid ManuallyRejectedEventAction manuallyRejectedEventAction
     ) {
-        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventDto.getSourceApplicationId());
+        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventAction.getSourceApplicationId());
         try {
-            return ResponseEntity.ok(eventService.addManuallyRejectedEvent(manuallyRejectedEventDto));
+            return ResponseEntity.ok(eventService.addManuallyRejectedEvent(manuallyRejectedEventAction));
         } catch (NoPreviousStatusEventsFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event not found");
         } catch (LatesStatusEventNotOfTypeErrorException e) {

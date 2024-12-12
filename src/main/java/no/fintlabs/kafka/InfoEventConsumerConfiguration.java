@@ -1,11 +1,12 @@
-package no.fintlabs.consumers;
+package no.fintlabs.kafka;
 
-import no.fintlabs.InstanceFlowHeadersEmbeddableMapper;
 import no.fintlabs.flyt.kafka.event.InstanceFlowEventConsumerFactoryService;
-import no.fintlabs.kafka.OriginHeaderProducerInterceptor;
 import no.fintlabs.kafka.event.topic.EventTopicNameParameters;
-import no.fintlabs.model.Event;
-import no.fintlabs.model.EventType;
+import no.fintlabs.mapping.InstanceFlowHeadersEmbeddableMapper;
+import no.fintlabs.model.entities.EventEntity;
+import no.fintlabs.model.eventinfo.EventInfo;
+import no.fintlabs.model.eventinfo.InstanceStatusEvent;
+import no.fintlabs.model.eventinfo.InstanceStorageStatusEvent;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,8 +15,6 @@ import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
-
-import static no.fintlabs.EventNames.*;
 
 @Configuration
 public class InfoEventConsumerConfiguration {
@@ -36,63 +35,63 @@ public class InfoEventConsumerConfiguration {
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceReceivedEventConsumer() {
-        return createInfoEventListener(INSTANCE_RECEIVED);
+        return createInfoEventListener(InstanceStatusEvent.INSTANCE_RECEIVED);
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceRegisteredEventConsumer() {
-        return createInfoEventListener(INSTANCE_REGISTERED);
+        return createInfoEventListener(InstanceStorageStatusEvent.INSTANCE_REGISTERED);
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceRequestedForRetry() {
-        return createInfoEventListener(INSTANCE_REQUESTED_FOR_RETRY);
+        return createInfoEventListener(InstanceStatusEvent.INSTANCE_REQUESTED_FOR_RETRY);
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceMappedEventConsumer() {
-        return createInfoEventListener(INSTANCE_MAPPED);
+        return createInfoEventListener(InstanceStatusEvent.INSTANCE_MAPPED);
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceReadyForDispatchEventConsumer() {
-        return createInfoEventListener(INSTANCE_READY_FOR_DISPATCH);
+        return createInfoEventListener(InstanceStatusEvent.INSTANCE_READY_FOR_DISPATCH);
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceDispatchedEventConsumer() {
-        return createInfoEventListener(INSTANCE_DISPATCHED);
+        return createInfoEventListener(InstanceStatusEvent.INSTANCE_DISPATCHED);
     }
 
     @Bean
     public ConcurrentMessageListenerContainer<String, Object> instanceDeletedEventConsumer() {
-        return createInfoEventListener(INSTANCE_DELETED);
+        return createInfoEventListener(InstanceStorageStatusEvent.INSTANCE_DELETED);
     }
 
-    private ConcurrentMessageListenerContainer<String, Object> createInfoEventListener(String eventName) {
+    private ConcurrentMessageListenerContainer<String, Object> createInfoEventListener(EventInfo eventInfo) {
         return instanceFlowEventConsumerFactoryService.createRecordFactory(
                 Object.class,
                 instanceFlowConsumerRecord -> {
-                    Event event = new Event();
-                    event.setInstanceFlowHeaders(
+                    EventEntity eventEntity = new EventEntity();
+                    eventEntity.setInstanceFlowHeaders(
                             instanceFlowHeadersEmbeddableMapper.toEmbeddable(instanceFlowConsumerRecord.getInstanceFlowHeaders())
                     );
-                    event.setName(eventName);
-                    event.setType(EventType.INFO);
-                    event.setTimestamp(
+                    eventEntity.setName(eventInfo.getName());
+                    eventEntity.setType(eventInfo.getType());
+                    eventEntity.setTimestamp(
                             Instant.ofEpochMilli(instanceFlowConsumerRecord.getConsumerRecord().timestamp())
                                     .atOffset(ZoneOffset.UTC)
                     );
-                    event.setApplicationId(new String(
+                    eventEntity.setApplicationId(new String(
                             instanceFlowConsumerRecord.getConsumerRecord()
                                     .headers()
                                     .lastHeader(OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_RECORD_HEADER)
                                     .value(),
                             StandardCharsets.UTF_8
                     ));
-                    eventRepository.save(event);
+                    eventRepository.save(eventEntity);
                 }
-        ).createContainer(createEventTopicNameParameters(eventName));
+        ).createContainer(createEventTopicNameParameters(eventInfo.getName()));
     }
 
     private EventTopicNameParameters createEventTopicNameParameters(String eventName) {

@@ -1,14 +1,15 @@
-package no.fintlabs.model;
+package no.fintlabs.model.action;
 
 import lombok.Getter;
 import lombok.Setter;
+import no.fintlabs.model.SourceApplicationAggregateInstanceId;
 
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 
 @Getter
 @Setter
-public class ManuallyProcessedEventDto implements SourceApplicationAggregateInstanceId {
+public class ManuallyProcessedEventAction implements SourceApplicationAggregateInstanceId {
     @NotNull
     private Long sourceApplicationId;
     @NotEmpty

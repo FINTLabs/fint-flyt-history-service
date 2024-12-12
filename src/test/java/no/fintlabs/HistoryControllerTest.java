@@ -2,8 +2,8 @@
 //
 //import no.fintlabs.model.EventDto;
 //import no.fintlabs.model.InstanceSearchParameters;
-//import no.fintlabs.model.IntegrationStatistics;
-//import no.fintlabs.model.Statistics;
+//import no.fintlabs.model.statistics.IntegrationStatistics;
+//import no.fintlabs.model.statistics.Statistics;
 //import org.junit.jupiter.api.BeforeEach;
 //import org.junit.jupiter.api.Test;
 //import org.mockito.InjectMocks;

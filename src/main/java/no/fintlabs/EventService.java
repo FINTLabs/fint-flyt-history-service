@@ -2,8 +2,20 @@ package no.fintlabs;
 
 import no.fintlabs.exceptions.LatesStatusEventNotOfTypeErrorException;
 import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
-import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
-import no.fintlabs.model.*;
+import no.fintlabs.mapping.InstanceFlowHeadersEmbeddableMapper;
+import no.fintlabs.model.Event;
+import no.fintlabs.model.InstanceStatus;
+import no.fintlabs.model.InstanceStatusFilter;
+import no.fintlabs.model.SourceApplicationAggregateInstanceId;
+import no.fintlabs.model.action.ManuallyProcessedEventAction;
+import no.fintlabs.model.action.ManuallyRejectedEventAction;
+import no.fintlabs.model.entities.EventEntity;
+import no.fintlabs.model.entities.InstanceFlowHeadersEmbeddable;
+import no.fintlabs.model.eventinfo.EventType;
+import no.fintlabs.model.eventinfo.InstanceStatusEvent;
+import no.fintlabs.model.statistics.IntegrationStatistics;
+import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
+import no.fintlabs.model.statistics.Statistics;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -11,29 +23,48 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
-import java.util.Optional;
-import java.util.UUID;
-
-import static no.fintlabs.EventNames.INSTANCE_MANUALLY_PROCESSED;
-import static no.fintlabs.EventNames.INSTANCE_MANUALLY_REJECTED;
+import java.util.*;
 
 @Service
 public class EventService {
 
     private final String applicationId;
     private final EventRepository eventRepository;
+    private final InstanceFlowHeadersEmbeddableMapper instanceFlowHeadersEmbeddableMapper;
 
     public EventService(
             @Value("${fint.application-id}") String applicationId,
-            EventRepository eventRepository
+            EventRepository eventRepository,
+            InstanceFlowHeadersEmbeddableMapper instanceFlowHeadersEmbeddableMapper
     ) {
         this.applicationId = applicationId;
         this.eventRepository = eventRepository;
+        this.instanceFlowHeadersEmbeddableMapper = instanceFlowHeadersEmbeddableMapper;
     }
 
-    // TODO 04/12/2024 eivindmorch: Get instance status with filter and sort and page (instance table in frontend)
+    public Page<InstanceStatus> getInstanceStatuses(
+            Collection<Long> userAuthorizationSourceApplicationIds,
+            InstanceStatusFilter instanceStatusFilter,
+            Pageable pageable
+    ) {
+        Collection<Long> intersectedAuthorizationAndFilterSourceApplicationIds =
+                instanceStatusFilter.getSourceApplicationIds().map(
+                        filterSourceApplicationIds -> intersectAuthorizationAndFilterSourceApplicationIds(
+                                userAuthorizationSourceApplicationIds,
+                                filterSourceApplicationIds
+                        )
+                ).orElse(userAuthorizationSourceApplicationIds);
 
-    public Page<EventDto> getAllEventsBySourceApplicationAggregateInstanceId(
+        return eventRepository.getInstanceStatuses(
+                instanceStatusFilter
+                        .toBuilder()
+                        .sourceApplicationIds(intersectedAuthorizationAndFilterSourceApplicationIds)
+                        .build(),
+                pageable
+        );
+    }
+
+    public Page<Event> getAllEventsBySourceApplicationAggregateInstanceId(
             Long sourceApplicationId,
             String sourceApplicationIntegrationId,
             String sourceApplicationInstanceId,
@@ -49,76 +80,62 @@ public class EventService {
         );
     }
 
-    public EventDto addManuallyProcessedEvent(ManuallyProcessedEventDto manuallyProcessedEventDto) {
-        Optional<EventDto> latestBySourceApplicationAggregateInstanceId =
-                findLatestStatusEventBySourceApplicationAggregateInstanceId(manuallyProcessedEventDto);
+    public Event addManuallyProcessedEvent(ManuallyProcessedEventAction manuallyProcessedEventAction) {
+        return saveManualEvent(
+                manuallyProcessedEventAction,
+                InstanceStatusEvent.INSTANCE_MANUALLY_PROCESSED,
+                manuallyProcessedEventAction.getArchiveInstanceId()
+        );
+    }
+
+    public Event addManuallyRejectedEvent(ManuallyRejectedEventAction manuallyRejectedEventAction) {
+        return saveManualEvent(
+                manuallyRejectedEventAction,
+                InstanceStatusEvent.INSTANCE_MANUALLY_REJECTED,
+                null
+        );
+    }
+
+    private Event saveManualEvent(
+            SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId,
+            InstanceStatusEvent instanceStatusEvent,
+            String archiveInstanceId
+    ) {
+        Optional<Event> latestBySourceApplicationAggregateInstanceId =
+                findLatestStatusEventBySourceApplicationAggregateInstanceId(sourceApplicationAggregateInstanceId);
         if (latestBySourceApplicationAggregateInstanceId.isEmpty()) {
             throw new NoPreviousStatusEventsFoundException();
         }
-        EventDto latestStatusEvent = latestBySourceApplicationAggregateInstanceId.get();
+        Event latestStatusEvent = latestBySourceApplicationAggregateInstanceId.get();
         if (latestStatusEvent.getType() != EventType.INFO) {
             throw new LatesStatusEventNotOfTypeErrorException();
         }
         return eventToEventDto(
                 eventRepository.save(
-                        Event.builder()
+                        EventEntity.builder()
                                 .instanceFlowHeaders(
                                         sourceApplicationAggregateInstanceIdToInstanceFlowHeadersEmbeddable(
-                                                manuallyProcessedEventDto,
+                                                sourceApplicationAggregateInstanceId,
                                                 latestStatusEvent.getInstanceFlowHeaders().getIntegrationId(),
                                                 UUID.randomUUID(),
-                                                manuallyProcessedEventDto.getArchiveInstanceId()
+                                                archiveInstanceId
                                         )
                                 )
-                                .name(INSTANCE_MANUALLY_PROCESSED)
+                                .name(instanceStatusEvent.getName())
                                 .timestamp(OffsetDateTime.now())
-                                .type(EventType.INFO)
+                                .type(instanceStatusEvent.getType())
                                 .applicationId(applicationId)
                                 .build()
                 )
         );
     }
 
-    public EventDto addManuallyRejectedEvent(ManuallyRejectedEventDto manuallyRejectedEventDto) {
-        Optional<EventDto> latestBySourceApplicationAggregateInstanceId =
-                findLatestStatusEventBySourceApplicationAggregateInstanceId(manuallyRejectedEventDto);
-        if (latestBySourceApplicationAggregateInstanceId.isEmpty()) {
-            throw new NoPreviousStatusEventsFoundException();
-        }
-        EventDto latestStatusEvent = latestBySourceApplicationAggregateInstanceId.get();
-        if (latestStatusEvent.getType() != EventType.INFO) {
-            throw new LatesStatusEventNotOfTypeErrorException();
-        }
-        return eventToEventDto(
-                eventRepository.save(
-                        Event.builder()
-                                .instanceFlowHeaders(
-                                        sourceApplicationAggregateInstanceIdToInstanceFlowHeadersEmbeddable(
-                                                manuallyRejectedEventDto,
-                                                latestStatusEvent.getInstanceFlowHeaders().getIntegrationId(),
-                                                UUID.randomUUID(),
-                                                null
-                                        )
-                                )
-                                .name(INSTANCE_MANUALLY_REJECTED)
-                                .timestamp(OffsetDateTime.now())
-                                .type(EventType.INFO)
-                                .applicationId(applicationId)
-                                .build()
-                )
-        );
-    }
-
-    // TODO 04/12/2024 eivindmorch: Only get status events. Smaller version of instance status query
-    public Optional<EventDto> findLatestStatusEventBySourceApplicationAggregateInstanceId(
+    public Optional<Event> findLatestStatusEventBySourceApplicationAggregateInstanceId(
             SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId
     ) {
-        return eventRepository.
-                findLatestBySourceApplicationIdAndSourceApplicationIntegrationIdAndSourceApplicationInstanceId(
-                        sourceApplicationAggregateInstanceId.getSourceApplicationId(),
-                        sourceApplicationAggregateInstanceId.getSourceApplicationIntegrationId(),
-                        sourceApplicationAggregateInstanceId.getSourceApplicationInstanceId()
-                );
+        return eventRepository.findLatestStatusEventBySourceApplicationAggregateInstanceId(
+                sourceApplicationAggregateInstanceId
+        );
     }
 
     private InstanceFlowHeadersEmbeddable sourceApplicationAggregateInstanceIdToInstanceFlowHeadersEmbeddable(
@@ -138,36 +155,67 @@ public class EventService {
                 .build();
     }
 
-    private Page<EventDto> convertPageOfEventIntoPageOfEventDto(Page<Event> events) {
+    private Page<Event> convertPageOfEventIntoPageOfEventDto(Page<EventEntity> events) {
         return events.map(this::eventToEventDto);
     }
 
-    private EventDto eventToEventDto(Event event) {
-        return EventDto.builder()
-                .instanceFlowHeaders(instanceFlowHeadersEmbeddableToInstanceFlowHeaders(event.getInstanceFlowHeaders()))
-                .name(event.getName())
-                .timestamp(event.getTimestamp())
-                .type(event.getType())
-                .applicationId(event.getApplicationId())
-                .errors(event.getErrors())
+    private Event eventToEventDto(EventEntity eventEntity) {
+        return Event.builder()
+                .instanceFlowHeaders(
+                        instanceFlowHeadersEmbeddableMapper.toInstanceFlowHeaders(
+                                eventEntity.getInstanceFlowHeaders()
+                        )
+                )
+                .name(eventEntity.getName())
+                .timestamp(eventEntity.getTimestamp())
+                .type(eventEntity.getType())
+                .applicationId(eventEntity.getApplicationId())
+                .errors(eventEntity.getErrors())
                 .build();
     }
 
-    private InstanceFlowHeaders instanceFlowHeadersEmbeddableToInstanceFlowHeaders(
-            InstanceFlowHeadersEmbeddable instanceFlowHeadersEmbeddable
-    ) {
-        return InstanceFlowHeaders
+    // TODO 04/12/2024 eivindmorch: Replace with query that doesnt include duplicate dispatches
+    public Statistics getStatistics(List<Long> sourceApplicationIds) {
+        return Statistics
                 .builder()
-                .sourceApplicationId(instanceFlowHeadersEmbeddable.getSourceApplicationId())
-                .sourceApplicationIntegrationId(instanceFlowHeadersEmbeddable.getSourceApplicationIntegrationId())
-                .sourceApplicationInstanceId(instanceFlowHeadersEmbeddable.getSourceApplicationInstanceId())
-                .fileIds(instanceFlowHeadersEmbeddable.getFileIds())
-                .correlationId(instanceFlowHeadersEmbeddable.getCorrelationId())
-                .integrationId(instanceFlowHeadersEmbeddable.getIntegrationId())
-                .instanceId(instanceFlowHeadersEmbeddable.getInstanceId())
-                .configurationId(instanceFlowHeadersEmbeddable.getConfigurationId())
-                .archiveInstanceId(instanceFlowHeadersEmbeddable.getArchiveInstanceId())
+                .dispatchedInstances(eventRepository.countDispatchedInstancesBySourceApplicationIds(sourceApplicationIds))
+                .currentErrors(eventRepository.countCurrentInstanceErrorsBySourceApplicationIds(sourceApplicationIds))
                 .build();
+    }
+
+    public Page<IntegrationStatistics> getIntegrationStatistics(
+            Collection<Long> userAuthorizationSourceApplicationIds,
+            IntegrationStatisticsFilter integrationStatisticsFilter,
+            Pageable pageable
+    ) {
+        Collection<Long> intersectedAuthorizationAndFilterSourceApplicationIds =
+                integrationStatisticsFilter.getSourceApplicationIds().map(
+                        filterSourceApplicationIds -> intersectAuthorizationAndFilterSourceApplicationIds(
+                                userAuthorizationSourceApplicationIds,
+                                filterSourceApplicationIds
+                        )
+                ).orElse(userAuthorizationSourceApplicationIds);
+
+        return eventRepository.getIntegrationStatistics(
+                integrationStatisticsFilter
+                        .toBuilder()
+                        .sourceApplicationIds(intersectedAuthorizationAndFilterSourceApplicationIds)
+                        .build(),
+                pageable
+        );
+    }
+
+    private Collection<Long> intersectAuthorizationAndFilterSourceApplicationIds(
+            Collection<Long> userAuthorizationSourceApplicationIds,
+            Collection<Long> filterSourceApplicationIds
+    ) {
+        if (filterSourceApplicationIds == null) {
+            return new HashSet<>(userAuthorizationSourceApplicationIds);
+        }
+
+        Set<Long> intersection = new HashSet<>(userAuthorizationSourceApplicationIds);
+        intersection.retainAll(filterSourceApplicationIds);
+        return intersection;
     }
 
 }

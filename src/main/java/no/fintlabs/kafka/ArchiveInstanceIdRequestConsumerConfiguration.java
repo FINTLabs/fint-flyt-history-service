@@ -1,11 +1,10 @@
-package no.fintlabs.consumers;
+package no.fintlabs.kafka;
 
 import no.fintlabs.kafka.common.topic.TopicCleanupPolicyParameters;
 import no.fintlabs.kafka.requestreply.ReplyProducerRecord;
 import no.fintlabs.kafka.requestreply.RequestConsumerFactoryService;
 import no.fintlabs.kafka.requestreply.topic.RequestTopicNameParameters;
 import no.fintlabs.kafka.requestreply.topic.RequestTopicService;
-import no.fintlabs.model.ArchiveInstanceIdRequestParams;
 import no.fintlabs.repositories.EventRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +18,7 @@ public class ArchiveInstanceIdRequestConsumerConfiguration {
     public ArchiveInstanceIdRequestConsumerConfiguration(EventRepository eventRepository) {
         this.eventRepository = eventRepository;
     }
+
     // TODO 04/12/2024 eivindmorch: Change in services that use this topic
     @Bean
     ConcurrentMessageListenerContainer<String, ArchiveInstanceIdRequestParams> archiveInstanceIdRequestConsumer(
