@@ -9,11 +9,18 @@ import lombok.Getter;
 public class IntegrationStatistics {
     private final Long integrationId;
 
-    private final Long numberOfCurrentStatuses;
+    private final InstanceStatistics instanceStatistics;
 
-    private final Long numberOfCurrentDispatchedStatuses;
-
-    private final Long numberOfCurrentInProgressStatuses;
-
-    private final Long numberOfCurrentErrorStatuses;
+    public IntegrationStatistics(
+            Long integrationId,
+            Long numberOfInstances,
+            Long numberOfTransferredInstances,
+            Long numberOfInProgressInstances,
+            Long numberOfFailedInstances
+    ) {
+        this.integrationId = integrationId;
+        instanceStatistics = new InstanceStatistics(
+                numberOfInstances, numberOfTransferredInstances, numberOfInProgressInstances, numberOfFailedInstances
+        );
+    }
 }

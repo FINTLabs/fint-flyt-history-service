@@ -5,7 +5,7 @@ import no.fintlabs.model.entities.InstanceFlowHeadersEmbeddable;
 import org.springframework.stereotype.Service;
 
 @Service
-public class InstanceFlowHeadersEmbeddableMapper {
+public class InstanceFlowHeadersMappingService {
 
     public InstanceFlowHeadersEmbeddable toEmbeddable(InstanceFlowHeaders instanceFlowHeaders) {
         return InstanceFlowHeadersEmbeddable.builder()

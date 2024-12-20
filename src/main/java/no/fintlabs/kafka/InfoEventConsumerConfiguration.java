@@ -1,13 +1,13 @@
 package no.fintlabs.kafka;
 
+import no.fintlabs.EventRepository;
 import no.fintlabs.flyt.kafka.event.InstanceFlowEventConsumerFactoryService;
 import no.fintlabs.kafka.event.topic.EventTopicNameParameters;
-import no.fintlabs.mapping.InstanceFlowHeadersEmbeddableMapper;
+import no.fintlabs.mapping.InstanceFlowHeadersMappingService;
 import no.fintlabs.model.entities.EventEntity;
 import no.fintlabs.model.eventinfo.EventInfo;
 import no.fintlabs.model.eventinfo.InstanceStatusEvent;
 import no.fintlabs.model.eventinfo.InstanceStorageStatusEvent;
-import no.fintlabs.repositories.EventRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
@@ -21,16 +21,16 @@ public class InfoEventConsumerConfiguration {
 
     private final EventRepository eventRepository;
     private final InstanceFlowEventConsumerFactoryService instanceFlowEventConsumerFactoryService;
-    private final InstanceFlowHeadersEmbeddableMapper instanceFlowHeadersEmbeddableMapper;
+    private final InstanceFlowHeadersMappingService instanceFlowHeadersMappingService;
 
 
     public InfoEventConsumerConfiguration(
             EventRepository eventRepository,
             InstanceFlowEventConsumerFactoryService instanceFlowEventConsumerFactoryService,
-            InstanceFlowHeadersEmbeddableMapper skjemaEventHeadersMapper) {
+            InstanceFlowHeadersMappingService skjemaEventHeadersMapper) {
         this.eventRepository = eventRepository;
         this.instanceFlowEventConsumerFactoryService = instanceFlowEventConsumerFactoryService;
-        this.instanceFlowHeadersEmbeddableMapper = skjemaEventHeadersMapper;
+        this.instanceFlowHeadersMappingService = skjemaEventHeadersMapper;
     }
 
     @Bean
@@ -74,7 +74,7 @@ public class InfoEventConsumerConfiguration {
                 instanceFlowConsumerRecord -> {
                     EventEntity eventEntity = new EventEntity();
                     eventEntity.setInstanceFlowHeaders(
-                            instanceFlowHeadersEmbeddableMapper.toEmbeddable(instanceFlowConsumerRecord.getInstanceFlowHeaders())
+                            instanceFlowHeadersMappingService.toEmbeddable(instanceFlowConsumerRecord.getInstanceFlowHeaders())
                     );
                     eventEntity.setName(eventInfo.getName());
                     eventEntity.setType(eventInfo.getType());

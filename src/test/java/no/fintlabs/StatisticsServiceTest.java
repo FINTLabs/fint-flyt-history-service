@@ -2,7 +2,7 @@
 //
 //import no.fintlabs.model.statistics.IntegrationStatistics;
 //import no.fintlabs.model.statistics.Statistics;
-//import no.fintlabs.repositories.EventRepository;
+//import no.fintlabs.EventRepository;
 //import org.junit.jupiter.api.BeforeEach;
 //import org.junit.jupiter.api.Test;
 //
@@ -14,6 +14,7 @@
 //import static org.mockito.Mockito.mock;
 //import static org.mockito.Mockito.when;
 //
+// TODO 20/12/2024 eivindmorch: Fix
 //class StatisticsServiceTest {
 //
 //    EventRepository eventRepository;

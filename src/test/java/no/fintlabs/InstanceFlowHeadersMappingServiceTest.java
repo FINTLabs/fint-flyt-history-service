@@ -1,7 +1,7 @@
 package no.fintlabs;
 
 import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
-import no.fintlabs.mapping.InstanceFlowHeadersEmbeddableMapper;
+import no.fintlabs.mapping.InstanceFlowHeadersMappingService;
 import no.fintlabs.model.entities.InstanceFlowHeadersEmbeddable;
 import org.junit.jupiter.api.Test;
 
@@ -11,9 +11,9 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
-class InstanceFlowHeadersEmbeddableMapperTest {
+class InstanceFlowHeadersMappingServiceTest {
 
-    private final InstanceFlowHeadersEmbeddableMapper mapper = new InstanceFlowHeadersEmbeddableMapper();
+    private final InstanceFlowHeadersMappingService mapper = new InstanceFlowHeadersMappingService();
 
     @Test
     void testToEmbeddable() {

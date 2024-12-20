@@ -3,16 +3,16 @@ package no.fintlabs;
 import no.fintlabs.exceptions.LatesStatusEventNotOfTypeErrorException;
 import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
 import no.fintlabs.model.Event;
-import no.fintlabs.model.InstanceStatus;
-import no.fintlabs.model.InstanceStatusFilter;
 import no.fintlabs.model.action.ManuallyProcessedEventAction;
 import no.fintlabs.model.action.ManuallyRejectedEventAction;
+import no.fintlabs.model.instance.InstanceInfo;
+import no.fintlabs.model.instance.InstanceStatusFilter;
+import no.fintlabs.model.statistics.InstanceStatistics;
 import no.fintlabs.model.statistics.IntegrationStatistics;
 import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
-import no.fintlabs.model.statistics.Statistics;
-import no.fintlabs.resourceserver.security.user.UserAuthorizationUtil;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -20,7 +20,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
-import java.util.List;
+import java.util.Set;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 
@@ -28,20 +28,25 @@ import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 @RequestMapping(INTERNAL_API + "/history")
 public class HistoryController {
 
+    private final AuthorizationService authorizationService;
     private final EventService eventService;
 
     public HistoryController(
-            EventService eventService
+            AuthorizationService authorizationService, EventService eventService
     ) {
+        this.authorizationService = authorizationService;
         this.eventService = eventService;
     }
 
+    // TODO 20/12/2024 eivindmorch: Check and possibly change paths
+
     @GetMapping("statistics")
-    public ResponseEntity<Statistics> getOverallStatistics(
+    public ResponseEntity<InstanceStatistics> getOverallStatistics(
             @AuthenticationPrincipal Authentication authentication
     ) {
-        List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
-        return ResponseEntity.ok(eventService.getStatistics(sourceApplicationIds));
+        Set<Long> userAuthorizedSourceApplicationIds =
+                authorizationService.getUserAuthorizedSourceApplicationIds(authentication);
+        return ResponseEntity.ok(eventService.getStatistics(userAuthorizedSourceApplicationIds));
     }
 
     @GetMapping("statistics/integrations")
@@ -50,25 +55,33 @@ public class HistoryController {
             IntegrationStatisticsFilter integrationStatisticsFilter,
             Pageable pageable
     ) {
+        IntegrationStatisticsFilter filterLimitedByUserAuthorization =
+                authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
+                        authentication,
+                        integrationStatisticsFilter
+                );
         return ResponseEntity.ok(
                 eventService.getIntegrationStatistics(
-                        UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication),
-                        integrationStatisticsFilter,
+                        filterLimitedByUserAuthorization,
                         pageable
                 )
         );
     }
 
-    @GetMapping(path = "instance-statuses")
-    public ResponseEntity<Page<InstanceStatus>> getInstanceStatus(
+    @GetMapping(path = "instance-info")
+    public ResponseEntity<Slice<InstanceInfo>> getInstanceInfo(
             @AuthenticationPrincipal Authentication authentication,
             InstanceStatusFilter instanceStatusFilter,
             Pageable pageable
     ) {
+        InstanceStatusFilter filterLimitedByUserAuthorization =
+                authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
+                        authentication,
+                        instanceStatusFilter
+                );
         return ResponseEntity.ok(
-                eventService.getInstanceStatuses(
-                        UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication),
-                        instanceStatusFilter,
+                eventService.getInstanceInfo(
+                        filterLimitedByUserAuthorization,
                         pageable
                 )
         );
@@ -86,7 +99,7 @@ public class HistoryController {
             @RequestParam String sourceApplicationInstanceId,
             Pageable pageable
     ) {
-        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, sourceApplicationId);
+        authorizationService.validateUserIsAuthorizedForSourceApplication(authentication, sourceApplicationId);
         return ResponseEntity.ok(
                 eventService.getAllEventsBySourceApplicationAggregateInstanceId(
                         sourceApplicationId,
@@ -105,7 +118,10 @@ public class HistoryController {
             @AuthenticationPrincipal Authentication authentication,
             @RequestBody @Valid ManuallyProcessedEventAction manuallyProcessedEventAction
     ) {
-        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyProcessedEventAction.getSourceApplicationId());
+        authorizationService.validateUserIsAuthorizedForSourceApplication(
+                authentication,
+                manuallyProcessedEventAction.getSourceApplicationId()
+        );
         try {
             return ResponseEntity.ok(eventService.addManuallyProcessedEvent(manuallyProcessedEventAction));
         } catch (NoPreviousStatusEventsFoundException e) {
@@ -120,7 +136,10 @@ public class HistoryController {
             @AuthenticationPrincipal Authentication authentication,
             @RequestBody @Valid ManuallyRejectedEventAction manuallyRejectedEventAction
     ) {
-        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventAction.getSourceApplicationId());
+        authorizationService.validateUserIsAuthorizedForSourceApplication(
+                authentication,
+                manuallyRejectedEventAction.getSourceApplicationId()
+        );
         try {
             return ResponseEntity.ok(eventService.addManuallyRejectedEvent(manuallyRejectedEventAction));
         } catch (NoPreviousStatusEventsFoundException e) {

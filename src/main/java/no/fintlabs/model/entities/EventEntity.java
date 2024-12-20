@@ -16,18 +16,29 @@ import java.util.Collection;
 @Setter
 @Jacksonized
 @Entity
+// TODO 15/12/2024 eivindmorch: Sjekk EXPLAIN -- Bruker kun sourceApplicationAggregateIdAndNameAndTimestampIndex og sourceApplicationAggregateIdAndNameIndex
 @Table(
         name = "event",
         indexes = {
-                @Index(name = "sourceApplicationIndex",
-                        columnList = "sourceApplicationId, sourceApplicationIntegrationId, sourceApplicationInstanceId"
+                @Index(name = "sourceApplicationAggregateIdAndNameIndex",
+                        columnList = "sourceApplicationId, sourceApplicationIntegrationId, sourceApplicationInstanceId, name"
                 ),
-                @Index(name = "timestampIndex", columnList = "timestamp")
+                @Index(name = "sourceApplicationAggregateIdAndNameAndTimestampIndex",
+                        columnList = "sourceApplicationId, sourceApplicationIntegrationId, sourceApplicationInstanceId, name, timestamp"
+                ),
+                @Index(name = "timestampIndex",
+                        columnList = "timestamp"
+                ),
+                @Index(name = "nameIndex",
+                        columnList = "name"
+                )
         })
 public class EventEntity {
 
+    // TODO 20/12/2024 eivindmorch: Identity or sequence? How is migration done?
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "event_generator")
+    @SequenceGenerator(name = "event_generator", sequenceName = "event_seq", allocationSize = 50)
     @JsonIgnore
     @Getter(AccessLevel.NONE)
     @Setter(AccessLevel.NONE)
