@@ -195,7 +195,7 @@ public class EventService {
         );
     }
 
-    public Page<IntegrationStatisticsProjection> getIntegrationStatistics(
+    public Slice<IntegrationStatisticsProjection> getIntegrationStatistics(
             IntegrationStatisticsFilter integrationStatisticsFilter,
             Pageable pageable
     ) {

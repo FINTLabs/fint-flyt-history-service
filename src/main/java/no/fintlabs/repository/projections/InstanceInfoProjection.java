@@ -1,26 +1,21 @@
 package no.fintlabs.repository.projections;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-
 import java.time.OffsetDateTime;
 
-@AllArgsConstructor
-@Getter
-public class InstanceInfoProjection {
-    private final Long sourceApplicationId;
+public interface InstanceInfoProjection {
+    Long getSourceApplicationId();
 
-    private final String sourceApplicationIntegrationId;
+    String getSourceApplicationIntegrationId();
 
-    private final String sourceApplicationInstanceId;
+    String getSourceApplicationInstanceId();
 
-    private final Long integrationId;
+    Long getIntegrationId();
 
-    private final OffsetDateTime latestUpdate;
+    OffsetDateTime getLatestUpdate();
 
-    private final String latestStatusEventName;
+    String getLatestStatusEventName();
 
-    private final String latestStorageStatusEventName;
+    String getLatestStorageStatusEventName();
 
-    private final String destinationId;
+    String getDestinationId();
 }

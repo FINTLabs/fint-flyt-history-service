@@ -1,6 +1,5 @@
 package no.fintlabs.repository;
 
-import no.fintlabs.model.event.Event;
 import no.fintlabs.model.SourceApplicationAggregateInstanceId;
 import no.fintlabs.repository.entities.EventEntity;
 import no.fintlabs.repository.filters.EventNamesPerInstanceStatus;
@@ -24,16 +23,14 @@ import java.util.Optional;
 public interface EventRepository extends JpaRepository<EventEntity, Long> {
 
     @Query(value = """
-             SELECT new no.fintlabs.repository.projections.InstanceInfoProjection(
-                statusEvent.instanceFlowHeaders.sourceApplicationId,
-                statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId,
-                statusEvent.instanceFlowHeaders.sourceApplicationInstanceId,
-                statusEvent.instanceFlowHeaders.integrationId,
-                statusEvent.timestamp,
-                statusEvent.name,
-                storageEvent.name,
-                statusEvent.instanceFlowHeaders.archiveInstanceId
-             )
+             SELECT statusEvent.instanceFlowHeaders.sourceApplicationId AS sourceApplicationId,
+                statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId AS sourceApplicationIntegrationId,
+                statusEvent.instanceFlowHeaders.sourceApplicationInstanceId AS sourceApplicationInstanceId,
+                statusEvent.instanceFlowHeaders.integrationId AS integrationId,
+                statusEvent.timestamp AS latesUpdate,
+                statusEvent.name AS latestStatusEventName,
+                storageEvent.name AS latestStorageStatusEventName,
+                statusEvent.instanceFlowHeaders.archiveInstanceId AS destinationId
              FROM EventEntity statusEvent
              LEFT OUTER JOIN EventEntity storageEvent
                 ON statusEvent.instanceFlowHeaders.sourceApplicationId = storageEvent.instanceFlowHeaders.sourceApplicationId
@@ -167,23 +164,25 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
     );
 
     @Query(value = """
-            SELECT new no.fintlabs.repository.projections.InstanceStatisticsProjection(
-                    COUNT(e),
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.rejectedStatusEventNames} THEN 1 ELSE 0 END),
+             SELECT COUNT(e) AS numberOfInstances,
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END)
+                        AS numberOfInProgressInstances,
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END)
+                        AS numberOfTransferredInstances,
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.rejectedStatusEventNames} THEN 1 ELSE 0 END)
+                        AS numberOfRejectedInstances,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END)
-                )
-                FROM EventEntity e
-                WHERE e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds}
-                AND e.timestamp = (
-                   SELECT MAX(e1.timestamp)
-                   FROM EventEntity e1
-                   WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
-                     AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
-                     AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
-                     AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
-               )
+                        AS numberOfFailedInstances
+             FROM EventEntity e
+             WHERE e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds}
+             AND e.timestamp = (
+                SELECT MAX(e1.timestamp)
+                FROM EventEntity e1
+                WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
+                  AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
+                  AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
+                  AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
+            )
             """)
     InstanceStatisticsProjection getTotalStatistics(
             Collection<Long> sourceApplicationIds,
@@ -191,32 +190,34 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
     );
 
     @Query(value = """
-            SELECT new no.fintlabs.repository.projections.IntegrationStatisticsProjection(
-                    e.instanceFlowHeaders.integrationId,
-                    COUNT(e),
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.rejectedStatusEventNames} THEN 1 ELSE 0 END),
+             SELECT e.instanceFlowHeaders.integrationId AS integrationId,
+                    COUNT(e) AS numberOfInstances,
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END)
+                        AS numberOfInProgressInstances,
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END)
+                        AS numberOfTransferredInstances,
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.rejectedStatusEventNames} THEN 1 ELSE 0 END)
+                        AS numberOfRejectedInstances,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END)
-                )
-                FROM EventEntity e
-                WHERE (:#{#integrationStatisticsQueryFilter.sourceApplicationIds.empty} IS TRUE
-                    OR e.instanceFlowHeaders.sourceApplicationId IN :#{#integrationStatisticsQueryFilter.sourceApplicationIds.orElse(null)})
-                AND (:#{#integrationStatisticsQueryFilter.sourceApplicationIntegrationIds.empty} IS TRUE
-                    OR e.instanceFlowHeaders.sourceApplicationIntegrationId IN :#{#integrationStatisticsQueryFilter.sourceApplicationIntegrationIds.orElse(null)})
-                AND (:#{#integrationStatisticsQueryFilter.integrationIds.empty} IS TRUE
-                    OR e.instanceFlowHeaders.integrationId IN :#{#integrationStatisticsQueryFilter.integrationIds.orElse(null)})
-                AND e.timestamp = (
-                   SELECT MAX(e1.timestamp)
-                   FROM EventEntity e1
-                   WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
-                     AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
-                     AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
-                     AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
-               )
-               GROUP BY e.instanceFlowHeaders.integrationId
+                        AS numberOfFailedInstances
+             FROM EventEntity e
+             WHERE (:#{#integrationStatisticsQueryFilter.sourceApplicationIds.empty} IS TRUE
+                 OR e.instanceFlowHeaders.sourceApplicationId IN :#{#integrationStatisticsQueryFilter.sourceApplicationIds.orElse(null)})
+             AND (:#{#integrationStatisticsQueryFilter.sourceApplicationIntegrationIds.empty} IS TRUE
+                 OR e.instanceFlowHeaders.sourceApplicationIntegrationId IN :#{#integrationStatisticsQueryFilter.sourceApplicationIntegrationIds.orElse(null)})
+             AND (:#{#integrationStatisticsQueryFilter.integrationIds.empty} IS TRUE
+                 OR e.instanceFlowHeaders.integrationId IN :#{#integrationStatisticsQueryFilter.integrationIds.orElse(null)})
+             AND e.timestamp = (
+                SELECT MAX(e1.timestamp)
+                FROM EventEntity e1
+                WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
+                  AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
+                  AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
+                  AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
+             )
+             GROUP BY e.instanceFlowHeaders.integrationId
             """)
-    Page<IntegrationStatisticsProjection> getIntegrationStatistics(
+    Slice<IntegrationStatisticsProjection> getIntegrationStatistics(
             IntegrationStatisticsQueryFilter integrationStatisticsQueryFilter,
             EventNamesPerInstanceStatus eventNamesPerInstanceStatus, // TODO 20/12/2024 eivindmorch: Replace with map?
             Pageable pageable

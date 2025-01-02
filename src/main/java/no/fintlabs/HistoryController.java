@@ -2,9 +2,9 @@ package no.fintlabs;
 
 import no.fintlabs.exceptions.LatesStatusEventNotOfTypeErrorException;
 import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
-import no.fintlabs.model.event.Event;
 import no.fintlabs.model.action.ManuallyProcessedEventAction;
 import no.fintlabs.model.action.ManuallyRejectedEventAction;
+import no.fintlabs.model.event.Event;
 import no.fintlabs.model.instance.InstanceInfo;
 import no.fintlabs.model.instance.InstanceInfoFilter;
 import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
@@ -51,7 +51,7 @@ public class HistoryController {
     }
 
     @GetMapping("statistics/integrations")
-    public ResponseEntity<Page<IntegrationStatisticsProjection>> getIntegrationStatistics(
+    public ResponseEntity<Slice<IntegrationStatisticsProjection>> getIntegrationStatistics(
             @AuthenticationPrincipal Authentication authentication,
             IntegrationStatisticsFilter integrationStatisticsFilter,
             Pageable pageable
