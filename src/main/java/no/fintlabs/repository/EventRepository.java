@@ -16,6 +16,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 
@@ -146,7 +147,10 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
 
     Optional<EventEntity> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(Long instanceId, String name);
 
-    // TODO 12/12/2024 eivindmorch: Fix -- check commits behind main
+    // TODO 12/12/2024 eivindmorch: Send error message when duplicates? Should me manually unlinked from destination
+    //      ids until only one remains. Unsafe to assume last is the valid one.
+    //  Requires adding of replyErrorChecker in replyingKafkaTemplate and cathing the produced error
+    //      Wrap this as default behaviour of FINT Kafka RequestProducer?
     @Query(value = """
             SELECT e.instanceFlowHeaders.archiveInstanceId
             FROM EventEntity e
@@ -154,13 +158,14 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
             AND e.instanceFlowHeaders.sourceApplicationId = :#{#sourceApplicationId}
             AND e.instanceFlowHeaders.sourceApplicationIntegrationId = :#{#sourceApplicationIntegrationId}
             AND e.instanceFlowHeaders.sourceApplicationInstanceId = :#{#sourceApplicationInstanceId}
-            AND e.name IN :#{#names}
+            AND e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames}
+            ORDER BY e.timestamp DESC
             """)
-    Optional<String> findArchiveInstanceIdBySourceApplicationAggregateInstanceIdAndNameIn(
+    List<String> findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
             Long sourceApplicationId,
             String sourceApplicationIntegrationId,
             String sourceApplicationInstanceId,
-            Collection<String> names
+            EventNamesPerInstanceStatus eventNamesPerInstanceStatus
     );
 
     @Query(value = """

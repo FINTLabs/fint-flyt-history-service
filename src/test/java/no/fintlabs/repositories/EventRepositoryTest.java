@@ -136,6 +136,21 @@ public class EventRepositoryTest {
     }
 
     @Test
+    public void findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc() {
+        List<String> archiveInstanceIdsOrderedByTimestamp =
+                eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
+                        1L,
+                        "testIntegrationId1",
+                        "testSourceApplicationInstanceId1",
+                        eventCategorizationService.getEventNamesPerInstanceStatus()
+                );
+
+        assertThat(archiveInstanceIdsOrderedByTimestamp).hasSize(200);
+        assertThat(archiveInstanceIdsOrderedByTimestamp.get(0)).isEqualTo("RBRP1Ykvga");
+        assertThat(archiveInstanceIdsOrderedByTimestamp.get(199)).isEqualTo("vMRdgF3tqQ");
+    }
+
+    @Test
     public void statistics() {
         long startTime = System.currentTimeMillis();
         InstanceStatisticsProjection instanceStatisticsProjection =

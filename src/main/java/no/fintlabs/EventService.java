@@ -13,7 +13,6 @@ import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.model.event.EventType;
 import no.fintlabs.model.instance.InstanceInfo;
 import no.fintlabs.model.instance.InstanceInfoFilter;
-import no.fintlabs.model.instance.InstanceStatus;
 import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
 import no.fintlabs.repository.EventRepository;
 import no.fintlabs.repository.entities.EventEntity;
@@ -28,6 +27,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -154,12 +154,16 @@ public class EventService {
     public Optional<String> findLatestArchiveInstanceId(
             SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId
     ) {
-        return eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdAndNameIn(
-                sourceApplicationAggregateInstanceId.getSourceApplicationId(),
-                sourceApplicationAggregateInstanceId.getSourceApplicationIntegrationId(),
-                sourceApplicationAggregateInstanceId.getSourceApplicationInstanceId(),
-                eventCategorizationService.getEventNamesByInstanceStatuses(InstanceStatus.TRANSFERRED)
-        );
+        List<String> archiveInstanceIdsOrderedByTimestamp =
+                eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
+                        sourceApplicationAggregateInstanceId.getSourceApplicationId(),
+                        sourceApplicationAggregateInstanceId.getSourceApplicationIntegrationId(),
+                        sourceApplicationAggregateInstanceId.getSourceApplicationInstanceId(),
+                        eventCategorizationService.getEventNamesPerInstanceStatus()
+                );
+        return archiveInstanceIdsOrderedByTimestamp.isEmpty()
+                ? Optional.empty()
+                : Optional.of(archiveInstanceIdsOrderedByTimestamp.get(0));
     }
 
     public Optional<Event> findLatestStatusEventBySourceApplicationAggregateInstanceId(
