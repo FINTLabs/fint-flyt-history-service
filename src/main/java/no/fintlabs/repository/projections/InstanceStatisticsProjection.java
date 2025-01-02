@@ -1,14 +1,14 @@
 package no.fintlabs.repository.projections;
 
 public interface InstanceStatisticsProjection {
-    Long getNumberOfInstances();
+    Long getTotal();
 
-    Long getNumberOfInProgressInstances();
+    Long getInProgress();
 
-    Long getNumberOfTransferredInstances();
+    Long getTransferred();
 
-    Long getNumberOfAbortedInstances();
+    Long getAborted();
 
-    Long getNumberOfFailedInstances();
+    Long getFailed();
 
 }

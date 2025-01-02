@@ -148,11 +148,11 @@ public class EventRepositoryTest {
         log.info("Elapsed time=" + elapsedTime + "ms");
         log.info("Page=" + instanceStatisticsProjection.toString());
 
-        assertThat(instanceStatisticsProjection.getNumberOfInstances()).isEqualTo(20204L);
-        assertThat(instanceStatisticsProjection.getNumberOfInProgressInstances()).isEqualTo(0L);
-        assertThat(instanceStatisticsProjection.getNumberOfTransferredInstances()).isEqualTo(201L);
-        assertThat(instanceStatisticsProjection.getNumberOfAbortedInstances()).isEqualTo(0L);
-        assertThat(instanceStatisticsProjection.getNumberOfFailedInstances()).isEqualTo(20003L);
+        assertThat(instanceStatisticsProjection.getTotal()).isEqualTo(20204L);
+        assertThat(instanceStatisticsProjection.getInProgress()).isEqualTo(0L);
+        assertThat(instanceStatisticsProjection.getTransferred()).isEqualTo(201L);
+        assertThat(instanceStatisticsProjection.getAborted()).isEqualTo(0L);
+        assertThat(instanceStatisticsProjection.getFailed()).isEqualTo(20003L);
     }
 
     @Test
@@ -178,18 +178,18 @@ public class EventRepositoryTest {
         assertThat(integrationStatistics.getContent().size()).isEqualTo(2);
 
         IntegrationStatisticsProjection integrationStatistics1 = integrationStatistics.getContent().get(0);
-        assertThat(integrationStatistics1.getNumberOfInstances()).isEqualTo(20004L);
-        assertThat(integrationStatistics1.getNumberOfInProgressInstances()).isEqualTo(0L);
-        assertThat(integrationStatistics1.getNumberOfTransferredInstances()).isEqualTo(1L);
-        assertThat(integrationStatistics1.getNumberOfAbortedInstances()).isEqualTo(0L);
-        assertThat(integrationStatistics1.getNumberOfFailedInstances()).isEqualTo(20003L);
+        assertThat(integrationStatistics1.getTotal()).isEqualTo(20004L);
+        assertThat(integrationStatistics1.getInProgress()).isEqualTo(0L);
+        assertThat(integrationStatistics1.getTransferred()).isEqualTo(1L);
+        assertThat(integrationStatistics1.getAborted()).isEqualTo(0L);
+        assertThat(integrationStatistics1.getFailed()).isEqualTo(20003L);
 
         IntegrationStatisticsProjection integrationStatistics2 = integrationStatistics.getContent().get(1);
-        assertThat(integrationStatistics2.getNumberOfInstances()).isEqualTo(200L);
-        assertThat(integrationStatistics2.getNumberOfInProgressInstances()).isEqualTo(0L);
-        assertThat(integrationStatistics2.getNumberOfTransferredInstances()).isEqualTo(200L);
-        assertThat(integrationStatistics2.getNumberOfAbortedInstances()).isEqualTo(0L);
-        assertThat(integrationStatistics2.getNumberOfFailedInstances()).isEqualTo(0L);
+        assertThat(integrationStatistics2.getTotal()).isEqualTo(200L);
+        assertThat(integrationStatistics2.getInProgress()).isEqualTo(0L);
+        assertThat(integrationStatistics2.getTransferred()).isEqualTo(200L);
+        assertThat(integrationStatistics2.getAborted()).isEqualTo(0L);
+        assertThat(integrationStatistics2.getFailed()).isEqualTo(0L);
     }
 
 }

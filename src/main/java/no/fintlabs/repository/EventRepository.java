@@ -164,15 +164,15 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
     );
 
     @Query(value = """
-             SELECT COUNT(e) AS numberOfInstances,
+             SELECT COUNT(e) AS total,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END)
-                        AS numberOfInProgressInstances,
+                        AS inProgress,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END)
-                        AS numberOfTransferredInstances,
+                        AS transferred,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END)
-                        AS numberOfAbortedInstances,
+                        AS aborted,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END)
-                        AS numberOfFailedInstances
+                        AS failed
              FROM EventEntity e
              WHERE e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds}
              AND e.timestamp = (
@@ -191,15 +191,15 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
 
     @Query(value = """
              SELECT e.instanceFlowHeaders.integrationId AS integrationId,
-                    COUNT(e) AS numberOfInstances,
+                    COUNT(e) AS total,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END)
-                        AS numberOfInProgressInstances,
+                        AS inProgress,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END)
-                        AS numberOfTransferredInstances,
+                        AS transferred,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END)
-                        AS numberOfAbortedInstances,
+                        AS aborted,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END)
-                        AS numberOfFailedInstances
+                        AS failed
              FROM EventEntity e
              WHERE (:#{#integrationStatisticsQueryFilter.sourceApplicationIds.empty} IS TRUE
                  OR e.instanceFlowHeaders.sourceApplicationId IN :#{#integrationStatisticsQueryFilter.sourceApplicationIds.orElse(null)})
