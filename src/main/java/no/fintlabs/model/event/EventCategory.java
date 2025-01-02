@@ -53,7 +53,7 @@ public enum EventCategory {
     INSTANCE_MANUALLY_REJECTED(
             "instance-manually-rejected",
             EventType.INFO,
-            InstanceStatus.REJECTED,
+            InstanceStatus.ABORTED,
             null
     ),
     INSTANCE_RECEIVAL_ERROR(

@@ -169,8 +169,8 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                         AS numberOfInProgressInstances,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END)
                         AS numberOfTransferredInstances,
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.rejectedStatusEventNames} THEN 1 ELSE 0 END)
-                        AS numberOfRejectedInstances,
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END)
+                        AS numberOfAbortedInstances,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END)
                         AS numberOfFailedInstances
              FROM EventEntity e
@@ -196,8 +196,8 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                         AS numberOfInProgressInstances,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END)
                         AS numberOfTransferredInstances,
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.rejectedStatusEventNames} THEN 1 ELSE 0 END)
-                        AS numberOfRejectedInstances,
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END)
+                        AS numberOfAbortedInstances,
                     SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END)
                         AS numberOfFailedInstances
              FROM EventEntity e
@@ -219,7 +219,7 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
             """)
     Slice<IntegrationStatisticsProjection> getIntegrationStatistics(
             IntegrationStatisticsQueryFilter integrationStatisticsQueryFilter,
-            EventNamesPerInstanceStatus eventNamesPerInstanceStatus, // TODO 20/12/2024 eivindmorch: Replace with map?
+            EventNamesPerInstanceStatus eventNamesPerInstanceStatus,
             Pageable pageable
     );
 

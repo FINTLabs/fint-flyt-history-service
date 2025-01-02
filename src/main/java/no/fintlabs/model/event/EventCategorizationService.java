@@ -21,7 +21,7 @@ public class EventCategorizationService {
                 .builder()
                 .inProgressStatusEventNames(getEventNamesByInstanceStatuses(InstanceStatus.IN_PROGRESS))
                 .transferredStatusEventNames(getEventNamesByInstanceStatuses(InstanceStatus.TRANSFERRED))
-                .rejectedStatusEventNames(getEventNamesByInstanceStatuses(InstanceStatus.REJECTED))
+                .abortedStatusEventNames(getEventNamesByInstanceStatuses(InstanceStatus.ABORTED))
                 .failedStatusEventNames(getEventNamesByInstanceStatuses(InstanceStatus.FAILED))
                 .allStatusEventNames(getAllInstanceStatusEventNames())
                 .build();

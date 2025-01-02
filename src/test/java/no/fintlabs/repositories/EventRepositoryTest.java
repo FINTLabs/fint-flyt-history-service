@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
 @ActiveProfiles("local-staging")
@@ -146,6 +147,12 @@ public class EventRepositoryTest {
 
         log.info("Elapsed time=" + elapsedTime + "ms");
         log.info("Page=" + instanceStatisticsProjection.toString());
+
+        assertThat(instanceStatisticsProjection.getNumberOfInstances()).isEqualTo(20204L);
+        assertThat(instanceStatisticsProjection.getNumberOfInProgressInstances()).isEqualTo(0L);
+        assertThat(instanceStatisticsProjection.getNumberOfTransferredInstances()).isEqualTo(201L);
+        assertThat(instanceStatisticsProjection.getNumberOfAbortedInstances()).isEqualTo(0L);
+        assertThat(instanceStatisticsProjection.getNumberOfFailedInstances()).isEqualTo(20003L);
     }
 
     @Test
@@ -168,6 +175,21 @@ public class EventRepositoryTest {
         log.info("Elapsed time=" + elapsedTime + "ms");
         log.info("Page=" + integrationStatistics.toString());
 
+        assertThat(integrationStatistics.getContent().size()).isEqualTo(2);
+
+        IntegrationStatisticsProjection integrationStatistics1 = integrationStatistics.getContent().get(0);
+        assertThat(integrationStatistics1.getNumberOfInstances()).isEqualTo(20004L);
+        assertThat(integrationStatistics1.getNumberOfInProgressInstances()).isEqualTo(0L);
+        assertThat(integrationStatistics1.getNumberOfTransferredInstances()).isEqualTo(1L);
+        assertThat(integrationStatistics1.getNumberOfAbortedInstances()).isEqualTo(0L);
+        assertThat(integrationStatistics1.getNumberOfFailedInstances()).isEqualTo(20003L);
+
+        IntegrationStatisticsProjection integrationStatistics2 = integrationStatistics.getContent().get(1);
+        assertThat(integrationStatistics2.getNumberOfInstances()).isEqualTo(200L);
+        assertThat(integrationStatistics2.getNumberOfInProgressInstances()).isEqualTo(0L);
+        assertThat(integrationStatistics2.getNumberOfTransferredInstances()).isEqualTo(200L);
+        assertThat(integrationStatistics2.getNumberOfAbortedInstances()).isEqualTo(0L);
+        assertThat(integrationStatistics2.getNumberOfFailedInstances()).isEqualTo(0L);
     }
 
 }
