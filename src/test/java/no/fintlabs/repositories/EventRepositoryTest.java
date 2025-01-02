@@ -1,16 +1,17 @@
 package no.fintlabs.repositories;
 
 import lombok.extern.slf4j.Slf4j;
-import no.fintlabs.EventRepository;
-import no.fintlabs.model.entities.EventEntity;
-import no.fintlabs.model.instance.InstanceInfo;
-import no.fintlabs.model.instance.InstanceStatusFilter;
-import no.fintlabs.model.statistics.InstanceStatistics;
-import no.fintlabs.model.statistics.IntegrationStatistics;
-import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
+import no.fintlabs.model.event.EventCategorizationService;
 import no.fintlabs.repositories.utils.EventEntityGenerator;
 import no.fintlabs.repositories.utils.EventSequence;
 import no.fintlabs.repositories.utils.SequenceGenerationConfig;
+import no.fintlabs.repository.EventRepository;
+import no.fintlabs.repository.entities.EventEntity;
+import no.fintlabs.repository.filters.InstanceInfoQueryFilter;
+import no.fintlabs.repository.filters.IntegrationStatisticsQueryFilter;
+import no.fintlabs.repository.projections.InstanceInfoProjection;
+import no.fintlabs.repository.projections.InstanceStatisticsProjection;
+import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -40,6 +41,8 @@ public class EventRepositoryTest {
 
     @Autowired
     EventRepository eventRepository;
+
+    EventCategorizationService eventCategorizationService = new EventCategorizationService();
 
     // TODO 20/12/2024 eivindmorch: Add isolated tests (populate db for each) with simple filter and sort asserts
     @Test
@@ -99,9 +102,9 @@ public class EventRepositoryTest {
     @Test
     public void instanceStatus() {
         long startTime = System.currentTimeMillis();
-        Slice<InstanceInfo> instanceInfos =
+        Slice<InstanceInfoProjection> instanceInfos =
                 eventRepository.getInstanceInfo(
-                        InstanceStatusFilter
+                        InstanceInfoQueryFilter
                                 .builder()
                                 .sourceApplicationIds(List.of(1L, 2L))
                                 //.statuses(List.of(InstanceStatus.FAILED))
@@ -114,6 +117,8 @@ public class EventRepositoryTest {
                                 //.latestStatusTimestampMax(OffsetDateTime.of(2024, 12, 6, 19, 10, 0, 0, ZoneOffset.UTC))
                                 //.destinationIds(List.of("RBRP1Ykvga"))
                                 .build(),
+                        eventCategorizationService.getAllInstanceStatusEventNames(),
+                        eventCategorizationService.getAllInstanceStorageStatusEventNames(),
                         PageRequest.of(
                                 0,
                                 10000,
@@ -125,7 +130,7 @@ public class EventRepositoryTest {
         log.info("Result size=" + instanceInfos.getContent().size());
         log.info("Instances=" +
                  instanceInfos.getContent().stream()
-                         .map(InstanceInfo::toString)
+                         .map(InstanceInfoProjection::toString)
                          .collect(joining(",\r\n", "\r\n[", "\r\n]"))
         );
     }
@@ -133,25 +138,27 @@ public class EventRepositoryTest {
     @Test
     public void statistics() {
         long startTime = System.currentTimeMillis();
-        InstanceStatistics instanceStatistics =
+        InstanceStatisticsProjection instanceStatisticsProjection =
                 eventRepository.getTotalStatistics(
-                        List.of(1L, 2L)
+                        List.of(1L, 2L),
+                        eventCategorizationService.getEventNamesPerInstanceStatus()
                 );
         long elapsedTime = System.currentTimeMillis() - startTime;
 
         log.info("Elapsed time=" + elapsedTime + "ms");
-        log.info("Page=" + instanceStatistics.toString());
+        log.info("Page=" + instanceStatisticsProjection.toString());
     }
 
     @Test
     public void integrationStatistics() {
         long startTime = System.currentTimeMillis();
-        Page<IntegrationStatistics> integrationStatistics =
+        Page<IntegrationStatisticsProjection> integrationStatistics =
                 eventRepository.getIntegrationStatistics(
-                        IntegrationStatisticsFilter
+                        IntegrationStatisticsQueryFilter
                                 .builder()
                                 .sourceApplicationIds(List.of(1L, 2L))
                                 .build(),
+                        eventCategorizationService.getEventNamesPerInstanceStatus(),
                         PageRequest.of(
                                 0,
                                 1000

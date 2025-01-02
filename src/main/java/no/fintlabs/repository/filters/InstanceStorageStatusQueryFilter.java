@@ -1,4 +1,4 @@
-package no.fintlabs.model.instance;
+package no.fintlabs.repository.filters;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -7,7 +7,11 @@ import java.util.Collection;
 
 @Getter
 @AllArgsConstructor
-public class InstanceStorageStatusFilter {
+public class InstanceStorageStatusQueryFilter {
+
+    public static InstanceStorageStatusQueryFilter EMPTY =
+            new InstanceStorageStatusQueryFilter(null, null);
+
     private final Collection<String> instanceStorageStatusNames;
     private final Boolean neverStored;
 }

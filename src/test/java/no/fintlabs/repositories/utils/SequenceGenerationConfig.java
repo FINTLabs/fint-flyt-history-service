@@ -2,7 +2,7 @@ package no.fintlabs.repositories.utils;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import no.fintlabs.model.eventinfo.EventInfo;
+import no.fintlabs.model.event.EventCategory;
 
 import java.util.Arrays;
 import java.util.List;
@@ -10,7 +10,7 @@ import java.util.List;
 @Getter
 @AllArgsConstructor
 public class SequenceGenerationConfig {
-    private final List<EventInfo> eventSequence;
+    private final List<EventCategory> eventSequence;
     private final int numberOfSequences;
     private final String sourceApplicationInstanceIdOverride;
 
@@ -19,7 +19,7 @@ public class SequenceGenerationConfig {
     }
 
     public static class Builder {
-        private List<EventInfo> eventSequence;
+        private List<EventCategory> eventSequence;
         private int numberOfSequences;
         private String sourceApplicationInstanceIdOverride;
 
@@ -27,16 +27,14 @@ public class SequenceGenerationConfig {
         }
 
         public Builder eventSequence(EventSequence eventSequence) {
-            eventSequence(eventSequence.getOrder());
-            return this;
+            return eventSequence(eventSequence.getOrder());
         }
 
-        public Builder eventSequence(EventInfo... eventSequence) {
-            eventSequence(Arrays.stream(eventSequence).toList());
-            return this;
+        public Builder eventSequence(EventCategory... eventSequence) {
+            return eventSequence(Arrays.stream(eventSequence).toList());
         }
 
-        public Builder eventSequence(List<EventInfo> eventSequence) {
+        public Builder eventSequence(List<EventCategory> eventSequence) {
             this.eventSequence = eventSequence;
             return this;
         }

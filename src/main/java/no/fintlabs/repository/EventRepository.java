@@ -1,47 +1,30 @@
-package no.fintlabs;
+package no.fintlabs.repository;
 
-import no.fintlabs.model.Event;
+import no.fintlabs.model.event.Event;
 import no.fintlabs.model.SourceApplicationAggregateInstanceId;
-import no.fintlabs.model.entities.EventEntity;
-import no.fintlabs.model.entities.InstanceFlowHeadersEmbeddable;
-import no.fintlabs.model.eventinfo.InstanceStatusEvent;
-import no.fintlabs.model.eventinfo.InstanceStorageStatusEvent;
-import no.fintlabs.model.instance.InstanceInfo;
-import no.fintlabs.model.instance.InstanceStatus;
-import no.fintlabs.model.instance.InstanceStatusFilter;
-import no.fintlabs.model.statistics.InstanceStatistics;
-import no.fintlabs.model.statistics.IntegrationStatistics;
-import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
+import no.fintlabs.repository.entities.EventEntity;
+import no.fintlabs.repository.filters.EventNamesPerInstanceStatus;
+import no.fintlabs.repository.filters.InstanceInfoQueryFilter;
+import no.fintlabs.repository.filters.IntegrationStatisticsQueryFilter;
+import no.fintlabs.repository.projections.InstanceInfoProjection;
+import no.fintlabs.repository.projections.InstanceStatisticsProjection;
+import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Collection;
 import java.util.Optional;
-import java.util.Set;
 
 
 @Repository
 public interface EventRepository extends JpaRepository<EventEntity, Long> {
 
-    default Slice<InstanceInfo> getInstanceInfo(
-            @Param("filter") InstanceStatusFilter filter,
-            Pageable pageable
-    ) {
-        return getInstanceInfo(
-                filter,
-                InstanceStatusEvent.getAllEventNames(),
-                InstanceStorageStatusEvent.getAllEventNames(),
-                pageable
-        );
-    }
-
     @Query(value = """
-             SELECT new no.fintlabs.model.instance.InstanceInfo(
+             SELECT new no.fintlabs.repository.projections.InstanceInfoProjection(
                 statusEvent.instanceFlowHeaders.sourceApplicationId,
                 statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId,
                 statusEvent.instanceFlowHeaders.sourceApplicationInstanceId,
@@ -62,7 +45,7 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                     WHERE e.instanceFlowHeaders.sourceApplicationId = storageEvent.instanceFlowHeaders.sourceApplicationId
                       AND e.instanceFlowHeaders.sourceApplicationIntegrationId = storageEvent.instanceFlowHeaders.sourceApplicationIntegrationId
                       AND e.instanceFlowHeaders.sourceApplicationInstanceId = storageEvent.instanceFlowHeaders.sourceApplicationInstanceId
-                      AND e.name IN :#{#allStorageEventNames}
+                      AND e.name IN :#{#allInstanceStorageStatusEventNames}
                 )
              WHERE (
                 :#{#filter.statusEventNames.empty} IS TRUE
@@ -72,13 +55,13 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                 :#{#filter.storageStatusFilter.empty} IS TRUE
                 OR (
                     storageEvent.name IN :#{#filter.storageStatusFilter
-                        .orElse(new no.fintlabs.model.instance.InstanceStorageStatusFilter(null, null))
+                        .orElse(T(no.fintlabs.repository.filters.InstanceStorageStatusQueryFilter).EMPTY)
                         .instanceStorageStatusNames}
                     OR (
                         storageEvent IS NULL
-                        AND :#{#filter.storageStatusFilter.orElse(
-                            new no.fintlabs.model.instance.InstanceStorageStatusFilter(null, null)
-                        ).neverStored} IS TRUE)
+                        AND :#{#filter.storageStatusFilter
+                        .orElse(T(no.fintlabs.repository.filters.InstanceStorageStatusQueryFilter).EMPTY)
+                        .neverStored} IS TRUE)
                 )
              )
              AND (
@@ -117,7 +100,7 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                 WHERE e.instanceFlowHeaders.sourceApplicationId = statusEvent.instanceFlowHeaders.sourceApplicationId
                   AND e.instanceFlowHeaders.sourceApplicationIntegrationId = statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId
                   AND e.instanceFlowHeaders.sourceApplicationInstanceId = statusEvent.instanceFlowHeaders.sourceApplicationInstanceId
-                  AND e.name IN :#{#allStatusEventNames}
+                  AND e.name IN :#{#allInstanceStatusEventNames}
              )
              AND (
                  :#{#filter.associatedEventNames.empty} IS TRUE
@@ -130,21 +113,12 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                          AND e.name IN :#{#filter.associatedEventNames.orElse(null)}
                  ) > 0
             )""")
-    Slice<InstanceInfo> getInstanceInfo(
-            InstanceStatusFilter filter,
-            Collection<String> allStatusEventNames,
-            Collection<String> allStorageEventNames,
+    Slice<InstanceInfoProjection> getInstanceInfo(
+            InstanceInfoQueryFilter filter,
+            Collection<String> allInstanceStatusEventNames,
+            Collection<String> allInstanceStorageStatusEventNames,
             Pageable pageable
     );
-
-    default Optional<Event> findLatestStatusEventBySourceApplicationAggregateInstanceId(
-            SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId
-    ) {
-        return findLatestStatusEventBySourceApplicationAggregateInstanceId(
-                sourceApplicationAggregateInstanceId,
-                InstanceStatusEvent.getAllEventNames()
-        );
-    }
 
     @Query(value = """
             SELECT e
@@ -158,24 +132,13 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                 WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
                 AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
                 AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
-                AND e1.name IN :#{#allStatusEventNames}
+                AND e1.name IN :#{#allInstanceStatusEventNames}
             )
             """)
-    Optional<Event> findLatestStatusEventBySourceApplicationAggregateInstanceId(
+    Optional<EventEntity> findLatestStatusEventBySourceApplicationAggregateInstanceId(
             SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId,
-            Set<String> allStatusEventNames
+            Collection<String> allInstanceStatusEventNames
     );
-
-    default Page<EventEntity> getAllBySourceApplicationAggregateInstanceId(
-            Long sourceApplicationId,
-            String sourceApplicationIntegrationId,
-            String sourceApplicationInstanceId,
-            Pageable pageable
-    ) {
-        return findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationIntegrationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
-                sourceApplicationId, sourceApplicationIntegrationId, sourceApplicationInstanceId, pageable
-        );
-    }
 
     Page<EventEntity> findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationIntegrationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
             Long sourceApplicationId,
@@ -184,60 +147,32 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
             Pageable pageable
     );
 
-    default Optional<InstanceFlowHeadersEmbeddable> findInstanceFlowHeadersForLatestInstanceRegisteredEventWithInstanceId(Long instanceId) {
-        return findInstanceFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(
-                instanceId,
-                InstanceStorageStatusEvent.INSTANCE_REGISTERED.getName()
-        ).map(EventEntity::getInstanceFlowHeaders);
-    }
-
-    Optional<EventEntity> findInstanceFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(Long instanceId, String name);
-
-
-    default Optional<String> findLatestArchiveInstanceId(
-            SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId
-    ) {
-        return findArchiveInstanceIdBySourceApplicationAggregateInstanceIdAndNameIn(
-                sourceApplicationAggregateInstanceId.getSourceApplicationId(),
-                sourceApplicationAggregateInstanceId.getSourceApplicationIntegrationId(),
-                sourceApplicationAggregateInstanceId.getSourceApplicationInstanceId(),
-                InstanceStatusEvent.getAllEventNames(InstanceStatus.TRANSFERRED)
-        );
-    }
+    Optional<EventEntity> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(Long instanceId, String name);
 
     // TODO 12/12/2024 eivindmorch: Fix -- check commits behind main
     @Query(value = """
             SELECT e.instanceFlowHeaders.archiveInstanceId
             FROM EventEntity e
-            WHERE e.type = no.fintlabs.model.eventinfo.EventType.INFO
-            AND e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId
-            AND e.instanceFlowHeaders.sourceApplicationIntegrationId = :sourceApplicationIntegrationId
-            AND e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId
-            AND e.name = :name
+            WHERE e.type = no.fintlabs.model.event.EventType.INFO
+            AND e.instanceFlowHeaders.sourceApplicationId = :#{#sourceApplicationId}
+            AND e.instanceFlowHeaders.sourceApplicationIntegrationId = :#{#sourceApplicationIntegrationId}
+            AND e.instanceFlowHeaders.sourceApplicationInstanceId = :#{#sourceApplicationInstanceId}
+            AND e.name IN :#{#names}
             """)
     Optional<String> findArchiveInstanceIdBySourceApplicationAggregateInstanceIdAndNameIn(
-            @Param(value = "sourceApplicationId") Long sourceApplicationId,
-            @Param(value = "sourceApplicationIntegrationId") String sourceApplicationIntegrationId,
-            @Param(value = "sourceApplicationInstanceId") String sourceApplicationInstanceId,
-            @Param(value = "name") Collection<String> names
+            Long sourceApplicationId,
+            String sourceApplicationIntegrationId,
+            String sourceApplicationInstanceId,
+            Collection<String> names
     );
 
-    default InstanceStatistics getTotalStatistics(Collection<Long> sourceApplicationIds) {
-        return getTotalStatistics(
-                sourceApplicationIds,
-                InstanceStatusEvent.getAllEventNames(InstanceStatus.TRANSFERRED),
-                InstanceStatusEvent.getAllEventNames(InstanceStatus.IN_PROGRESS),
-                InstanceStatusEvent.getAllEventNames(InstanceStatus.FAILED),
-                InstanceStatusEvent.getAllEventNames()
-        );
-    }
-
     @Query(value = """
-            SELECT new no.fintlabs.model.statistics.InstanceStatistics(
+            SELECT new no.fintlabs.repository.projections.InstanceStatisticsProjection(
                     COUNT(e),
-                    SUM(CASE WHEN e.name IN :#{#dispatchedEventNames} THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN e.name IN :#{#inProgressEventNames} THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN e.name IN :#{#failedEventNames} THEN 1 ELSE 0 END)
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.rejectedStatusEventNames} THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END)
                 )
                 FROM EventEntity e
                 WHERE e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds}
@@ -247,62 +182,43 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                    WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
                      AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
                      AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
-                     AND e1.name IN :#{#allStatusEventNames}
+                     AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
                )
             """)
-    InstanceStatistics getTotalStatistics(
+    InstanceStatisticsProjection getTotalStatistics(
             Collection<Long> sourceApplicationIds,
-            Collection<String> dispatchedEventNames,
-            Collection<String> inProgressEventNames,
-            Collection<String> failedEventNames,
-            Collection<String> allStatusEventNames
+            EventNamesPerInstanceStatus eventNamesPerInstanceStatus
     );
 
-    default Page<IntegrationStatistics> getIntegrationStatistics(
-            IntegrationStatisticsFilter filter,
-            Pageable pageable
-    ) {
-        return getIntegrationStatistics(
-                filter,
-                InstanceStatusEvent.getAllEventNames(InstanceStatus.TRANSFERRED),
-                InstanceStatusEvent.getAllEventNames(InstanceStatus.IN_PROGRESS),
-                InstanceStatusEvent.getAllEventNames(InstanceStatus.FAILED),
-                InstanceStatusEvent.getAllEventNames(),
-                pageable
-        );
-    }
-
     @Query(value = """
-            SELECT new no.fintlabs.model.statistics.IntegrationStatistics(
+            SELECT new no.fintlabs.repository.projections.IntegrationStatisticsProjection(
                     e.instanceFlowHeaders.integrationId,
                     COUNT(e),
-                    SUM(CASE WHEN e.name IN :#{#transferredEventNames} THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN e.name IN :#{#inProgressEventNames} THEN 1 ELSE 0 END),
-                    SUM(CASE WHEN e.name IN :#{#failedEventNames} THEN 1 ELSE 0 END)
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.rejectedStatusEventNames} THEN 1 ELSE 0 END),
+                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END)
                 )
                 FROM EventEntity e
-                WHERE (:#{#filter.sourceApplicationIds.empty} IS TRUE
-                    OR e.instanceFlowHeaders.sourceApplicationId IN :#{#filter.sourceApplicationIds.orElse(null)})
-                AND (:#{#filter.sourceApplicationIntegrationIds.empty} IS TRUE
-                    OR e.instanceFlowHeaders.sourceApplicationIntegrationId IN :#{#filter.sourceApplicationIntegrationIds.orElse(null)})
-                AND (:#{#filter.integrationIds.empty} IS TRUE
-                    OR e.instanceFlowHeaders.integrationId IN :#{#filter.integrationIds.orElse(null)})
+                WHERE (:#{#integrationStatisticsQueryFilter.sourceApplicationIds.empty} IS TRUE
+                    OR e.instanceFlowHeaders.sourceApplicationId IN :#{#integrationStatisticsQueryFilter.sourceApplicationIds.orElse(null)})
+                AND (:#{#integrationStatisticsQueryFilter.sourceApplicationIntegrationIds.empty} IS TRUE
+                    OR e.instanceFlowHeaders.sourceApplicationIntegrationId IN :#{#integrationStatisticsQueryFilter.sourceApplicationIntegrationIds.orElse(null)})
+                AND (:#{#integrationStatisticsQueryFilter.integrationIds.empty} IS TRUE
+                    OR e.instanceFlowHeaders.integrationId IN :#{#integrationStatisticsQueryFilter.integrationIds.orElse(null)})
                 AND e.timestamp = (
                    SELECT MAX(e1.timestamp)
                    FROM EventEntity e1
                    WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
                      AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
                      AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
-                     AND e1.name IN :#{#allStatusEventNames}
+                     AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
                )
                GROUP BY e.instanceFlowHeaders.integrationId
             """)
-    Page<IntegrationStatistics> getIntegrationStatistics(
-            IntegrationStatisticsFilter filter,
-            Collection<String> transferredEventNames,
-            Collection<String> inProgressEventNames,
-            Collection<String> failedEventNames,
-            Collection<String> allStatusEventNames,
+    Page<IntegrationStatisticsProjection> getIntegrationStatistics(
+            IntegrationStatisticsQueryFilter integrationStatisticsQueryFilter,
+            EventNamesPerInstanceStatus eventNamesPerInstanceStatus, // TODO 20/12/2024 eivindmorch: Replace with map?
             Pageable pageable
     );
 

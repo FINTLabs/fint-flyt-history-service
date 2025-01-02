@@ -1,8 +1,8 @@
 //package no.fintlabs;
 //
-//import no.fintlabs.model.statistics.IntegrationStatistics;
-//import no.fintlabs.model.statistics.Statistics;
-//import no.fintlabs.EventRepository;
+//import no.fintlabs.repository.projections.statistics.IntegrationStatistics;
+//import no.fintlabs.repository.projections.statistics.Statistics;
+//import no.fintlabs.model.repository.EventRepository;
 //import org.junit.jupiter.api.BeforeEach;
 //import org.junit.jupiter.api.Test;
 //

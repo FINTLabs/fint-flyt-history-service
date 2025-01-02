@@ -1,7 +1,7 @@
 package no.fintlabs.mapping;
 
 import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
-import no.fintlabs.model.entities.InstanceFlowHeadersEmbeddable;
+import no.fintlabs.repository.entities.InstanceFlowHeadersEmbeddable;
 import org.springframework.stereotype.Service;
 
 @Service

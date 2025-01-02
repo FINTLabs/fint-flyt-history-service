@@ -1,9 +1,8 @@
-package no.fintlabs.model;
+package no.fintlabs.model.event;
 
 import lombok.*;
 import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
-import no.fintlabs.model.entities.ErrorEntity;
-import no.fintlabs.model.eventinfo.EventType;
+import no.fintlabs.repository.entities.ErrorEntity;
 
 import java.time.OffsetDateTime;
 import java.util.Collection;

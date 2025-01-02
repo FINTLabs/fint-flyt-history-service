@@ -1,10 +1,8 @@
 package no.fintlabs.repositories.utils;
 
-import no.fintlabs.model.entities.EventEntity;
-import no.fintlabs.model.entities.InstanceFlowHeadersEmbeddable;
-import no.fintlabs.model.eventinfo.EventInfo;
-import no.fintlabs.model.eventinfo.InstanceStatusEvent;
-import no.fintlabs.model.eventinfo.InstanceStorageStatusEvent;
+import no.fintlabs.model.event.EventCategory;
+import no.fintlabs.repository.entities.EventEntity;
+import no.fintlabs.repository.entities.InstanceFlowHeadersEmbeddable;
 
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
@@ -33,7 +31,7 @@ public class EventEntityGenerator {
         for (SequenceGenerationConfig sequenceGenerationConfig : sequenceGenerationConfigs) {
 
             for (int i = 0; i < sequenceGenerationConfig.getNumberOfSequences(); i++) {
-                List<EventInfo> sequenceEventOrder = sequenceGenerationConfig.getEventSequence();
+                List<EventCategory> sequenceEventOrder = sequenceGenerationConfig.getEventSequence();
                 String sequenceSourceApplicationInstanceId =
                         Optional.ofNullable(sequenceGenerationConfig.getSourceApplicationInstanceIdOverride())
                                 .orElse(generateStringOfMaxNLength(10));
@@ -50,11 +48,11 @@ public class EventEntityGenerator {
                 UUID currentSequenceCorrelationId = null;
                 Long currentSequenceInstanceId = null;
                 for (int j = 0; j < sequenceEventOrder.size(); j++) {
-                    EventInfo eventInfo = sequenceEventOrder.get(j);
-                    if (eventInfo == InstanceStorageStatusEvent.INSTANCE_REGISTERED) {
+                    EventCategory eventCategory = sequenceEventOrder.get(j);
+                    if (eventCategory == EventCategory.INSTANCE_REGISTERED) {
                         currentSequenceInstanceId = ++instanceIdCounter;
                     }
-                    if (eventInfo == InstanceStatusEvent.INSTANCE_RECEIVED || eventInfo == InstanceStatusEvent.INSTANCE_REQUESTED_FOR_RETRY) {
+                    if (eventCategory == EventCategory.INSTANCE_RECEIVED || eventCategory == EventCategory.INSTANCE_REQUESTED_FOR_RETRY) {
                         currentSequenceCorrelationId = UUID.randomUUID();
                     }
 
@@ -67,7 +65,7 @@ public class EventEntityGenerator {
                             .integrationId(integrationId)
                             .instanceId(currentSequenceInstanceId)
                             .archiveInstanceId(
-                                    eventInfo == InstanceStatusEvent.INSTANCE_DISPATCHED
+                                    eventCategory == EventCategory.INSTANCE_DISPATCHED
                                             ? generateStringOfMaxNLength(10)
                                             : null
                             )
@@ -75,7 +73,7 @@ public class EventEntityGenerator {
 
                     OffsetDateTime eventTimestamp = sequenceEventTimestamps.get(j);
                     eventEntities.add(generateEvent(
-                                    eventInfo,
+                                    eventCategory,
                                     headers,
                                     eventTimestamp
                             )
@@ -87,16 +85,16 @@ public class EventEntityGenerator {
     }
 
     public EventEntity generateEvent(
-            EventInfo eventInfo,
+            EventCategory eventCategory,
             InstanceFlowHeadersEmbeddable headers,
             OffsetDateTime timestamp
     ) {
         return EventEntity
                 .builder()
                 .instanceFlowHeaders(headers)
-                .name(eventInfo.getName())
+                .name(eventCategory.getName())
                 .timestamp(timestamp)
-                .type(eventInfo.getType())
+                .type(eventCategory.getType())
                 .build();
     }
 

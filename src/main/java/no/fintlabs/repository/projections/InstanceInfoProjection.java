@@ -1,15 +1,13 @@
-package no.fintlabs.model.instance;
+package no.fintlabs.repository.projections;
 
-import lombok.Builder;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.ToString;
 
 import java.time.OffsetDateTime;
 
-@ToString
+@AllArgsConstructor
 @Getter
-@Builder
-public class InstanceInfo {
+public class InstanceInfoProjection {
     private final Long sourceApplicationId;
 
     private final String sourceApplicationIntegrationId;
@@ -20,9 +18,9 @@ public class InstanceInfo {
 
     private final OffsetDateTime latestUpdate;
 
-    private final InstanceStatus status;
+    private final String latestStatusEventName;
 
-    private final InstanceStorageStatus intermediateStorageStatus;
+    private final String latestStorageStatusEventName;
 
     private final String destinationId;
 }

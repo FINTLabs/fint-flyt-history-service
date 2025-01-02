@@ -3,21 +3,23 @@ package no.fintlabs;
 import no.fintlabs.exceptions.LatesStatusEventNotOfTypeErrorException;
 import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
 import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
-import no.fintlabs.mapping.EventMappingService;
-import no.fintlabs.mapping.InstanceFlowHeadersMappingService;
-import no.fintlabs.model.Event;
+import no.fintlabs.mapping.*;
 import no.fintlabs.model.SourceApplicationAggregateInstanceId;
 import no.fintlabs.model.action.ManuallyProcessedEventAction;
 import no.fintlabs.model.action.ManuallyRejectedEventAction;
-import no.fintlabs.model.entities.EventEntity;
-import no.fintlabs.model.entities.InstanceFlowHeadersEmbeddable;
-import no.fintlabs.model.eventinfo.EventType;
-import no.fintlabs.model.eventinfo.InstanceStatusEvent;
+import no.fintlabs.model.event.Event;
+import no.fintlabs.model.event.EventCategorizationService;
+import no.fintlabs.model.event.EventCategory;
+import no.fintlabs.model.event.EventType;
 import no.fintlabs.model.instance.InstanceInfo;
-import no.fintlabs.model.instance.InstanceStatusFilter;
-import no.fintlabs.model.statistics.InstanceStatistics;
-import no.fintlabs.model.statistics.IntegrationStatistics;
+import no.fintlabs.model.instance.InstanceInfoFilter;
+import no.fintlabs.model.instance.InstanceStatus;
 import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
+import no.fintlabs.repository.EventRepository;
+import no.fintlabs.repository.entities.EventEntity;
+import no.fintlabs.repository.entities.InstanceFlowHeadersEmbeddable;
+import no.fintlabs.repository.projections.InstanceStatisticsProjection;
+import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,27 +38,42 @@ public class EventService {
     private final EventRepository eventRepository;
     private final EventMappingService eventMappingService;
     private final InstanceFlowHeadersMappingService instanceFlowHeadersMappingService;
+    private final InstanceStatusFilterMappingService instanceStatusFilterMappingService;
+    private final InstanceInfoMappingService instanceInfoMappingService;
+    private final IntegrationStatisticsFilterMappingService integrationStatisticsFilterMappingService;
+    private final EventCategorizationService eventCategorizationService;
 
     public EventService(
             @Value("${fint.application-id}") String applicationId,
             EventRepository eventRepository,
             EventMappingService eventMappingService,
-            InstanceFlowHeadersMappingService instanceFlowHeadersMappingService
+            InstanceFlowHeadersMappingService instanceFlowHeadersMappingService,
+            InstanceStatusFilterMappingService instanceStatusFilterMappingService,
+            InstanceInfoMappingService instanceInfoMappingService,
+            IntegrationStatisticsFilterMappingService integrationStatisticsFilterMappingService,
+            EventCategorizationService eventCategorizationService
     ) {
         this.applicationId = applicationId;
         this.eventRepository = eventRepository;
         this.eventMappingService = eventMappingService;
         this.instanceFlowHeadersMappingService = instanceFlowHeadersMappingService;
+        this.instanceStatusFilterMappingService = instanceStatusFilterMappingService;
+        this.instanceInfoMappingService = instanceInfoMappingService;
+        this.integrationStatisticsFilterMappingService = integrationStatisticsFilterMappingService;
+        this.eventCategorizationService = eventCategorizationService;
     }
 
     public Slice<InstanceInfo> getInstanceInfo(
-            InstanceStatusFilter instanceStatusFilter,
+            InstanceInfoFilter instanceInfoFilter,
             Pageable pageable
     ) {
         return eventRepository.getInstanceInfo(
-                instanceStatusFilter,
-                pageable
-        );
+                        instanceStatusFilterMappingService.toQueryFilter(instanceInfoFilter),
+                        eventCategorizationService.getAllInstanceStatusEventNames(),
+                        eventCategorizationService.getAllInstanceStorageStatusEventNames(),
+                        pageable
+                )
+                .map(instanceInfoMappingService::toInstanceInfo);
     }
 
     public Page<Event> getAllEventsBySourceApplicationAggregateInstanceId(
@@ -66,7 +83,7 @@ public class EventService {
             Pageable pageable
     ) {
         return eventMappingService.toEventPage(
-                eventRepository.getAllBySourceApplicationAggregateInstanceId(
+                eventRepository.findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationIntegrationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
                         sourceApplicationId,
                         sourceApplicationIntegrationId,
                         sourceApplicationInstanceId,
@@ -76,14 +93,18 @@ public class EventService {
     }
 
     public Optional<InstanceFlowHeaders> findInstanceFlowHeadersForLatestInstanceRegisteredEvent(Long instanceId) {
-        return eventRepository.findInstanceFlowHeadersForLatestInstanceRegisteredEventWithInstanceId(instanceId)
+        return eventRepository.findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(
+                        instanceId,
+                        EventCategory.INSTANCE_REGISTERED.getName()
+                )
+                .map(EventEntity::getInstanceFlowHeaders)
                 .map(instanceFlowHeadersMappingService::toInstanceFlowHeaders);
     }
 
     public Event addManuallyProcessedEvent(ManuallyProcessedEventAction manuallyProcessedEventAction) {
         return saveManualEvent(
                 manuallyProcessedEventAction,
-                InstanceStatusEvent.INSTANCE_MANUALLY_PROCESSED,
+                EventCategory.INSTANCE_MANUALLY_PROCESSED,
                 manuallyProcessedEventAction.getArchiveInstanceId()
         );
     }
@@ -91,14 +112,14 @@ public class EventService {
     public Event addManuallyRejectedEvent(ManuallyRejectedEventAction manuallyRejectedEventAction) {
         return saveManualEvent(
                 manuallyRejectedEventAction,
-                InstanceStatusEvent.INSTANCE_MANUALLY_REJECTED,
+                EventCategory.INSTANCE_MANUALLY_REJECTED,
                 null
         );
     }
 
     private Event saveManualEvent(
             SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId,
-            InstanceStatusEvent instanceStatusEvent,
+            EventCategory eventCategory,
             String archiveInstanceId
     ) {
         Optional<Event> latestBySourceApplicationAggregateInstanceId =
@@ -121,12 +142,23 @@ public class EventService {
                                                 archiveInstanceId
                                         )
                                 )
-                                .name(instanceStatusEvent.getName())
+                                .name(eventCategory.getName())
                                 .timestamp(OffsetDateTime.now())
-                                .type(instanceStatusEvent.getType())
+                                .type(eventCategory.getType())
                                 .applicationId(applicationId)
                                 .build()
                 )
+        );
+    }
+
+    public Optional<String> findLatestArchiveInstanceId(
+            SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId
+    ) {
+        return eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdAndNameIn(
+                sourceApplicationAggregateInstanceId.getSourceApplicationId(),
+                sourceApplicationAggregateInstanceId.getSourceApplicationIntegrationId(),
+                sourceApplicationAggregateInstanceId.getSourceApplicationInstanceId(),
+                eventCategorizationService.getEventNamesByInstanceStatuses(InstanceStatus.TRANSFERRED)
         );
     }
 
@@ -134,8 +166,9 @@ public class EventService {
             SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId
     ) {
         return eventRepository.findLatestStatusEventBySourceApplicationAggregateInstanceId(
-                sourceApplicationAggregateInstanceId
-        );
+                sourceApplicationAggregateInstanceId,
+                eventCategorizationService.getAllInstanceStatusEventNames()
+        ).map(eventMappingService::toEvent);
     }
 
     private InstanceFlowHeadersEmbeddable sourceApplicationAggregateInstanceIdToInstanceFlowHeadersEmbeddable(
@@ -155,16 +188,20 @@ public class EventService {
                 .build();
     }
 
-    public InstanceStatistics getStatistics(Collection<Long> sourceApplicationIds) {
-        return eventRepository.getTotalStatistics(sourceApplicationIds);
+    public InstanceStatisticsProjection getStatistics(Collection<Long> sourceApplicationIds) {
+        return eventRepository.getTotalStatistics(
+                sourceApplicationIds,
+                eventCategorizationService.getEventNamesPerInstanceStatus()
+        );
     }
 
-    public Page<IntegrationStatistics> getIntegrationStatistics(
+    public Page<IntegrationStatisticsProjection> getIntegrationStatistics(
             IntegrationStatisticsFilter integrationStatisticsFilter,
             Pageable pageable
     ) {
         return eventRepository.getIntegrationStatistics(
-                integrationStatisticsFilter,
+                integrationStatisticsFilterMappingService.toQueryFilter(integrationStatisticsFilter),
+                eventCategorizationService.getEventNamesPerInstanceStatus(),
                 pageable
         );
     }

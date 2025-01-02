@@ -2,14 +2,14 @@ package no.fintlabs;
 
 import no.fintlabs.exceptions.LatesStatusEventNotOfTypeErrorException;
 import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
-import no.fintlabs.model.Event;
+import no.fintlabs.model.event.Event;
 import no.fintlabs.model.action.ManuallyProcessedEventAction;
 import no.fintlabs.model.action.ManuallyRejectedEventAction;
 import no.fintlabs.model.instance.InstanceInfo;
-import no.fintlabs.model.instance.InstanceStatusFilter;
-import no.fintlabs.model.statistics.InstanceStatistics;
-import no.fintlabs.model.statistics.IntegrationStatistics;
+import no.fintlabs.model.instance.InstanceInfoFilter;
 import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
+import no.fintlabs.repository.projections.InstanceStatisticsProjection;
+import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -32,7 +32,8 @@ public class HistoryController {
     private final EventService eventService;
 
     public HistoryController(
-            AuthorizationService authorizationService, EventService eventService
+            AuthorizationService authorizationService,
+            EventService eventService
     ) {
         this.authorizationService = authorizationService;
         this.eventService = eventService;
@@ -41,7 +42,7 @@ public class HistoryController {
     // TODO 20/12/2024 eivindmorch: Check and possibly change paths
 
     @GetMapping("statistics")
-    public ResponseEntity<InstanceStatistics> getOverallStatistics(
+    public ResponseEntity<InstanceStatisticsProjection> getOverallStatistics(
             @AuthenticationPrincipal Authentication authentication
     ) {
         Set<Long> userAuthorizedSourceApplicationIds =
@@ -50,7 +51,7 @@ public class HistoryController {
     }
 
     @GetMapping("statistics/integrations")
-    public ResponseEntity<Page<IntegrationStatistics>> getIntegrationStatistics(
+    public ResponseEntity<Page<IntegrationStatisticsProjection>> getIntegrationStatistics(
             @AuthenticationPrincipal Authentication authentication,
             IntegrationStatisticsFilter integrationStatisticsFilter,
             Pageable pageable
@@ -71,13 +72,13 @@ public class HistoryController {
     @GetMapping(path = "instance-info")
     public ResponseEntity<Slice<InstanceInfo>> getInstanceInfo(
             @AuthenticationPrincipal Authentication authentication,
-            InstanceStatusFilter instanceStatusFilter,
+            InstanceInfoFilter instanceInfoFilter,
             Pageable pageable
     ) {
-        InstanceStatusFilter filterLimitedByUserAuthorization =
+        InstanceInfoFilter filterLimitedByUserAuthorization =
                 authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
                         authentication,
-                        instanceStatusFilter
+                        instanceInfoFilter
                 );
         return ResponseEntity.ok(
                 eventService.getInstanceInfo(

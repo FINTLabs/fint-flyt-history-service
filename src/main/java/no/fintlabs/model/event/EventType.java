@@ -1,4 +1,4 @@
-package no.fintlabs.model.eventinfo;
+package no.fintlabs.model.event;
 
 public enum EventType {
     INFO,

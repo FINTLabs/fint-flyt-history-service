@@ -1,9 +1,7 @@
 package no.fintlabs.repositories.utils;
 
 import lombok.Getter;
-import no.fintlabs.model.eventinfo.EventInfo;
-import no.fintlabs.model.eventinfo.InstanceStatusEvent;
-import no.fintlabs.model.eventinfo.InstanceStorageStatusEvent;
+import no.fintlabs.model.event.EventCategory;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -13,39 +11,39 @@ import java.util.List;
 public enum EventSequence {
 
     HAPPY_CASE(
-            InstanceStatusEvent.INSTANCE_RECEIVED,
-            InstanceStorageStatusEvent.INSTANCE_REGISTERED,
-            InstanceStatusEvent.INSTANCE_MAPPED,
-            InstanceStatusEvent.INSTANCE_READY_FOR_DISPATCH,
-            InstanceStatusEvent.INSTANCE_DISPATCHED,
-            InstanceStorageStatusEvent.INSTANCE_DELETED
+            EventCategory.INSTANCE_RECEIVED,
+            EventCategory.INSTANCE_REGISTERED,
+            EventCategory.INSTANCE_MAPPED,
+            EventCategory.INSTANCE_READY_FOR_DISPATCH,
+            EventCategory.INSTANCE_DISPATCHED,
+            EventCategory.INSTANCE_DELETED
     ),
     RECEIVAL_ERROR(
-            InstanceStatusEvent.INSTANCE_RECEIVAL_ERROR
+            EventCategory.INSTANCE_RECEIVAL_ERROR
     ),
     REGISTRATION_ERROR(
-            InstanceStatusEvent.INSTANCE_RECEIVED,
-            InstanceStatusEvent.INSTANCE_REGISTRATION_ERROR
+            EventCategory.INSTANCE_RECEIVED,
+            EventCategory.INSTANCE_REGISTRATION_ERROR
     ),
     MAPPING_ERROR(
-            InstanceStatusEvent.INSTANCE_RECEIVED,
-            InstanceStorageStatusEvent.INSTANCE_REGISTERED,
-            InstanceStatusEvent.INSTANCE_MAPPING_ERROR
+            EventCategory.INSTANCE_RECEIVED,
+            EventCategory.INSTANCE_REGISTERED,
+            EventCategory.INSTANCE_MAPPING_ERROR
     ),
     DISPATCH_ERROR(
-            InstanceStatusEvent.INSTANCE_RECEIVED,
-            InstanceStorageStatusEvent.INSTANCE_REGISTERED,
-            InstanceStatusEvent.INSTANCE_MAPPED,
-            InstanceStatusEvent.INSTANCE_READY_FOR_DISPATCH,
-            InstanceStatusEvent.INSTANCE_DISPATCHING_ERROR
+            EventCategory.INSTANCE_RECEIVED,
+            EventCategory.INSTANCE_REGISTERED,
+            EventCategory.INSTANCE_MAPPED,
+            EventCategory.INSTANCE_READY_FOR_DISPATCH,
+            EventCategory.INSTANCE_DISPATCHING_ERROR
     ),
 
     RETRY_SUCCESS_WITHOUT_PREVIOUS_EVENTS(
-            InstanceStatusEvent.INSTANCE_REQUESTED_FOR_RETRY,
-            InstanceStatusEvent.INSTANCE_MAPPED,
-            InstanceStatusEvent.INSTANCE_READY_FOR_DISPATCH,
-            InstanceStatusEvent.INSTANCE_DISPATCHED,
-            InstanceStorageStatusEvent.INSTANCE_DELETED
+            EventCategory.INSTANCE_REQUESTED_FOR_RETRY,
+            EventCategory.INSTANCE_MAPPED,
+            EventCategory.INSTANCE_READY_FOR_DISPATCH,
+            EventCategory.INSTANCE_DISPATCHED,
+            EventCategory.INSTANCE_DELETED
     ),
     MAPPING_ERROR_RETRY_SUCCESS(
             combineOrder(List.of(
@@ -57,8 +55,8 @@ public enum EventSequence {
             combineOrder(List.of(
                     MAPPING_ERROR.getOrder(),
                     List.of(
-                            InstanceStatusEvent.INSTANCE_REQUESTED_FOR_RETRY,
-                            InstanceStatusEvent.INSTANCE_MAPPING_ERROR
+                            EventCategory.INSTANCE_REQUESTED_FOR_RETRY,
+                            EventCategory.INSTANCE_MAPPING_ERROR
                     ),
                     RETRY_SUCCESS_WITHOUT_PREVIOUS_EVENTS.getOrder()
             ))
@@ -73,23 +71,23 @@ public enum EventSequence {
             combineOrder(List.of(
                     DISPATCH_ERROR.getOrder(),
                     List.of(
-                            InstanceStatusEvent.INSTANCE_REQUESTED_FOR_RETRY,
-                            InstanceStatusEvent.INSTANCE_MAPPED,
-                            InstanceStatusEvent.INSTANCE_READY_FOR_DISPATCH,
-                            InstanceStatusEvent.INSTANCE_DISPATCHING_ERROR
+                            EventCategory.INSTANCE_REQUESTED_FOR_RETRY,
+                            EventCategory.INSTANCE_MAPPED,
+                            EventCategory.INSTANCE_READY_FOR_DISPATCH,
+                            EventCategory.INSTANCE_DISPATCHING_ERROR
                     ),
                     RETRY_SUCCESS_WITHOUT_PREVIOUS_EVENTS.getOrder()
             ))
     );
 
-    private final List<EventInfo> order;
+    private final List<EventCategory> order;
 
-    EventSequence(EventInfo... order) {
+    EventSequence(EventCategory... order) {
         this.order = Arrays.stream(order).toList();
     }
 
-    private static EventInfo[] combineOrder(List<List<EventInfo>> orders) {
-        return orders.stream().flatMap(Collection::stream).toArray(EventInfo[]::new);
+    private static EventCategory[] combineOrder(List<List<EventCategory>> orders) {
+        return orders.stream().flatMap(Collection::stream).toArray(EventCategory[]::new);
     }
 
 }

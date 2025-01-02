@@ -1,17 +1,19 @@
 package no.fintlabs.model.instance;
 
 import lombok.Builder;
+import lombok.Getter;
 import lombok.extern.jackson.Jacksonized;
-import no.fintlabs.model.eventinfo.InstanceStatusEvent;
-import no.fintlabs.model.eventinfo.InstanceStorageStatusEvent;
+import no.fintlabs.model.SourceApplicationIdFilter;
+import no.fintlabs.model.SourceApplicationIdFilterBuilder;
 
 import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Optional;
 
+@Getter
 @Jacksonized
 @Builder(toBuilder = true)
-public class InstanceStatusFilter {
+public class InstanceInfoFilter implements SourceApplicationIdFilter<InstanceInfoFilter> {
     private final Collection<Long> sourceApplicationIds;
     private final Collection<String> sourceApplicationIntegrationIds;
     private final Collection<String> sourceApplicationInstanceIds;
@@ -47,24 +49,12 @@ public class InstanceStatusFilter {
         return Optional.ofNullable(latestStatusTimestampMax);
     }
 
-    private Optional<Collection<InstanceStatus>> getStatuses() {
+    public Optional<Collection<InstanceStatus>> getStatuses() {
         return Optional.ofNullable(statuses);
     }
 
-    // TODO 20/12/2024 eivindmorch: Change to create in constructor
-    public Optional<Collection<String>> getStatusEventNames() {
-        return getStatuses().map(InstanceStatusEvent::getAllEventNames);
-    }
-
-    // TODO 20/12/2024 eivindmorch: Change to create in constructor
-    public Optional<InstanceStorageStatusFilter> getStorageStatusFilter() {
-        return Optional.ofNullable(storageStatuses)
-                .map(statuses ->
-                        new InstanceStorageStatusFilter(
-                                InstanceStorageStatusEvent.getAllEventNames(statuses),
-                                statuses.contains(InstanceStorageStatus.NEVER_STORED)
-                        )
-                );
+    public Optional<Collection<InstanceStorageStatus>> getStorageStatuses() {
+        return Optional.ofNullable(storageStatuses);
     }
 
     public Optional<Collection<String>> getAssociatedEventNames() {
@@ -74,4 +64,18 @@ public class InstanceStatusFilter {
     public Optional<Collection<String>> getDestinationIds() {
         return Optional.ofNullable(destinationIds);
     }
+
+    public static class InstanceInfoFilterBuilder implements SourceApplicationIdFilterBuilder<InstanceInfoFilter> {
+
+        private Collection<Long> sourceApplicationIds;
+
+        @Override
+        public SourceApplicationIdFilterBuilder<InstanceInfoFilter> sourceApplicationId(
+                Collection<Long> sourceApplicationIds
+        ) {
+            this.sourceApplicationIds = sourceApplicationIds;
+            return this;
+        }
+    }
+
 }

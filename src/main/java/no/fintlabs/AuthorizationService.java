@@ -1,7 +1,6 @@
 package no.fintlabs;
 
-import no.fintlabs.model.instance.InstanceStatusFilter;
-import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
+import no.fintlabs.model.SourceApplicationIdFilter;
 import no.fintlabs.resourceserver.security.user.UserAuthorizationUtil;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -23,29 +22,19 @@ public class AuthorizationService {
         return new HashSet<>(UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication));
     }
 
-    public InstanceStatusFilter createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
+    public <T extends SourceApplicationIdFilter<T>> T
+    createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
             Authentication authentication,
-            InstanceStatusFilter instanceStatusFilter
+            SourceApplicationIdFilter<T> sourceApplicationIdFilter
     ) {
-        return instanceStatusFilter
+        return sourceApplicationIdFilter
                 .toBuilder()
-                .sourceApplicationIds(getUserAuthorizedFilterSourceApplicationIds(
-                        authentication,
-                        instanceStatusFilter::getSourceApplicationIds
-                ))
-                .build();
-    }
-
-    public IntegrationStatisticsFilter createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
-            Authentication authentication,
-            IntegrationStatisticsFilter integrationStatisticsFilter
-    ) {
-        return integrationStatisticsFilter
-                .toBuilder()
-                .sourceApplicationIds(getUserAuthorizedFilterSourceApplicationIds(
-                        authentication,
-                        integrationStatisticsFilter::getSourceApplicationIds
-                ))
+                .sourceApplicationId(
+                        getUserAuthorizedFilterSourceApplicationIds(
+                                authentication,
+                                sourceApplicationIdFilter::getSourceApplicationIds
+                        )
+                )
                 .build();
     }
 

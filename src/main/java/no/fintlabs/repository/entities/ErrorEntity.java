@@ -1,4 +1,4 @@
-package no.fintlabs.model.entities;
+package no.fintlabs.repository.entities;
 
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.*;

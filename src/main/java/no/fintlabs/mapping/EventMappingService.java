@@ -1,7 +1,7 @@
 package no.fintlabs.mapping;
 
-import no.fintlabs.model.Event;
-import no.fintlabs.model.entities.EventEntity;
+import no.fintlabs.model.event.Event;
+import no.fintlabs.repository.entities.EventEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 
