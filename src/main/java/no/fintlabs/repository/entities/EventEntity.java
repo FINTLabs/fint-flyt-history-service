@@ -37,10 +37,8 @@ public class EventEntity {
 
     // TODO 20/12/2024 eivindmorch: Identity or sequence? How is migration done?
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "event_generator")
-    @SequenceGenerator(name = "event_generator", sequenceName = "event_seq", allocationSize = 50)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @JsonIgnore
-    @Getter(AccessLevel.NONE)
     @Setter(AccessLevel.NONE)
     private long id;
 

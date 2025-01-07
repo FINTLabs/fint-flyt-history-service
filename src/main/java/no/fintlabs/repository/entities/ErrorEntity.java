@@ -1,5 +1,6 @@
 package no.fintlabs.repository.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.*;
 import lombok.extern.jackson.Jacksonized;
@@ -19,9 +20,8 @@ public class ErrorEntity {
 
     // TODO 20/12/2024 eivindmorch: Identity or sequence? How is migration done?
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "error_generator")
-    @SequenceGenerator(name = "error_generator", sequenceName = "error_seq", allocationSize = 50)
-    @Getter(AccessLevel.NONE)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @JsonIgnore
     @Setter(AccessLevel.NONE)
     private long id;
 

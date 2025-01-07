@@ -9,7 +9,7 @@ import java.util.Collection;
 @AllArgsConstructor
 public class InstanceStorageStatusQueryFilter {
 
-    public static InstanceStorageStatusQueryFilter EMPTY =
+    public static final InstanceStorageStatusQueryFilter EMPTY =
             new InstanceStorageStatusQueryFilter(null, null);
 
     private final Collection<String> instanceStorageStatusNames;
