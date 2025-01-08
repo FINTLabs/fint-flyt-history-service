@@ -16,6 +16,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -31,8 +32,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers
 public class EventRepositoryTest {
 
+    @SuppressWarnings("resource")
     @Container
-    static PostgreSQLContainer<?> postgreSQLContainer = new PostgreSQLContainer<>("postgres:16");
+    static PostgreSQLContainer<?> postgreSQLContainer = new PostgreSQLContainer<>("postgres:16")
+            .waitingFor(Wait.forListeningPort());
 
     @DynamicPropertySource
     static void setProperties(DynamicPropertyRegistry registry) {
