@@ -19,15 +19,7 @@ jar {
 }
 
 test {
-    useJUnitPlatform {
-        excludeTags "performanceTest"
-    }
-}
-
-tasks.register("performanceTest", Test) {
-    useJUnitPlatform {
-        includeTags "performanceTest"
-    }
+    useJUnitPlatform ()
 }
 
 repositories {

@@ -3,7 +3,6 @@ package no.fintlabs.repository;
 import lombok.extern.slf4j.Slf4j;
 import no.fintlabs.context.testcontainers.ContainerCleanupType;
 import no.fintlabs.context.testcontainers.RepositoryTestcontainersTest;
-import no.fintlabs.context.types.PerformanceTest;
 import no.fintlabs.model.event.EventCategorizationService;
 import no.fintlabs.repository.entities.EventEntity;
 import no.fintlabs.repository.filters.InstanceInfoQueryFilter;
@@ -28,7 +27,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
-@PerformanceTest
 @RepositoryTestcontainersTest(
         cleanupType = ContainerCleanupType.CLASS,
         cpuCount = 1,
