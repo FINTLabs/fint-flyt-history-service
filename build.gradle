@@ -18,6 +18,18 @@ jar {
     enabled = false
 }
 
+test {
+    useJUnitPlatform {
+        excludeTags "performanceTest"
+    }
+}
+
+tasks.register("performanceTest", Test) {
+    useJUnitPlatform {
+        includeTags "performanceTest"
+    }
+}
+
 repositories {
     mavenCentral()
     repositories {
@@ -65,6 +77,3 @@ dependencies {
     testImplementation("org.testcontainers:postgresql")
 }
 
-test {
-    useJUnitPlatform()
-}

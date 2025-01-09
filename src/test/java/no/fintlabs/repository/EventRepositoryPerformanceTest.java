@@ -1,41 +1,39 @@
-package no.fintlabs.repositories;
+package no.fintlabs.repository;
 
 import lombok.extern.slf4j.Slf4j;
+import no.fintlabs.context.testcontainers.ContainerCleanupType;
+import no.fintlabs.context.testcontainers.RepositoryTestcontainersTest;
+import no.fintlabs.context.types.PerformanceTest;
 import no.fintlabs.model.event.EventCategorizationService;
-import no.fintlabs.repositories.utils.EventEntityGenerator;
-import no.fintlabs.repositories.utils.EventSequence;
-import no.fintlabs.repositories.utils.SequenceGenerationConfig;
-import no.fintlabs.repository.EventRepository;
 import no.fintlabs.repository.entities.EventEntity;
 import no.fintlabs.repository.filters.InstanceInfoQueryFilter;
 import no.fintlabs.repository.filters.IntegrationStatisticsQueryFilter;
 import no.fintlabs.repository.projections.InstanceInfoProjection;
 import no.fintlabs.repository.projections.InstanceStatisticsProjection;
 import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
+import no.fintlabs.repository.utils.EventEntityGenerator;
+import no.fintlabs.repository.utils.EventSequence;
+import no.fintlabs.repository.utils.SequenceGenerationConfig;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
-import java.util.Collection;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
-@ActiveProfiles("local-staging")
-@DataJpaTest()
-@Transactional(propagation = Propagation.NOT_SUPPORTED)
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@PerformanceTest
+@RepositoryTestcontainersTest(
+        cleanupType = ContainerCleanupType.CLASS,
+        cpuCount = 1,
+        memorySize = 1024 * 1024 * 1024
+)
 public class EventRepositoryPerformanceTest {
 
     @Autowired
@@ -43,9 +41,15 @@ public class EventRepositoryPerformanceTest {
 
     EventCategorizationService eventCategorizationService = new EventCategorizationService();
 
-    // TODO 20/12/2024 eivindmorch: Add isolated tests (populate db for each) with simple filter and sort asserts
-    @Test
+    private static boolean isInitialized = false;
+
+    // TODO 08/01/2025 eivindmorch: Replace with proper initialisation of db data before first test
+    @BeforeEach
     public void generateEvents() {
+        if (isInitialized) {
+            return;
+        }
+        isInitialized = true;
         EventEntityGenerator eventEntityGenerator = new EventEntityGenerator(42L);
         List<EventEntity> generatedEvents1 = eventEntityGenerator.generateEvents(
                 1L,
@@ -87,15 +91,9 @@ public class EventRepositoryPerformanceTest {
                                 .build()
                 )
         );
-        log.info("Generated entities");
-
-        eventRepository.saveAllAndFlush(
-                Stream.of(generatedEvents1, generatedEvents2)
-                        .flatMap(Collection::stream)
-                        .toList()
-        );
-
-        log.info("Persisted entities");
+        eventRepository.saveAll(generatedEvents1);
+        eventRepository.saveAll(generatedEvents2);
+        eventRepository.flush();
     }
 
     @Test

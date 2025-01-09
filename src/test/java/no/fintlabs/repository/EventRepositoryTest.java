@@ -1,24 +1,18 @@
-package no.fintlabs.repositories;
+package no.fintlabs.repository;
 
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import no.fintlabs.context.testcontainers.ContainerCleanupType;
+import no.fintlabs.context.testcontainers.RepositoryTestcontainersTest;
 import no.fintlabs.model.SourceApplicationAggregateInstanceId;
 import no.fintlabs.model.event.EventCategorizationService;
 import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.model.event.EventType;
-import no.fintlabs.repository.EventRepository;
 import no.fintlabs.repository.entities.EventEntity;
 import no.fintlabs.repository.entities.InstanceFlowHeadersEmbeddable;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.containers.wait.strategy.Wait;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -28,21 +22,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
-@DataJpaTest
-@Testcontainers
+@RepositoryTestcontainersTest(cleanupType = ContainerCleanupType.METHOD)
 public class EventRepositoryTest {
-
-    @SuppressWarnings("resource")
-    @Container
-    static PostgreSQLContainer<?> postgreSQLContainer = new PostgreSQLContainer<>("postgres:16")
-            .waitingFor(Wait.forListeningPort());
-
-    @DynamicPropertySource
-    static void setProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgreSQLContainer::getJdbcUrl);
-        registry.add("spring.datasource.username", postgreSQLContainer::getUsername);
-        registry.add("spring.datasource.password", postgreSQLContainer::getPassword);
-    }
 
     @Autowired
     EventRepository eventRepository;
@@ -58,7 +39,7 @@ public class EventRepositoryTest {
     }
 
     @Test
-    public void givenNoEventsWhenFindLatestStatusEventBySourceApplicationAggregateInstanceIdShouldReturnEmpty() {
+    public void givenNoEventsWhenCalledShouldReturnEmpty() {
         Optional<EventEntity> latestStatusEventBySourceApplicationAggregateInstanceId =
                 eventRepository.findLatestStatusEventBySourceApplicationAggregateInstanceId(
                         TestSourceApplicationAggregateInstanceId
@@ -74,7 +55,7 @@ public class EventRepositoryTest {
     }
 
     @Test
-    public void givenNoEventsWithMatchingSourceApplicationAggregateIdWhenFindLatestStatusEventBySourceApplicationAggregateInstanceIdShouldReturnEmpty() {
+    public void givenNoEventsWithMatchingSourceApplicationAggregateIdWhenCalledShouldReturnEmpty() {
         eventRepository.save(
                 EventEntity.builder()
                         .instanceFlowHeaders(
@@ -106,7 +87,7 @@ public class EventRepositoryTest {
     }
 
     @Test
-    public void givenEventsWithMatchingSourceApplicationAggregateInstanceIdWhenFindLatestStatusEventBySourceApplicationAggregateInstanceIdShouldReturnLatestStatusEvent() {
+    public void givenEventsWithMatchingSourceApplicationAggregateInstanceIdWhenCalledShouldReturnLatestStatusEvent() {
         eventRepository.saveAll(List.of(
                 EventEntity.builder()
                         .instanceFlowHeaders(
@@ -173,7 +154,22 @@ public class EventRepositoryTest {
                         eventCategorizationService.getAllInstanceStatusEventNames()
                 );
         assertThat(latestStatusEventBySourceApplicationAggregateInstanceId).isPresent();
-        assertThat(latestStatusEventBySourceApplicationAggregateInstanceId.get().getId()).isEqualTo(3);
+        assertThat(latestStatusEventBySourceApplicationAggregateInstanceId.get()).isEqualTo(
+                EventEntity.builder()
+                        .instanceFlowHeaders(
+                                InstanceFlowHeadersEmbeddable.builder()
+                                        .sourceApplicationId(1L)
+                                        .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                        .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                        .archiveInstanceId("testArchiveInstanceId1")
+                                        .build()
+                        )
+                        .name(EventCategory.INSTANCE_DISPATCHED.getName())
+                        .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 1, 0, 0, ZoneOffset.UTC))
+                        .type(EventType.INFO)
+                        .build()
+        );
     }
+
 
 }

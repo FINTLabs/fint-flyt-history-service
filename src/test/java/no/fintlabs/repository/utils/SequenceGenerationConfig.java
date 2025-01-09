@@ -1,4 +1,4 @@
-package no.fintlabs.repositories.utils;
+package no.fintlabs.repository.utils;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

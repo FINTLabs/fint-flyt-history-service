@@ -1,4 +1,4 @@
-package no.fintlabs.repositories.utils;
+package no.fintlabs.repository.utils;
 
 import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.repository.entities.EventEntity;
