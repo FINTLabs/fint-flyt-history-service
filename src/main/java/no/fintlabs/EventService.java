@@ -192,9 +192,6 @@ public class EventService {
                 .build();
     }
 
-    // TODO 17/01/2025 eivindmorch: Må ha optional filter dersom man allerede har valgt SA. Dersom denne velges først bør SA i filter for hele spørringen automatisk bli satt i frontend. Eller? Kanskje bare ha som tekstfelt uten dropdown?
-    //   public Slice<Collection<String>> getAllDistinctSourceApplicationInstanceIds() {};
-
     public InstanceStatisticsProjection getStatistics(Collection<Long> sourceApplicationIds) {
         return eventRepository.getTotalStatistics(
                 sourceApplicationIds,
