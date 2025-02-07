@@ -1,13 +1,10 @@
 package no.fintlabs.validation;
 
 import no.fintlabs.model.instance.ActiveTimePeriod;
-import no.fintlabs.model.instance.InstanceFlowSummariesFilter;
 import no.fintlabs.model.time.ManualTimeFilter;
 import no.fintlabs.model.time.OffsetTimeFilter;
 import no.fintlabs.model.time.TimeFilter;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.shaded.com.fasterxml.jackson.core.JsonProcessingException;
-import org.testcontainers.shaded.com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -86,24 +83,6 @@ class OnlyOneTimeFilterTypeValidatorTest {
                 null
         );
         assertThat(valid).isTrue();
-    }
-
-
-    // TODO 06/02/2025 eivindmorch: REMOVE!!
-    @Test
-    public void a() {
-        InstanceFlowSummariesFilter build = InstanceFlowSummariesFilter.builder()
-                .time(
-                        TimeFilter.builder()
-                                .offset(OffsetTimeFilter.builder().minutes(1).build())
-                                .build()
-                ).build();
-
-        try {
-            System.out.println(new ObjectMapper().writer().withDefaultPrettyPrinter().writeValueAsString(build));
-        } catch (JsonProcessingException e) {
-//            throw new RuntimeException(e);
-        }
     }
 
 }
