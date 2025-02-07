@@ -36,7 +36,7 @@ public class EventCategorizationService {
     public Set<String> getEventNamesByInstanceStorageStatuses(Collection<InstanceStorageStatus> instanceStorageStatuses) {
         return getCategoriesByInstanceStorageStatuses(instanceStorageStatuses)
                 .stream()
-                .map(EventCategory::getName)
+                .map(EventCategory::getEventName)
                 .collect(Collectors.toSet());
     }
 
@@ -53,12 +53,12 @@ public class EventCategorizationService {
     public Set<String> getEventNamesByInstanceStatuses(Collection<InstanceStatus> instanceStatuses) {
         return getCategoriesByInstanceStatuses(instanceStatuses)
                 .stream()
-                .map(EventCategory::getName)
+                .map(EventCategory::getEventName)
                 .collect(Collectors.toSet());
     }
 
     private final Map<String, EventCategory> categoryByName = Arrays.stream(EventCategory.values())
-            .collect(Collectors.toMap(EventCategory::getName, Function.identity()));
+            .collect(Collectors.toMap(EventCategory::getEventName, Function.identity()));
 
     public EventCategory getCategoryByName(String name) {
         return categoryByName.get(name);
@@ -73,7 +73,7 @@ public class EventCategorizationService {
     public Set<String> getAllInstanceStatusEventNames() {
         return getInstanceStatusCategories()
                 .stream()
-                .map(EventCategory::getName)
+                .map(EventCategory::getEventName)
                 .collect(Collectors.toSet());
     }
 
@@ -86,7 +86,7 @@ public class EventCategorizationService {
     public Set<String> getAllInstanceStorageStatusEventNames() {
         return getInstanceStorageStatusCategories()
                 .stream()
-                .map(EventCategory::getName)
+                .map(EventCategory::getEventName)
                 .collect(Collectors.toSet());
     }
 

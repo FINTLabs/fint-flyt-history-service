@@ -2,7 +2,7 @@ package no.fintlabs.repository.projections;
 
 import java.time.OffsetDateTime;
 
-public interface InstanceInfoProjection {
+public interface InstanceFlowSummaryProjection {
     Long getSourceApplicationId();
 
     String getSourceApplicationIntegrationId();

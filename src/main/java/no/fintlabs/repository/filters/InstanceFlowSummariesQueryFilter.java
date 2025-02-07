@@ -1,19 +1,19 @@
 package no.fintlabs.repository.filters;
 
 import lombok.Builder;
+import lombok.Getter;
 
-import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.Optional;
 
 @Builder
-public class InstanceInfoQueryFilter {
+public class InstanceFlowSummariesQueryFilter {
     private final Collection<Long> sourceApplicationIds;
     private final Collection<String> sourceApplicationIntegrationIds;
     private final Collection<String> sourceApplicationInstanceIds;
     private final Collection<Long> integrationIds;
-    private final OffsetDateTime latestStatusTimestampMin;
-    private final OffsetDateTime latestStatusTimestampMax;
+    @Getter
+    private final TimeQueryFilter timeQueryFilter;
     private final Collection<String> statusEventNames;
     private final InstanceStorageStatusQueryFilter storageStatusFilter;
     private final Collection<String> associatedEventNames;
@@ -33,14 +33,6 @@ public class InstanceInfoQueryFilter {
 
     public Optional<Collection<Long>> getIntegrationIds() {
         return Optional.ofNullable(integrationIds);
-    }
-
-    public Optional<OffsetDateTime> getLatestStatusTimestampMin() {
-        return Optional.ofNullable(latestStatusTimestampMin);
-    }
-
-    public Optional<OffsetDateTime> getLatestStatusTimestampMax() {
-        return Optional.ofNullable(latestStatusTimestampMax);
     }
 
     public Optional<Collection<String>> getStatusEventNames() {

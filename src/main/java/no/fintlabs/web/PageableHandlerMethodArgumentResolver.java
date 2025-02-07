@@ -43,6 +43,9 @@ public class PageableHandlerMethodArgumentResolver implements HandlerMethodArgum
     }
 
     private Sort getSort(List<String> sortParams) {
+        if (Objects.isNull(sortParams)) {
+            return Sort.unsorted();
+        }
         List<Sort.Order> sortOrderList = sortParams.stream()
                 .map(this::createOrderFromSortParam)
                 .filter(Optional::isPresent)

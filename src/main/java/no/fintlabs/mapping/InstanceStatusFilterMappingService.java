@@ -1,44 +1,63 @@
 package no.fintlabs.mapping;
 
 import no.fintlabs.model.event.EventCategorizationService;
-import no.fintlabs.model.instance.InstanceInfoFilter;
+import no.fintlabs.model.event.EventCategory;
+import no.fintlabs.model.instance.InstanceFlowSummariesFilter;
 import no.fintlabs.model.instance.InstanceStorageStatus;
-import no.fintlabs.repository.filters.InstanceInfoQueryFilter;
+import no.fintlabs.repository.filters.InstanceFlowSummariesQueryFilter;
 import no.fintlabs.repository.filters.InstanceStorageStatusQueryFilter;
+import no.fintlabs.repository.filters.TimeQueryFilter;
 import org.springframework.stereotype.Service;
+
+import java.util.Optional;
 
 @Service
 public class InstanceStatusFilterMappingService {
 
     private final EventCategorizationService eventCategorizationService;
+    private final TimeFilterMappingService timeFilterMappingService;
 
-    public InstanceStatusFilterMappingService(EventCategorizationService eventCategorizationService) {
+    public InstanceStatusFilterMappingService(
+            EventCategorizationService eventCategorizationService,
+            TimeFilterMappingService timeFilterMappingService
+    ) {
         this.eventCategorizationService = eventCategorizationService;
+        this.timeFilterMappingService = timeFilterMappingService;
     }
 
-    public InstanceInfoQueryFilter toQueryFilter(
-            InstanceInfoFilter instanceInfoFilter
+    public InstanceFlowSummariesQueryFilter toQueryFilter(
+            InstanceFlowSummariesFilter instanceFlowSummariesFilter
     ) {
-        return InstanceInfoQueryFilter
+        return InstanceFlowSummariesQueryFilter
                 .builder()
-                .sourceApplicationIds(instanceInfoFilter.getSourceApplicationIds().orElse(null))
-                .sourceApplicationIntegrationIds(instanceInfoFilter.getSourceApplicationIntegrationIds().orElse(null))
-                .sourceApplicationInstanceIds(instanceInfoFilter.getSourceApplicationInstanceIds().orElse(null))
-                .integrationIds(instanceInfoFilter.getIntegrationIds().orElse(null))
-                .latestStatusTimestampMin(instanceInfoFilter.getLatestStatusTimestampMin().orElse(null))
-                .latestStatusTimestampMax(instanceInfoFilter.getLatestStatusTimestampMax().orElse(null))
-                .statusEventNames(instanceInfoFilter.getStatuses()
+                .sourceApplicationIds(instanceFlowSummariesFilter.getSourceApplicationIds())
+                .sourceApplicationIntegrationIds(instanceFlowSummariesFilter.getSourceApplicationIntegrationIds())
+                .sourceApplicationInstanceIds(instanceFlowSummariesFilter.getSourceApplicationInstanceIds())
+                .integrationIds(instanceFlowSummariesFilter.getIntegrationIds())
+                .timeQueryFilter(Optional.ofNullable(instanceFlowSummariesFilter.getTime())
+                        .map(timeFilterMappingService::toQueryFilter)
+                        .orElse(TimeQueryFilter.EMPTY)
+                )
+                .statusEventNames(Optional.ofNullable(instanceFlowSummariesFilter.getStatuses())
                         .map(eventCategorizationService::getEventNamesByInstanceStatuses)
                         .orElse(null))
-                .storageStatusFilter(instanceInfoFilter.getStorageStatuses()
+                .storageStatusFilter(Optional.ofNullable(instanceFlowSummariesFilter.getStorageStatuses())
                         .map(storageStatus ->
                                 new InstanceStorageStatusQueryFilter(
                                         eventCategorizationService.getEventNamesByInstanceStorageStatuses(storageStatus),
                                         storageStatus.contains(InstanceStorageStatus.NEVER_STORED)
                                 )
                         ).orElse(null))
-                .associatedEventNames(instanceInfoFilter.getAssociatedEventNames().orElse(null))
-                .destinationIds(instanceInfoFilter.getDestinationIds().orElse(null))
+                .associatedEventNames(
+                        Optional.ofNullable(instanceFlowSummariesFilter.getAssociatedEvents())
+                                .map(eventCategories -> eventCategories.stream()
+                                        .map(EventCategory::getEventName)
+                                        .toList()
+                                )
+                                .orElse(null)
+                )
+                .destinationIds(instanceFlowSummariesFilter.getDestinationIds())
                 .build();
     }
+
 }

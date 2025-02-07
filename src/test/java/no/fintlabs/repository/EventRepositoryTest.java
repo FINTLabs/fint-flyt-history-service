@@ -86,6 +86,7 @@ public class EventRepositoryTest {
         assertThat(latestStatusEventBySourceApplicationAggregateInstanceId).isEmpty();
     }
 
+    // TODO 07/02/2025 eivindmorch: Investigate
     @Test
     public void givenEventsWithMatchingSourceApplicationAggregateInstanceIdWhenCalledShouldReturnLatestStatusEvent() {
         eventRepository.saveAll(List.of(
@@ -98,7 +99,7 @@ public class EventRepositoryTest {
                                         .archiveInstanceId("testArchiveInstanceId1")
                                         .build()
                         )
-                        .name(EventCategory.INSTANCE_DISPATCHED.getName())
+                        .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
                         .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
                         .type(EventType.INFO)
                         .build(),
@@ -111,7 +112,7 @@ public class EventRepositoryTest {
                                         .archiveInstanceId("testArchiveInstanceId1")
                                         .build()
                         )
-                        .name(EventCategory.INSTANCE_DISPATCHED.getName())
+                        .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
                         .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
                         .type(EventType.INFO)
                         .build(),
@@ -124,7 +125,7 @@ public class EventRepositoryTest {
                                         .archiveInstanceId("testArchiveInstanceId1")
                                         .build()
                         )
-                        .name(EventCategory.INSTANCE_DISPATCHED.getName())
+                        .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
                         .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 1, 0, 0, ZoneOffset.UTC))
                         .type(EventType.INFO)
                         .build(),
@@ -137,7 +138,7 @@ public class EventRepositoryTest {
                                         .archiveInstanceId("testArchiveInstanceId1")
                                         .build()
                         )
-                        .name(EventCategory.INSTANCE_DISPATCHED.getName())
+                        .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
                         .timestamp(OffsetDateTime.of(2024, 1, 1, 14, 0, 0, 0, ZoneOffset.UTC))
                         .type(EventType.INFO)
                         .build()
@@ -164,12 +165,11 @@ public class EventRepositoryTest {
                                         .archiveInstanceId("testArchiveInstanceId1")
                                         .build()
                         )
-                        .name(EventCategory.INSTANCE_DISPATCHED.getName())
+                        .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
                         .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 1, 0, 0, ZoneOffset.UTC))
                         .type(EventType.INFO)
                         .build()
         );
     }
-
 
 }

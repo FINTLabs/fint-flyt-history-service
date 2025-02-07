@@ -14,7 +14,7 @@ import java.util.Collection;
 @NoArgsConstructor
 public class Event {
     private InstanceFlowHeaders instanceFlowHeaders;
-    private String name;
+    private EventCategory category;
     private OffsetDateTime timestamp;
     private EventType type;
     private String applicationId;

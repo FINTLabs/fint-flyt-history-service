@@ -7,7 +7,6 @@ import no.fintlabs.model.SourceApplicationIdFilter;
 import no.fintlabs.model.SourceApplicationIdFilterBuilder;
 
 import java.util.Collection;
-import java.util.Optional;
 
 @Getter
 @Jacksonized
@@ -16,18 +15,6 @@ public class IntegrationStatisticsFilter implements SourceApplicationIdFilter<In
     private final Collection<Long> sourceApplicationIds;
     private final Collection<String> sourceApplicationIntegrationIds;
     private final Collection<Long> integrationIds;
-
-    public Optional<Collection<Long>> getSourceApplicationIds() {
-        return Optional.ofNullable(sourceApplicationIds);
-    }
-
-    public Optional<Collection<String>> getSourceApplicationIntegrationIds() {
-        return Optional.ofNullable(sourceApplicationIntegrationIds);
-    }
-
-    public Optional<Collection<Long>> getIntegrationIds() {
-        return Optional.ofNullable(integrationIds);
-    }
 
     public static class IntegrationStatisticsFilterBuilder
             implements SourceApplicationIdFilterBuilder<IntegrationStatisticsFilter> {

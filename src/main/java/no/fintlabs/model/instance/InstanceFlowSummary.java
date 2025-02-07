@@ -9,7 +9,7 @@ import java.time.OffsetDateTime;
 @ToString
 @Getter
 @Builder
-public class InstanceInfo {
+public class InstanceFlowSummary {
     private final Long sourceApplicationId;
 
     private final String sourceApplicationIntegrationId;

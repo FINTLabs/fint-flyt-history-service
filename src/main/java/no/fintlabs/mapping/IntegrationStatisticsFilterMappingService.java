@@ -10,9 +10,9 @@ public class IntegrationStatisticsFilterMappingService {
     public IntegrationStatisticsQueryFilter toQueryFilter(IntegrationStatisticsFilter integrationStatisticsFilter) {
         return IntegrationStatisticsQueryFilter
                 .builder()
-                .sourceApplicationIds(integrationStatisticsFilter.getSourceApplicationIds().orElse(null))
-                .sourceApplicationIntegrationIds(integrationStatisticsFilter.getSourceApplicationIntegrationIds().orElse(null))
-                .integrationIds(integrationStatisticsFilter.getIntegrationIds().orElse(null))
+                .sourceApplicationIds(integrationStatisticsFilter.getSourceApplicationIds())
+                .sourceApplicationIntegrationIds(integrationStatisticsFilter.getSourceApplicationIntegrationIds())
+                .integrationIds(integrationStatisticsFilter.getIntegrationIds())
                 .build();
     }
 }

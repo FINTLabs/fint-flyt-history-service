@@ -55,7 +55,7 @@ public class EventListenerConfiguration {
                     eventEntity.setInstanceFlowHeaders(
                             instanceFlowHeadersMappingService.toEmbeddable(instanceFlowConsumerRecord.getInstanceFlowHeaders())
                     );
-                    eventEntity.setName(category.getName());
+                    eventEntity.setName(category.getEventName());
                     eventEntity.setType(EventType.INFO);
                     eventEntity.setTimestamp(
                             Instant.ofEpochMilli(instanceFlowConsumerRecord.getConsumerRecord().timestamp())
@@ -72,7 +72,7 @@ public class EventListenerConfiguration {
                 }
         ).createContainer(
                 EventTopicNameParameters.builder()
-                        .eventName(category.getName())
+                        .eventName(category.getEventName())
                         .build()
         );
     }
@@ -84,7 +84,7 @@ public class EventListenerConfiguration {
                     eventEntity.setInstanceFlowHeaders(
                             instanceFlowHeadersMappingService.toEmbeddable(instanceFlowConsumerRecord.getInstanceFlowHeaders())
                     );
-                    eventEntity.setName(eventCategory.getName());
+                    eventEntity.setName(eventCategory.getEventName());
                     eventEntity.setType(EventType.ERROR);
                     eventEntity.setTimestamp(
                             Instant.ofEpochMilli(instanceFlowConsumerRecord.getConsumerRecord().timestamp())
@@ -100,7 +100,7 @@ public class EventListenerConfiguration {
                     ));
                     eventRepository.save(eventEntity);
                 }
-        ).createContainer(createErrorEventTopicNameParameters(eventCategory.getName()));
+        ).createContainer(createErrorEventTopicNameParameters(eventCategory.getEventName()));
     }
 
     private Collection<ErrorEntity> mapToErrorEntities(ErrorCollection errorCollection) {

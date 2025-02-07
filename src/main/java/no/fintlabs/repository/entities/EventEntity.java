@@ -35,7 +35,6 @@ import java.util.Collection;
         })
 public class EventEntity {
 
-    // TODO 20/12/2024 eivindmorch: Identity or sequence? How is migration done?
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @JsonIgnore

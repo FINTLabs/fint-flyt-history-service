@@ -38,7 +38,7 @@ class RepositoryTestcontainersExtension implements
         RepositoryTestcontainersTest annotation = getAnnotation(extensionContext);
         cleanupType = annotation.cleanupType();
         try (PostgreSQLContainer<?> postgreSQLContainer = new PostgreSQLContainer<>("postgres:16")) {
-            this.postgreSQLContainer = postgreSQLContainer
+            postgreSQLContainer
                     .waitingFor(Wait.forListeningPort())
                     .withCreateContainerCmdModifier(createContainerCmd -> JavaUtils.INSTANCE.acceptIfNotNull(
                                     createContainerCmd.getHostConfig(),
@@ -52,6 +52,10 @@ class RepositoryTestcontainersExtension implements
                                     }
                             )
                     );
+            if (!annotation.dataInitScriptPath().isBlank()) {
+                postgreSQLContainer.withInitScript(annotation.dataInitScriptPath());
+            }
+            this.postgreSQLContainer = postgreSQLContainer;
         }
     }
 

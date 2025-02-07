@@ -18,7 +18,6 @@ import java.util.Map;
 @Table(name = "error")
 public class ErrorEntity {
 
-    // TODO 20/12/2024 eivindmorch: Identity or sequence? How is migration done?
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @JsonIgnore

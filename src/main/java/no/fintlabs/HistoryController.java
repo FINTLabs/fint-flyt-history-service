@@ -5,11 +5,12 @@ import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
 import no.fintlabs.model.action.ManuallyProcessedEventAction;
 import no.fintlabs.model.action.ManuallyRejectedEventAction;
 import no.fintlabs.model.event.Event;
-import no.fintlabs.model.instance.InstanceInfo;
-import no.fintlabs.model.instance.InstanceInfoFilter;
+import no.fintlabs.model.instance.InstanceFlowSummariesFilter;
+import no.fintlabs.model.instance.InstanceFlowSummary;
 import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
 import no.fintlabs.repository.projections.InstanceStatisticsProjection;
 import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -25,7 +26,7 @@ import java.util.Set;
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 
 @RestController
-@RequestMapping(INTERNAL_API + "/history")
+@RequestMapping(INTERNAL_API + "/instance-flow-tracking")
 public class HistoryController {
 
     private final AuthorizationService authorizationService;
@@ -39,9 +40,14 @@ public class HistoryController {
         this.eventService = eventService;
     }
 
-    // TODO 20/12/2024 eivindmorch: Check and possibly change paths
+    // TODO 07/02/2025 eivindmorch: Add format and response to frontend with validation errors
 
-    @GetMapping("statistics")
+    @ExceptionHandler(TypeMismatchException.class)
+    public final ResponseEntity<?> handleTypeMismatchException(TypeMismatchException e) {
+        return ResponseEntity.badRequest().body("'" + e.getValue() + "' does not match the required type or format");
+    }
+
+    @GetMapping("statistics/total")
     public ResponseEntity<InstanceStatisticsProjection> getOverallStatistics(
             @AuthenticationPrincipal Authentication authentication
     ) {
@@ -69,26 +75,26 @@ public class HistoryController {
         );
     }
 
-    @GetMapping(path = "instance-info")
-    public ResponseEntity<Slice<InstanceInfo>> getInstanceInfo(
+    @GetMapping(path = "summaries")
+    public ResponseEntity<Slice<InstanceFlowSummary>> getInstanceFlowSummaries(
             @AuthenticationPrincipal Authentication authentication,
-            InstanceInfoFilter instanceInfoFilter,
+            @Valid InstanceFlowSummariesFilter instanceFlowSummariesFilter,
             Pageable pageable
     ) {
-        InstanceInfoFilter filterLimitedByUserAuthorization =
+        InstanceFlowSummariesFilter filterLimitedByUserAuthorization =
                 authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
                         authentication,
-                        instanceInfoFilter
+                        instanceFlowSummariesFilter
                 );
         return ResponseEntity.ok(
-                eventService.getInstanceInfo(
+                eventService.getInstanceFlowSummaries(
                         filterLimitedByUserAuthorization,
                         pageable
                 )
         );
     }
 
-    @GetMapping(path = "event", params = {
+    @GetMapping(path = "events", params = {
             "sourceApplicationId",
             "sourceApplicationIntegrationId",
             "sourceApplicationInstanceId"
@@ -114,7 +120,7 @@ public class HistoryController {
     // TODO 04/12/2024 eivindmorch: Ved dispatched/manual burde vi slette alle instanser som har samme SA, SAIntId, SAInstId
     //  Aggregere alle instanceId og fileId som ligger i history med den kobinasjonen av SA, SAIntId, SAInstId
     //  Da trenger vi ikke kopiere headers for manuelle eventer her
-    @PostMapping("action/event/instance-manually-processed")
+    @PostMapping("events/instance-manually-processed")
     public ResponseEntity<?> setManuallyProcessed(
             @AuthenticationPrincipal Authentication authentication,
             @RequestBody @Valid ManuallyProcessedEventAction manuallyProcessedEventAction
@@ -132,7 +138,7 @@ public class HistoryController {
         }
     }
 
-    @PostMapping("action/event/instance-manually-rejected")
+    @PostMapping("events/instance-manually-rejected")
     public ResponseEntity<?> setManuallyRejected(
             @AuthenticationPrincipal Authentication authentication,
             @RequestBody @Valid ManuallyRejectedEventAction manuallyRejectedEventAction

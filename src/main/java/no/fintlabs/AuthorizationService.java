@@ -9,7 +9,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Supplier;
 
 @Service
 public class AuthorizationService {
@@ -32,7 +31,7 @@ public class AuthorizationService {
                 .sourceApplicationId(
                         getUserAuthorizedFilterSourceApplicationIds(
                                 authentication,
-                                sourceApplicationIdFilter::getSourceApplicationIds
+                                sourceApplicationIdFilter.getSourceApplicationIds()
                         )
                 )
                 .build();
@@ -40,10 +39,10 @@ public class AuthorizationService {
 
     private Set<Long> getUserAuthorizedFilterSourceApplicationIds(
             Authentication authentication,
-            Supplier<Optional<Collection<Long>>> filteredSourceApplicationIdsSupplier
+            Collection<Long> filteredSourceApplicationIds
     ) {
         Set<Long> userAuthorizedSourceApplicationsIds = getUserAuthorizedSourceApplicationIds(authentication);
-        return filteredSourceApplicationIdsSupplier.get().map(
+        return Optional.ofNullable(filteredSourceApplicationIds).map(
                 filterSourceApplicationIds -> intersectAuthorizationAndFilterSourceApplicationIds(
                         userAuthorizedSourceApplicationsIds,
                         filterSourceApplicationIds

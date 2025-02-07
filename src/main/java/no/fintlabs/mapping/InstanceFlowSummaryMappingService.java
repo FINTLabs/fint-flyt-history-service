@@ -2,24 +2,24 @@ package no.fintlabs.mapping;
 
 import no.fintlabs.model.event.EventCategorizationService;
 import no.fintlabs.model.event.EventCategory;
-import no.fintlabs.model.instance.InstanceInfo;
+import no.fintlabs.model.instance.InstanceFlowSummary;
 import no.fintlabs.model.instance.InstanceStorageStatus;
-import no.fintlabs.repository.projections.InstanceInfoProjection;
+import no.fintlabs.repository.projections.InstanceFlowSummaryProjection;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
 @Service
-public class InstanceInfoMappingService {
+public class InstanceFlowSummaryMappingService {
 
     private final EventCategorizationService eventCategorizationService;
 
-    public InstanceInfoMappingService(EventCategorizationService eventCategorizationService) {
+    public InstanceFlowSummaryMappingService(EventCategorizationService eventCategorizationService) {
         this.eventCategorizationService = eventCategorizationService;
     }
 
-    public InstanceInfo toInstanceInfo(InstanceInfoProjection projection) {
-        return InstanceInfo
+    public InstanceFlowSummary toInstanceFlowSummary(InstanceFlowSummaryProjection projection) {
+        return InstanceFlowSummary
                 .builder()
                 .sourceApplicationId(projection.getSourceApplicationId())
                 .sourceApplicationIntegrationId(projection.getSourceApplicationIntegrationId())

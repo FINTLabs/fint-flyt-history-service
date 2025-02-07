@@ -1,6 +1,7 @@
 package no.fintlabs.mapping;
 
 import no.fintlabs.model.event.Event;
+import no.fintlabs.model.event.EventCategorizationService;
 import no.fintlabs.repository.entities.EventEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -9,9 +10,14 @@ import org.springframework.stereotype.Service;
 public class EventMappingService {
 
     private final InstanceFlowHeadersMappingService instanceFlowHeadersMappingService;
+    private final EventCategorizationService eventCategorizationService;
 
-    public EventMappingService(InstanceFlowHeadersMappingService instanceFlowHeadersMappingService) {
+    public EventMappingService(
+            InstanceFlowHeadersMappingService instanceFlowHeadersMappingService,
+            EventCategorizationService eventCategorizationService
+    ) {
         this.instanceFlowHeadersMappingService = instanceFlowHeadersMappingService;
+        this.eventCategorizationService = eventCategorizationService;
     }
 
     public Event toEvent(EventEntity eventEntity) {
@@ -21,7 +27,7 @@ public class EventMappingService {
                                 eventEntity.getInstanceFlowHeaders()
                         )
                 )
-                .name(eventEntity.getName())
+                .category(eventCategorizationService.getCategoryByName(eventEntity.getName()))
                 .timestamp(eventEntity.getTimestamp())
                 .type(eventEntity.getType())
                 .applicationId(eventEntity.getApplicationId())

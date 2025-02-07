@@ -19,7 +19,7 @@ jar {
 }
 
 test {
-    useJUnitPlatform ()
+    useJUnitPlatform()
 }
 
 repositories {

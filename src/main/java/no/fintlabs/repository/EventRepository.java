@@ -3,9 +3,9 @@ package no.fintlabs.repository;
 import no.fintlabs.model.SourceApplicationAggregateInstanceId;
 import no.fintlabs.repository.entities.EventEntity;
 import no.fintlabs.repository.filters.EventNamesPerInstanceStatus;
-import no.fintlabs.repository.filters.InstanceInfoQueryFilter;
+import no.fintlabs.repository.filters.InstanceFlowSummariesQueryFilter;
 import no.fintlabs.repository.filters.IntegrationStatisticsQueryFilter;
-import no.fintlabs.repository.projections.InstanceInfoProjection;
+import no.fintlabs.repository.projections.InstanceFlowSummaryProjection;
 import no.fintlabs.repository.projections.InstanceStatisticsProjection;
 import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
 import org.springframework.data.domain.Page;
@@ -28,7 +28,7 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                 statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId AS sourceApplicationIntegrationId,
                 statusEvent.instanceFlowHeaders.sourceApplicationInstanceId AS sourceApplicationInstanceId,
                 statusEvent.instanceFlowHeaders.integrationId AS integrationId,
-                statusEvent.timestamp AS latesUpdate,
+                statusEvent.timestamp AS latestUpdate,
                 statusEvent.name AS latestStatusEventName,
                 storageEvent.name AS latestStorageStatusEventName,
                 statusEvent.instanceFlowHeaders.archiveInstanceId AS destinationId
@@ -85,12 +85,12 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                  OR statusEvent.instanceFlowHeaders.archiveInstanceId IN :#{#filter.destinationIds.orElse(null)}
              )
              AND (
-                 :#{#filter.latestStatusTimestampMin.empty} IS TRUE
-                 OR statusEvent.timestamp >= :#{#filter.latestStatusTimestampMin.orElse(null)}
+                 :#{#filter.timeQueryFilter.latestStatusTimestampMin.empty} IS TRUE
+                 OR statusEvent.timestamp >= :#{#filter.timeQueryFilter.latestStatusTimestampMin.orElse(null)}
              )
              AND (
-                 :#{#filter.latestStatusTimestampMax.empty} IS TRUE
-                 OR statusEvent.timestamp <= :#{#filter.latestStatusTimestampMax.orElse(null)}
+                 :#{#filter.timeQueryFilter.latestStatusTimestampMax.empty} IS TRUE
+                 OR statusEvent.timestamp <= :#{#filter.timeQueryFilter.latestStatusTimestampMax.orElse(null)}
              )
              AND statusEvent.timestamp = (
                 SELECT MAX(e.timestamp)
@@ -111,8 +111,8 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                          AND e.name IN :#{#filter.associatedEventNames.orElse(null)}
                  ) > 0
             )""")
-    Slice<InstanceInfoProjection> getInstanceInfo(
-            InstanceInfoQueryFilter filter,
+    Slice<InstanceFlowSummaryProjection> getInstanceFlowSummaries(
+            InstanceFlowSummariesQueryFilter filter,
             Collection<String> allInstanceStatusEventNames,
             Collection<String> allInstanceStorageStatusEventNames,
             Pageable pageable

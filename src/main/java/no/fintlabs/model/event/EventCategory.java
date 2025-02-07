@@ -93,7 +93,7 @@ public enum EventCategory {
             InstanceStorageStatus.STORED_AND_DELETED
     );
 
-    private final String name;
+    private final String eventName;
     private final EventType type;
     private final InstanceStatus instanceStatus;
     private final InstanceStorageStatus instanceStorageStatus;

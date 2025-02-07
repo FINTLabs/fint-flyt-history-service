@@ -11,8 +11,8 @@ import no.fintlabs.model.event.Event;
 import no.fintlabs.model.event.EventCategorizationService;
 import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.model.event.EventType;
-import no.fintlabs.model.instance.InstanceInfo;
-import no.fintlabs.model.instance.InstanceInfoFilter;
+import no.fintlabs.model.instance.InstanceFlowSummariesFilter;
+import no.fintlabs.model.instance.InstanceFlowSummary;
 import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
 import no.fintlabs.repository.EventRepository;
 import no.fintlabs.repository.entities.EventEntity;
@@ -39,7 +39,7 @@ public class EventService {
     private final EventMappingService eventMappingService;
     private final InstanceFlowHeadersMappingService instanceFlowHeadersMappingService;
     private final InstanceStatusFilterMappingService instanceStatusFilterMappingService;
-    private final InstanceInfoMappingService instanceInfoMappingService;
+    private final InstanceFlowSummaryMappingService instanceFlowSummaryMappingService;
     private final IntegrationStatisticsFilterMappingService integrationStatisticsFilterMappingService;
     private final EventCategorizationService eventCategorizationService;
 
@@ -49,7 +49,7 @@ public class EventService {
             EventMappingService eventMappingService,
             InstanceFlowHeadersMappingService instanceFlowHeadersMappingService,
             InstanceStatusFilterMappingService instanceStatusFilterMappingService,
-            InstanceInfoMappingService instanceInfoMappingService,
+            InstanceFlowSummaryMappingService instanceFlowSummaryMappingService,
             IntegrationStatisticsFilterMappingService integrationStatisticsFilterMappingService,
             EventCategorizationService eventCategorizationService
     ) {
@@ -58,22 +58,22 @@ public class EventService {
         this.eventMappingService = eventMappingService;
         this.instanceFlowHeadersMappingService = instanceFlowHeadersMappingService;
         this.instanceStatusFilterMappingService = instanceStatusFilterMappingService;
-        this.instanceInfoMappingService = instanceInfoMappingService;
+        this.instanceFlowSummaryMappingService = instanceFlowSummaryMappingService;
         this.integrationStatisticsFilterMappingService = integrationStatisticsFilterMappingService;
         this.eventCategorizationService = eventCategorizationService;
     }
 
-    public Slice<InstanceInfo> getInstanceInfo(
-            InstanceInfoFilter instanceInfoFilter,
+    public Slice<InstanceFlowSummary> getInstanceFlowSummaries(
+            InstanceFlowSummariesFilter instanceFlowSummariesFilter,
             Pageable pageable
     ) {
-        return eventRepository.getInstanceInfo(
-                        instanceStatusFilterMappingService.toQueryFilter(instanceInfoFilter),
+        return eventRepository.getInstanceFlowSummaries(
+                        instanceStatusFilterMappingService.toQueryFilter(instanceFlowSummariesFilter),
                         eventCategorizationService.getAllInstanceStatusEventNames(),
                         eventCategorizationService.getAllInstanceStorageStatusEventNames(),
                         pageable
                 )
-                .map(instanceInfoMappingService::toInstanceInfo);
+                .map(instanceFlowSummaryMappingService::toInstanceFlowSummary);
     }
 
     public Page<Event> getAllEventsBySourceApplicationAggregateInstanceId(
@@ -95,7 +95,7 @@ public class EventService {
     public Optional<InstanceFlowHeaders> findInstanceFlowHeadersForLatestInstanceRegisteredEvent(Long instanceId) {
         return eventRepository.findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(
                         instanceId,
-                        EventCategory.INSTANCE_REGISTERED.getName()
+                        EventCategory.INSTANCE_REGISTERED.getEventName()
                 )
                 .map(EventEntity::getInstanceFlowHeaders)
                 .map(instanceFlowHeadersMappingService::toInstanceFlowHeaders);
@@ -142,7 +142,7 @@ public class EventService {
                                                 archiveInstanceId
                                         )
                                 )
-                                .name(eventCategory.getName())
+                                .name(eventCategory.getEventName())
                                 .timestamp(OffsetDateTime.now())
                                 .type(eventCategory.getType())
                                 .applicationId(applicationId)
@@ -191,6 +191,9 @@ public class EventService {
                 .archiveInstanceId(archiveInstanceId)
                 .build();
     }
+
+    // TODO 17/01/2025 eivindmorch: Må ha optional filter dersom man allerede har valgt SA. Dersom denne velges først bør SA i filter for hele spørringen automatisk bli satt i frontend. Eller? Kanskje bare ha som tekstfelt uten dropdown?
+    //   public Slice<Collection<String>> getAllDistinctSourceApplicationInstanceIds() {};
 
     public InstanceStatisticsProjection getStatistics(Collection<Long> sourceApplicationIds) {
         return eventRepository.getTotalStatistics(
