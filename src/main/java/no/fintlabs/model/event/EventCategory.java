@@ -12,90 +12,105 @@ public enum EventCategory {
             "instance-received",
             EventType.INFO,
             InstanceStatus.IN_PROGRESS,
-            null
+            null,
+            true
     ),
     INSTANCE_REGISTERED(
             "instance-registered",
             EventType.INFO,
             null,
-            InstanceStorageStatus.STORED
+            InstanceStorageStatus.STORED,
+            true
     ),
     INSTANCE_REQUESTED_FOR_RETRY(
             "instance-requested-for-retry",
             EventType.INFO,
             InstanceStatus.IN_PROGRESS,
-            null
+            null,
+            true
     ),
     INSTANCE_MAPPED(
             "instance-mapped",
             EventType.INFO,
             InstanceStatus.IN_PROGRESS,
-            null
+            null,
+            true
     ),
     INSTANCE_READY_FOR_DISPATCH(
             "instance-ready-for-dispatch",
             EventType.INFO,
             InstanceStatus.IN_PROGRESS,
-            null
+            null,
+            true
     ),
     INSTANCE_DISPATCHED(
             "instance-dispatched",
             EventType.INFO,
             InstanceStatus.TRANSFERRED,
-            null
+            null,
+            true
     ),
     INSTANCE_MANUALLY_PROCESSED(
             "instance-manually-processed",
             EventType.INFO,
             InstanceStatus.TRANSFERRED,
-            null
+            null,
+            false
     ),
     INSTANCE_MANUALLY_REJECTED(
             "instance-manually-rejected",
             EventType.INFO,
             InstanceStatus.ABORTED,
-            null
+            null,
+            false
     ),
     INSTANCE_RECEIVAL_ERROR(
             "instance-receival-error",
             EventType.ERROR,
             InstanceStatus.FAILED,
-            null
+            null,
+            true
     ),
     INSTANCE_REGISTRATION_ERROR(
             "instance-registration-error",
             EventType.ERROR,
             InstanceStatus.FAILED,
-            null
+            null,
+            true
     ),
     INSTANCE_RETRY_REQUEST_ERROR(
             "instance-retry-request-error",
             EventType.ERROR,
             InstanceStatus.FAILED,
-            null
+            null,
+            true
     ),
     INSTANCE_MAPPING_ERROR(
             "instance-mapping-error",
             EventType.ERROR,
             InstanceStatus.FAILED,
-            null
+            null,
+            true
     ),
     INSTANCE_DISPATCHING_ERROR(
             "instance-dispatching-error",
             EventType.ERROR,
             InstanceStatus.FAILED,
-            null
+            null,
+            true
     ),
     INSTANCE_DELETED(
             "instance-deleted",
             EventType.INFO,
             null,
-            InstanceStorageStatus.STORED_AND_DELETED
+            InstanceStorageStatus.STORED_AND_DELETED,
+            true
     );
 
     private final String eventName;
     private final EventType type;
     private final InstanceStatus instanceStatus;
     private final InstanceStorageStatus instanceStorageStatus;
+    private final boolean createKafkaTopic;
 
 }
