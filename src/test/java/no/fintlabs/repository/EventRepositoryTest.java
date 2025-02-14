@@ -91,7 +91,6 @@ public class EventRepositoryTest {
         assertThat(latestStatusEventBySourceApplicationAggregateInstanceId).isEmpty();
     }
 
-    // TODO 07/02/2025 eivindmorch: Investigate
     @Test
     @Disabled
     public void givenEventsWithMatchingSourceApplicationAggregateInstanceIdWhenCalledShouldReturnLatestStatusEvent() {
@@ -150,7 +149,7 @@ public class EventRepositoryTest {
                         .build()
         ));
 
-        Optional<EventEntity> latestStatusEventBySourceApplicationAggregateInstanceId =
+        Optional<EventEntity> returnedOptionalEvent =
                 eventRepository.findLatestStatusEventBySourceApplicationAggregateInstanceId(
                         TestSourceApplicationAggregateInstanceId
                                 .builder()
@@ -160,22 +159,31 @@ public class EventRepositoryTest {
                                 .build(),
                         eventCategorizationService.getAllInstanceStatusEventNames()
                 );
-        assertThat(latestStatusEventBySourceApplicationAggregateInstanceId).isPresent();
-        assertThat(latestStatusEventBySourceApplicationAggregateInstanceId.get()).isEqualTo(
-                EventEntity.builder()
-                        .instanceFlowHeaders(
-                                InstanceFlowHeadersEmbeddable.builder()
-                                        .sourceApplicationId(1L)
-                                        .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
-                                        .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
-                                        .archiveInstanceId("testArchiveInstanceId1")
-                                        .build()
-                        )
-                        .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
-                        .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 1, 0, 0, ZoneOffset.UTC))
-                        .type(EventType.INFO)
-                        .build()
-        );
+
+        assertThat(returnedOptionalEvent).isPresent();
+        EventEntity returnedEvent = returnedOptionalEvent.get();
+        assertThat(returnedEvent)
+                .usingRecursiveComparison()
+                .ignoringFields("id")
+                .withEqualsForType(
+                        OffsetDateTime::isEqual,
+                        OffsetDateTime.class
+                )
+                .isEqualTo(
+                        EventEntity.builder()
+                                .instanceFlowHeaders(
+                                        InstanceFlowHeadersEmbeddable.builder()
+                                                .sourceApplicationId(1L)
+                                                .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                                .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                                .archiveInstanceId("testArchiveInstanceId1")
+                                                .build()
+                                )
+                                .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
+                                .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 1, 0, 0, ZoneOffset.UTC))
+                                .type(EventType.INFO)
+                                .build()
+                );
     }
 
 }

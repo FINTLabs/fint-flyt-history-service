@@ -7,6 +7,7 @@ import no.fintlabs.model.event.EventType;
 
 import javax.persistence.*;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 
 @Builder(toBuilder = true)
@@ -53,8 +54,9 @@ public class EventEntity {
 
     private String applicationId;
 
+    @Builder.Default
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "event_id")
-    private Collection<ErrorEntity> errors;
+    private Collection<ErrorEntity> errors = new ArrayList<>();
 
 }
