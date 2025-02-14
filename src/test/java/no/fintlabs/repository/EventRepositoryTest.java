@@ -38,7 +38,6 @@ public class EventRepositoryTest {
         private String sourceApplicationInstanceId;
     }
 
-    // TODO: Test is failing i github actions, but not locally. investigate
     @Test
     public void givenNoEventsWhenCalledShouldReturnEmpty() {
         Optional<EventEntity> latestStatusEventBySourceApplicationAggregateInstanceId =
@@ -55,7 +54,6 @@ public class EventRepositoryTest {
         assertThat(latestStatusEventBySourceApplicationAggregateInstanceId).isEmpty();
     }
 
-    // TODO: Test is failing i github actions, but not locally. investigate
     @Test
     public void givenNoEventsWithMatchingSourceApplicationAggregateIdWhenCalledShouldReturnEmpty() {
         eventRepository.save(
