@@ -11,7 +11,6 @@ import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.model.event.EventType;
 import no.fintlabs.repository.entities.EventEntity;
 import no.fintlabs.repository.entities.InstanceFlowHeadersEmbeddable;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -41,7 +40,6 @@ public class EventRepositoryTest {
 
     // TODO: Test is failing i github actions, but not locally. investigate
     @Test
-    @Disabled
     public void givenNoEventsWhenCalledShouldReturnEmpty() {
         Optional<EventEntity> latestStatusEventBySourceApplicationAggregateInstanceId =
                 eventRepository.findLatestStatusEventBySourceApplicationAggregateInstanceId(
@@ -59,7 +57,6 @@ public class EventRepositoryTest {
 
     // TODO: Test is failing i github actions, but not locally. investigate
     @Test
-    @Disabled
     public void givenNoEventsWithMatchingSourceApplicationAggregateIdWhenCalledShouldReturnEmpty() {
         eventRepository.save(
                 EventEntity.builder()
@@ -92,7 +89,6 @@ public class EventRepositoryTest {
     }
 
     @Test
-    @Disabled
     public void givenEventsWithMatchingSourceApplicationAggregateInstanceIdWhenCalledShouldReturnLatestStatusEvent() {
         eventRepository.saveAll(List.of(
                 EventEntity.builder()
