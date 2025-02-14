@@ -6,11 +6,10 @@ import no.fintlabs.model.action.ManuallyProcessedEventAction;
 import no.fintlabs.model.action.ManuallyRejectedEventAction;
 import no.fintlabs.model.event.Event;
 import no.fintlabs.model.instance.InstanceFlowSummariesFilter;
-import no.fintlabs.model.instance.InstanceFlowSummary;
 import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
 import no.fintlabs.repository.projections.InstanceStatisticsProjection;
 import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
-import org.springframework.beans.TypeMismatchException;
+import no.fintlabs.validation.ValidationErrorsFormattingService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -19,8 +18,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.support.WebExchangeBindException;
 
-import javax.validation.Valid;
+import javax.validation.ConstraintViolation;
+import javax.validation.Validator;
+import javax.validation.ValidatorFactory;
 import java.util.Set;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
@@ -31,20 +33,23 @@ public class HistoryController {
 
     private final AuthorizationService authorizationService;
     private final EventService eventService;
+    private final Validator validator;
+    private final ValidationErrorsFormattingService validationErrorsFormattingService;
 
     public HistoryController(
             AuthorizationService authorizationService,
-            EventService eventService
-    ) {
+            EventService eventService,
+            ValidatorFactory validatorFactory,
+            ValidationErrorsFormattingService validationErrorsFormattingService) {
         this.authorizationService = authorizationService;
         this.eventService = eventService;
+        this.validator = validatorFactory.getValidator();
+        this.validationErrorsFormattingService = validationErrorsFormattingService;
     }
 
-    // TODO 07/02/2025 eivindmorch: Add format and response to frontend with validation errors
-
-    @ExceptionHandler(TypeMismatchException.class)
-    public final ResponseEntity<?> handleTypeMismatchException(TypeMismatchException e) {
-        return ResponseEntity.badRequest().body("'" + e.getValue() + "' does not match the required type or format");
+    @ExceptionHandler(WebExchangeBindException.class)
+    public final ResponseEntity<?> handleTypeMismatchException(WebExchangeBindException e) {
+        return ResponseEntity.unprocessableEntity().body(validationErrorsFormattingService.format(e));
     }
 
     @GetMapping("statistics/total")
@@ -76,9 +81,9 @@ public class HistoryController {
     }
 
     @GetMapping(path = "summaries")
-    public ResponseEntity<Slice<InstanceFlowSummary>> getInstanceFlowSummaries(
+    public ResponseEntity<?> getInstanceFlowSummaries(
             @AuthenticationPrincipal Authentication authentication,
-            @Valid InstanceFlowSummariesFilter instanceFlowSummariesFilter,
+            InstanceFlowSummariesFilter instanceFlowSummariesFilter,
             Pageable pageable
     ) {
         InstanceFlowSummariesFilter filterLimitedByUserAuthorization =
@@ -86,6 +91,14 @@ public class HistoryController {
                         authentication,
                         instanceFlowSummariesFilter
                 );
+
+        Set<ConstraintViolation<InstanceFlowSummariesFilter>> constraintViolations =
+                validator.validate(instanceFlowSummariesFilter);
+        if (!constraintViolations.isEmpty()) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(validationErrorsFormattingService.format(constraintViolations));
+        }
+
         return ResponseEntity.ok(
                 eventService.getInstanceFlowSummaries(
                         filterLimitedByUserAuthorization,
@@ -123,12 +136,20 @@ public class HistoryController {
     @PostMapping("events/instance-manually-processed")
     public ResponseEntity<?> setManuallyProcessed(
             @AuthenticationPrincipal Authentication authentication,
-            @RequestBody @Valid ManuallyProcessedEventAction manuallyProcessedEventAction
+            @RequestBody ManuallyProcessedEventAction manuallyProcessedEventAction
     ) {
         authorizationService.validateUserIsAuthorizedForSourceApplication(
                 authentication,
                 manuallyProcessedEventAction.getSourceApplicationId()
         );
+
+        Set<ConstraintViolation<ManuallyProcessedEventAction>> constraintViolations =
+                validator.validate(manuallyProcessedEventAction);
+        if (!constraintViolations.isEmpty()) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(validationErrorsFormattingService.format(constraintViolations));
+        }
+
         try {
             return ResponseEntity.ok(eventService.addManuallyProcessedEvent(manuallyProcessedEventAction));
         } catch (NoPreviousStatusEventsFoundException e) {
@@ -141,12 +162,20 @@ public class HistoryController {
     @PostMapping("events/instance-manually-rejected")
     public ResponseEntity<?> setManuallyRejected(
             @AuthenticationPrincipal Authentication authentication,
-            @RequestBody @Valid ManuallyRejectedEventAction manuallyRejectedEventAction
+            @RequestBody ManuallyRejectedEventAction manuallyRejectedEventAction
     ) {
         authorizationService.validateUserIsAuthorizedForSourceApplication(
                 authentication,
                 manuallyRejectedEventAction.getSourceApplicationId()
         );
+
+        Set<ConstraintViolation<ManuallyRejectedEventAction>> constraintViolations =
+                validator.validate(manuallyRejectedEventAction);
+        if (!constraintViolations.isEmpty()) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(validationErrorsFormattingService.format(constraintViolations));
+        }
+
         try {
             return ResponseEntity.ok(eventService.addManuallyRejectedEvent(manuallyRejectedEventAction));
         } catch (NoPreviousStatusEventsFoundException e) {
