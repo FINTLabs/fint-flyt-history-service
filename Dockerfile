@@ -1,4 +1,3 @@
-
 FROM gcr.io/distroless/java17
 ENV TZ="Europe/Oslo"
 ENV JAVA_TOOL_OPTIONS -XX:+ExitOnOutOfMemoryError
