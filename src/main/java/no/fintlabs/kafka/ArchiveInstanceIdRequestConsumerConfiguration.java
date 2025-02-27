@@ -13,7 +13,6 @@ import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 @Configuration
 public class ArchiveInstanceIdRequestConsumerConfiguration {
 
-    // TODO 04/12/2024 eivindmorch: Change in services that use this topic (all source-application-gateways)
     @Bean
     ConcurrentMessageListenerContainer<String, ArchiveInstanceIdRequestParams> archiveInstanceIdRequestConsumer(
             RequestTopicService requestTopicService,
@@ -21,7 +20,7 @@ public class ArchiveInstanceIdRequestConsumerConfiguration {
             EventService eventService) {
         RequestTopicNameParameters topicNameParameters = RequestTopicNameParameters.builder()
                 .resource("archive.instance.id")
-                .parameterName("source-application-aggregate-instance-id")
+                .parameterName("source-application-instance-id")
                 .build();
 
         requestTopicService.ensureTopic(topicNameParameters, 0, TopicCleanupPolicyParameters.builder().build());
