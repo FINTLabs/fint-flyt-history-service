@@ -155,9 +155,9 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
             SELECT e.instanceFlowHeaders.archiveInstanceId
             FROM EventEntity e
             WHERE e.type = no.fintlabs.model.event.EventType.INFO
-            AND e.instanceFlowHeaders.sourceApplicationId = :#{#sourceApplicationId}
-            AND e.instanceFlowHeaders.sourceApplicationIntegrationId = :#{#sourceApplicationIntegrationId}
-            AND e.instanceFlowHeaders.sourceApplicationInstanceId = :#{#sourceApplicationInstanceId}
+            AND e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId
+            AND (:sourceApplicationIntegrationId IS NULL OR e.instanceFlowHeaders.sourceApplicationIntegrationId = :sourceApplicationIntegrationId)
+            AND e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId
             AND e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames}
             ORDER BY e.timestamp DESC
             """)
