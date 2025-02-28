@@ -22,7 +22,7 @@ patches:
         value: "/beta/vlfk-no"
       - op: replace
         path: "/spec/ingress/basePath"
-        value: "/beta/vlfk-no/api/intern/historikk"
+        value: "/beta/vlfk-no/api/intern/instance-flow-tracking"
       - op: replace
         path: "/spec/env/1/value"
         value: |

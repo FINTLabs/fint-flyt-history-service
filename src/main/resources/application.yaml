@@ -3,6 +3,8 @@ fint:
 server:
   max-http-header-size: 40KB
 spring:
+  jackson:
+    time-zone: UTC
   profiles:
     include:
       - flyt-kafka

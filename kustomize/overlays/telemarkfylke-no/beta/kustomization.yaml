@@ -22,7 +22,7 @@ patches:
         value: "/beta/telemarkfylke-no"
       - op: replace
         path: "/spec/ingress/basePath"
-        value: "/beta/telemarkfylke-no/api/intern/historikk"
+        value: "/beta/telemarkfylke-no/api/intern/instance-flow-tracking"
       - op: replace
         path: "/spec/env/1/value"
         value: |

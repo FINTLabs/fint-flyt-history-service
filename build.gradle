@@ -18,6 +18,10 @@ jar {
     enabled = false
 }
 
+test {
+    useJUnitPlatform()
+}
+
 repositories {
     mavenCentral()
     repositories {
@@ -36,6 +40,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'no.fintlabs:fint-flyt-resource-server:5.0.0'
 
+    implementation 'io.hypersistence:hypersistence-utils-hibernate-55:3.9.0'
+
     implementation 'javax.validation:validation-api'
     implementation 'org.hibernate.validator:hibernate-validator'
 
@@ -53,11 +59,13 @@ dependencies {
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
     annotationProcessor 'org.projectlombok:lombok'
 
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'cglib:cglib-nodep:3.3.0'
+    testImplementation(platform("org.testcontainers:testcontainers-bom:1.19.5"))
+    testImplementation("org.testcontainers:junit-jupiter")
+    testImplementation("org.testcontainers:postgresql")
 }
 
-test {
-    useJUnitPlatform()
-}

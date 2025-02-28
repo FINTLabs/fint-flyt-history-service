@@ -1,214 +1,188 @@
 package no.fintlabs;
 
-import no.fintlabs.model.*;
-import no.fintlabs.resourceserver.security.user.UserAuthorizationUtil;
-import org.springframework.beans.factory.annotation.Value;
+import no.fintlabs.exceptions.LatesStatusEventNotOfTypeErrorException;
+import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
+import no.fintlabs.model.action.ManuallyProcessedEventAction;
+import no.fintlabs.model.action.ManuallyRejectedEventAction;
+import no.fintlabs.model.event.Event;
+import no.fintlabs.model.instance.InstanceFlowSummariesFilter;
+import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
+import no.fintlabs.repository.projections.InstanceStatisticsProjection;
+import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
+import no.fintlabs.validation.ValidationErrorsFormattingService;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.Slice;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.support.WebExchangeBindException;
 
-import javax.validation.Valid;
-import java.time.OffsetDateTime;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Function;
+import javax.validation.ConstraintViolation;
+import javax.validation.Validator;
+import javax.validation.ValidatorFactory;
+import java.util.Set;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 
 @RestController
-@RequestMapping(INTERNAL_API + "/historikk")
+@RequestMapping(INTERNAL_API + "/instance-flow-tracking")
 public class HistoryController {
 
+    private final AuthorizationService authorizationService;
     private final EventService eventService;
-    private final StatisticsService statisticsService;
-    @Value("${fint.flyt.resource-server.user-permissions-consumer.enabled:false}")
-    private boolean userPermissionsConsumerEnabled;
+    private final Validator validator;
+    private final ValidationErrorsFormattingService validationErrorsFormattingService;
 
     public HistoryController(
+            AuthorizationService authorizationService,
             EventService eventService,
-            StatisticsService statisticsService
-    ) {
+            ValidatorFactory validatorFactory,
+            ValidationErrorsFormattingService validationErrorsFormattingService) {
+        this.authorizationService = authorizationService;
         this.eventService = eventService;
-        this.statisticsService = statisticsService;
+        this.validator = validatorFactory.getValidator();
+        this.validationErrorsFormattingService = validationErrorsFormattingService;
     }
 
-    @GetMapping("hendelser")
-    public ResponseEntity<Page<EventDto>> getEvents(
-            @AuthenticationPrincipal Authentication authentication,
-            @RequestParam(name = "side") int page,
-            @RequestParam(name = "antall") int size,
-            @RequestParam(name = "sorteringFelt") String sortProperty,
-            @RequestParam(name = "sorteringRetning") Sort.Direction sortDirection,
-            @RequestParam(name = "bareSistePerInstans") Optional<Boolean> onlyLatestPerInstance
-    ) {
-        PageRequest pageRequest = PageRequest
-                .of(page, size)
-                .withSort(sortDirection, sortProperty);
-
-        return getResponseEntityEvents(authentication, pageRequest, onlyLatestPerInstance);
+    @ExceptionHandler(WebExchangeBindException.class)
+    public final ResponseEntity<?> handleTypeMismatchException(WebExchangeBindException e) {
+        return ResponseEntity.unprocessableEntity().body(validationErrorsFormattingService.format(e));
     }
 
-    private ResponseEntity<Page<EventDto>> getResponseEntityEvents(
-            Authentication authentication,
-            Pageable pageable,
-            Optional<Boolean> onlyLatestPerInstance
-    ) {
-        if (userPermissionsConsumerEnabled) {
-            List<Long> sourceApplicationIds =
-                    UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
-
-            return ResponseEntity.ok(
-                    onlyLatestPerInstance.orElse(false)
-                            ? eventService
-                            .getMergedLatestEventsWhereSourceApplicationIdIn(
-                                    sourceApplicationIds,
-                                    pageable
-                            )
-                            : eventService.findAllByInstanceFlowHeadersSourceApplicationIdIn(sourceApplicationIds, pageable));
-        }
-        return ResponseEntity.ok(
-                onlyLatestPerInstance.orElse(false)
-                        ? eventService.getMergedLatestEvents(pageable)
-                        : eventService.findAll(pageable)
-        );
-    }
-
-    @GetMapping(path = "hendelser", params = {"kildeapplikasjonId", "kildeapplikasjonInstansId"})
-    public ResponseEntity<Page<EventDto>> getEventsWithInstanceId(
-            @AuthenticationPrincipal Authentication authentication,
-            @RequestParam(name = "side") int page,
-            @RequestParam(name = "antall") int size,
-            @RequestParam(name = "sorteringFelt") String sortProperty,
-            @RequestParam(name = "sorteringRetning") Sort.Direction sortDirection,
-            @RequestParam(name = "kildeapplikasjonId") Long sourceApplicationId,
-            @RequestParam(name = "kildeapplikasjonInstansId") String sourceApplicationInstanceId
-    ) {
-        if (userPermissionsConsumerEnabled) {
-            UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, sourceApplicationId);
-        }
-        PageRequest pageRequest = PageRequest
-                .of(page, size)
-                .withSort(sortDirection, sortProperty);
-
-        return ResponseEntity.ok(
-                eventService
-                        .findAllByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceId(
-                                sourceApplicationId,
-                                sourceApplicationInstanceId,
-                                pageRequest
-                        )
-        );
-    }
-
-    @PostMapping("handlinger/instanser/sett-status/manuelt-behandlet-ok")
-    public ResponseEntity<?> setManuallyProcessed(
-            @RequestBody @Valid ManuallyProcessedEventDto manuallyProcessedEventDto,
+    @GetMapping("statistics/total")
+    public ResponseEntity<InstanceStatisticsProjection> getOverallStatistics(
             @AuthenticationPrincipal Authentication authentication
     ) {
-        if (userPermissionsConsumerEnabled) {
-            UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyProcessedEventDto.getSourceApplicationId());
-        }
-        return this.storeManualEvent(
-                manuallyProcessedEventDto,
-                existingEvent -> this.createManualEvent(
-                        existingEvent,
-                        "instance-manually-processed",
-                        manuallyProcessedEventDto.getArchiveInstanceId()
+        Set<Long> userAuthorizedSourceApplicationIds =
+                authorizationService.getUserAuthorizedSourceApplicationIds(authentication);
+        return ResponseEntity.ok(eventService.getStatistics(userAuthorizedSourceApplicationIds));
+    }
+
+    @GetMapping("statistics/integrations")
+    public ResponseEntity<Slice<IntegrationStatisticsProjection>> getIntegrationStatistics(
+            @AuthenticationPrincipal Authentication authentication,
+            IntegrationStatisticsFilter integrationStatisticsFilter,
+            Pageable pageable
+    ) {
+        IntegrationStatisticsFilter filterLimitedByUserAuthorization =
+                authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
+                        authentication,
+                        integrationStatisticsFilter
+                );
+        return ResponseEntity.ok(
+                eventService.getIntegrationStatistics(
+                        filterLimitedByUserAuthorization,
+                        pageable
                 )
         );
     }
 
-    @PostMapping("handlinger/instanser/sett-status/manuelt-avvist")
-    public ResponseEntity<?> setManuallyRejected(
-            @RequestBody @Valid ManuallyRejectedEventDto manuallyRejectedEventDto,
-            @AuthenticationPrincipal Authentication authentication
+    @GetMapping(path = "summaries")
+    public ResponseEntity<?> getInstanceFlowSummaries(
+            @AuthenticationPrincipal Authentication authentication,
+            InstanceFlowSummariesFilter instanceFlowSummariesFilter,
+            Pageable pageable
     ) {
-        if (userPermissionsConsumerEnabled) {
-            UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, manuallyRejectedEventDto.getSourceApplicationId());
-        }
-        return this.storeManualEvent(
-                manuallyRejectedEventDto,
-                existingEvent -> this.createManualEvent(
-                        existingEvent,
-                        "instance-manually-rejected",
-                        null
-                )
-        );
-    }
-
-    public ResponseEntity<?> storeManualEvent(ManualEventDto manualEventDto, Function<Event, Event> existingToNewEvent) {
-        Optional<Event> optionalEvent = eventService.
-                findFirstByInstanceFlowHeadersSourceApplicationIdAndInstanceFlowHeadersSourceApplicationInstanceIdAndInstanceFlowHeadersSourceApplicationIntegrationIdOrderByTimestampDesc(
-                        manualEventDto
+        InstanceFlowSummariesFilter filterLimitedByUserAuthorization =
+                authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
+                        authentication,
+                        instanceFlowSummariesFilter
                 );
 
-        if (optionalEvent.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Event not found.");
+        Set<ConstraintViolation<InstanceFlowSummariesFilter>> constraintViolations =
+                validator.validate(instanceFlowSummariesFilter);
+        if (!constraintViolations.isEmpty()) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(validationErrorsFormattingService.format(constraintViolations));
         }
 
-        Event event = optionalEvent.get();
-
-        if (!event.getType().equals(EventType.ERROR)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Event is not of type ERROR");
-        }
-
-        Event newEvent = existingToNewEvent.apply(event);
-
-        eventService.save(newEvent);
-
-        return ResponseEntity.ok(newEvent);
+        return ResponseEntity.ok(
+                eventService.getInstanceFlowSummaries(
+                        filterLimitedByUserAuthorization,
+                        pageable
+                )
+        );
     }
 
-    public Event createManualEvent(Event event, String name, String archiveId) {
-        InstanceFlowHeadersEmbeddable.InstanceFlowHeadersEmbeddableBuilder headersEmbeddableBuilder =
-                event.getInstanceFlowHeaders()
-                        .toBuilder()
-                        .correlationId(UUID.randomUUID());
-
-        if (archiveId != null && !archiveId.isEmpty()) {
-            headersEmbeddableBuilder.archiveInstanceId(archiveId);
-        }
-
-        InstanceFlowHeadersEmbeddable newInstanceFlowHeaders = headersEmbeddableBuilder.build();
-
-        return Event.builder()
-                .instanceFlowHeaders(newInstanceFlowHeaders)
-                .name(name)
-                .timestamp(OffsetDateTime.now())
-                .type(EventType.INFO)
-                .applicationId(event.getApplicationId())
-                .build();
-    }
-
-    @GetMapping("statistikk")
-    public ResponseEntity<Statistics> getStatistics(
-            @AuthenticationPrincipal Authentication authentication
+    @GetMapping(path = "events", params = {
+            "sourceApplicationId",
+            "sourceApplicationIntegrationId",
+            "sourceApplicationInstanceId"
+    })
+    public ResponseEntity<Page<Event>> getEventsWithSourceApplicationAggregateInstanceId(
+            @AuthenticationPrincipal Authentication authentication,
+            @RequestParam Long sourceApplicationId,
+            @RequestParam String sourceApplicationIntegrationId,
+            @RequestParam String sourceApplicationInstanceId,
+            Pageable pageable
     ) {
-        if (userPermissionsConsumerEnabled) {
-            List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
-            return ResponseEntity.ok(statisticsService.getStatistics(sourceApplicationIds));
-        }
-        return ResponseEntity.ok(statisticsService.getStatistics());
+        authorizationService.validateUserIsAuthorizedForSourceApplication(authentication, sourceApplicationId);
+        return ResponseEntity.ok(
+                eventService.getAllEventsBySourceApplicationAggregateInstanceId(
+                        sourceApplicationId,
+                        sourceApplicationIntegrationId,
+                        sourceApplicationInstanceId,
+                        pageable
+                )
+        );
     }
 
-    @GetMapping("statistikk/integrasjoner")
-    public ResponseEntity<Collection<IntegrationStatistics>> getIntegrationStatistics(
-            @AuthenticationPrincipal Authentication authentication
+    // TODO 04/12/2024 eivindmorch: Ved dispatched/manual burde vi slette alle instanser som har samme SA, SAIntId, SAInstId
+    //  Aggregere alle instanceId og fileId som ligger i history med den kobinasjonen av SA, SAIntId, SAInstId
+    //  Da trenger vi ikke kopiere headers for manuelle eventer her
+    @PostMapping("events/instance-manually-processed")
+    public ResponseEntity<?> setManuallyProcessed(
+            @AuthenticationPrincipal Authentication authentication,
+            @RequestBody ManuallyProcessedEventAction manuallyProcessedEventAction
     ) {
-        if (userPermissionsConsumerEnabled) {
-            List<Long> sourceApplicationIds = UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication);
-            return ResponseEntity.ok(statisticsService.getIntegrationStatisticsBySourceApplicationId(sourceApplicationIds));
+        authorizationService.validateUserIsAuthorizedForSourceApplication(
+                authentication,
+                manuallyProcessedEventAction.getSourceApplicationId()
+        );
+
+        Set<ConstraintViolation<ManuallyProcessedEventAction>> constraintViolations =
+                validator.validate(manuallyProcessedEventAction);
+        if (!constraintViolations.isEmpty()) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(validationErrorsFormattingService.format(constraintViolations));
         }
 
-        return ResponseEntity.ok(statisticsService.getIntegrationStatistics());
+        try {
+            return ResponseEntity.ok(eventService.addManuallyProcessedEvent(manuallyProcessedEventAction));
+        } catch (NoPreviousStatusEventsFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event not found");
+        } catch (LatesStatusEventNotOfTypeErrorException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Previous event status is not of type ERROR");
+        }
+    }
+
+    @PostMapping("events/instance-manually-rejected")
+    public ResponseEntity<?> setManuallyRejected(
+            @AuthenticationPrincipal Authentication authentication,
+            @RequestBody ManuallyRejectedEventAction manuallyRejectedEventAction
+    ) {
+        authorizationService.validateUserIsAuthorizedForSourceApplication(
+                authentication,
+                manuallyRejectedEventAction.getSourceApplicationId()
+        );
+
+        Set<ConstraintViolation<ManuallyRejectedEventAction>> constraintViolations =
+                validator.validate(manuallyRejectedEventAction);
+        if (!constraintViolations.isEmpty()) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(validationErrorsFormattingService.format(constraintViolations));
+        }
+
+        try {
+            return ResponseEntity.ok(eventService.addManuallyRejectedEvent(manuallyRejectedEventAction));
+        } catch (NoPreviousStatusEventsFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event not found");
+        } catch (LatesStatusEventNotOfTypeErrorException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Previous event status is not of type ERROR");
+        }
     }
 
 }
