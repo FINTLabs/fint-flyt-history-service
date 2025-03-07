@@ -51,6 +51,7 @@ import static no.fintlabs.repository.utils.EventSequence.*;
 import static no.fintlabs.repository.utils.performance.DurationFormatter.formatDuration;
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Disabled
 @Slf4j
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)

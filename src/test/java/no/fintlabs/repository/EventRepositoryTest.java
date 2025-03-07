@@ -11,7 +11,6 @@ import no.fintlabs.repository.entities.EventEntity;
 import no.fintlabs.repository.entities.InstanceFlowHeadersEmbeddable;
 import no.fintlabs.repository.filters.InstanceFlowSummariesQueryFilter;
 import no.fintlabs.repository.projections.InstanceFlowSummaryProjection;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,11 +65,6 @@ public class EventRepositoryTest {
         registry.add("fint.database.url", postgreSQLContainer::getJdbcUrl);
         registry.add("fint.database.username", postgreSQLContainer::getUsername);
         registry.add("fint.database.password", postgreSQLContainer::getPassword);
-    }
-
-    @AfterEach
-    public void teardown() {
-        postgreSQLContainer.stop();
     }
 
     @Getter
