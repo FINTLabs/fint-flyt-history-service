@@ -25,4 +25,6 @@ public class InstanceFlowSummary {
     private final InstanceStorageStatus intermediateStorageStatus;
 
     private final String destinationId;
+
+    // TODO 28/02/2025 eivindmorch: Missing instanceId (latestInstanceId)
 }

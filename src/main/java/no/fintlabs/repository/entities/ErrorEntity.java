@@ -19,7 +19,15 @@ import java.util.Map;
 public class ErrorEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(
+            strategy = GenerationType.SEQUENCE,
+            generator = "error_id_seq_gen"
+    )
+    @SequenceGenerator(
+            name = "error_id_seq_gen",
+            sequenceName = "error_id_seq",
+            allocationSize = 500
+    )
     @JsonIgnore
     @Setter(AccessLevel.NONE)
     private long id;

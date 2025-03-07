@@ -1,9 +1,11 @@
 package no.fintlabs.repository.filters;
 
 import lombok.Builder;
+import org.springframework.kafka.support.JavaUtils;
 
 import java.util.Collection;
 import java.util.Optional;
+import java.util.StringJoiner;
 
 @Builder
 public class IntegrationStatisticsQueryFilter {
@@ -21,6 +23,21 @@ public class IntegrationStatisticsQueryFilter {
 
     public Optional<Collection<Long>> getIntegrationIds() {
         return Optional.ofNullable(integrationIds);
+    }
+
+    @Override
+    public String toString() {
+        StringJoiner joiner = new StringJoiner(",", "(", ")");
+        JavaUtils.INSTANCE.acceptIfNotNull(
+                sourceApplicationIds, sourceApplicationIds -> joiner.add("sourceApplicationIds=" + sourceApplicationIds)
+        );
+        JavaUtils.INSTANCE.acceptIfNotNull(
+                sourceApplicationIntegrationIds, sourceApplicationIntegrationIds -> joiner.add("sourceApplicationIntegrationIds=" + sourceApplicationIntegrationIds)
+        );
+        JavaUtils.INSTANCE.acceptIfNotNull(
+                integrationIds, integrationIds -> joiner.add("integrationIds=" + integrationIds)
+        );
+        return joiner.toString();
     }
 
 }

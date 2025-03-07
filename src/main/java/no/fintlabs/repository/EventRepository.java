@@ -37,15 +37,17 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                 ON statusEvent.instanceFlowHeaders.sourceApplicationId = storageEvent.instanceFlowHeaders.sourceApplicationId
                 AND statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId = storageEvent.instanceFlowHeaders.sourceApplicationIntegrationId
                 AND statusEvent.instanceFlowHeaders.sourceApplicationInstanceId = storageEvent.instanceFlowHeaders.sourceApplicationInstanceId
-                AND storageEvent.timestamp = (
-                    SELECT MAX(e.timestamp)
+                AND storageEvent.name IN :#{#allInstanceStorageStatusEventNames}
+                AND storageEvent.timestamp >= ALL(
+                    SELECT e.timestamp
                     FROM EventEntity e
                     WHERE e.instanceFlowHeaders.sourceApplicationId = storageEvent.instanceFlowHeaders.sourceApplicationId
                       AND e.instanceFlowHeaders.sourceApplicationIntegrationId = storageEvent.instanceFlowHeaders.sourceApplicationIntegrationId
                       AND e.instanceFlowHeaders.sourceApplicationInstanceId = storageEvent.instanceFlowHeaders.sourceApplicationInstanceId
                       AND e.name IN :#{#allInstanceStorageStatusEventNames}
                 )
-             WHERE (
+             WHERE statusEvent.name IN :#{#allInstanceStatusEventNames}
+             AND (
                 :#{#filter.statusEventNames.empty} IS TRUE
                  OR statusEvent.name IN :#{#filter.statusEventNames.orElse(null)}
              )
@@ -92,8 +94,8 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                  :#{#filter.timeQueryFilter.latestStatusTimestampMax.empty} IS TRUE
                  OR statusEvent.timestamp <= :#{#filter.timeQueryFilter.latestStatusTimestampMax.orElse(null)}
              )
-             AND statusEvent.timestamp = (
-                SELECT MAX(e.timestamp)
+             AND statusEvent.timestamp >= ALL(
+                SELECT e.timestamp
                 FROM EventEntity e
                 WHERE e.instanceFlowHeaders.sourceApplicationId = statusEvent.instanceFlowHeaders.sourceApplicationId
                   AND e.instanceFlowHeaders.sourceApplicationIntegrationId = statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId
@@ -101,15 +103,15 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                   AND e.name IN :#{#allInstanceStatusEventNames}
              )
              AND (
-                 :#{#filter.associatedEventNames.empty} IS TRUE
-                 OR (
-                     SELECT COUNT(e)
-                         FROM EventEntity e
-                         WHERE (e = statusEvent OR (e.instanceFlowHeaders.sourceApplicationId = statusEvent.instanceFlowHeaders.sourceApplicationId
-                         AND e.instanceFlowHeaders.sourceApplicationIntegrationId = statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId
-                         AND e.instanceFlowHeaders.sourceApplicationInstanceId = statusEvent.instanceFlowHeaders.sourceApplicationInstanceId))
-                         AND e.name IN :#{#filter.associatedEventNames.orElse(null)}
-                 ) > 0
+                :#{#filter.associatedEventNames.empty} IS TRUE
+                OR CAST(:#{#filter.associatedEventNames.orElse(T(java.util.List).of()).size} AS long) = (
+                    SELECT COUNT(DISTINCT e.name)
+                    FROM EventEntity e
+                    WHERE (e.instanceFlowHeaders.sourceApplicationId = statusEvent.instanceFlowHeaders.sourceApplicationId
+                    AND e.instanceFlowHeaders.sourceApplicationIntegrationId = statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId
+                    AND e.instanceFlowHeaders.sourceApplicationInstanceId = statusEvent.instanceFlowHeaders.sourceApplicationInstanceId
+                    AND e.name IN :#{#filter.associatedEventNames.orElse(null)})
+                )
             )""")
     Slice<InstanceFlowSummaryProjection> getInstanceFlowSummaries(
             InstanceFlowSummariesQueryFilter filter,
@@ -124,8 +126,9 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
             WHERE e.instanceFlowHeaders.sourceApplicationId = :#{#sourceApplicationAggregateInstanceId.sourceApplicationId}
             AND e.instanceFlowHeaders.sourceApplicationIntegrationId = :#{#sourceApplicationAggregateInstanceId.sourceApplicationIntegrationId}
             AND e.instanceFlowHeaders.sourceApplicationInstanceId = :#{#sourceApplicationAggregateInstanceId.sourceApplicationInstanceId}
-            AND e.timestamp = (
-                SELECT MAX(e1.timestamp)
+            AND e.name in :#{#allInstanceStatusEventNames}
+            AND e.timestamp >= ALL(
+                SELECT e1.timestamp
                 FROM EventEntity e1
                 WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
                 AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
@@ -180,8 +183,9 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                         AS failed
              FROM EventEntity e
              WHERE e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds}
-             AND e.timestamp = (
-                SELECT MAX(e1.timestamp)
+             AND e.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
+             AND e.timestamp >= ALL(
+                SELECT e1.timestamp
                 FROM EventEntity e1
                 WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
                   AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
@@ -212,8 +216,9 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                  OR e.instanceFlowHeaders.sourceApplicationIntegrationId IN :#{#integrationStatisticsQueryFilter.sourceApplicationIntegrationIds.orElse(null)})
              AND (:#{#integrationStatisticsQueryFilter.integrationIds.empty} IS TRUE
                  OR e.instanceFlowHeaders.integrationId IN :#{#integrationStatisticsQueryFilter.integrationIds.orElse(null)})
-             AND e.timestamp = (
-                SELECT MAX(e1.timestamp)
+             AND e.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
+             AND e.timestamp >= ALL(
+                SELECT e1.timestamp
                 FROM EventEntity e1
                 WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
                   AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId

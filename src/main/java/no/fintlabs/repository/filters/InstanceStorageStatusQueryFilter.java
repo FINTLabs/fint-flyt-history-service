@@ -2,8 +2,10 @@ package no.fintlabs.repository.filters;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import org.springframework.kafka.support.JavaUtils;
 
 import java.util.Collection;
+import java.util.StringJoiner;
 
 @Getter
 @AllArgsConstructor
@@ -14,4 +16,17 @@ public class InstanceStorageStatusQueryFilter {
 
     private final Collection<String> instanceStorageStatusNames;
     private final Boolean neverStored;
+
+    @Override
+    public String toString() {
+        StringJoiner joiner = new StringJoiner(",", "(", ")");
+        JavaUtils.INSTANCE.acceptIfNotNull(
+                instanceStorageStatusNames, instanceStorageStatusNames -> joiner.add("instanceStorageStatusNames=" + instanceStorageStatusNames)
+        );
+        JavaUtils.INSTANCE.acceptIfNotNull(
+                neverStored, neverStored -> joiner.add("neverStored=" + neverStored)
+        );
+        return joiner.toString();
+    }
+
 }

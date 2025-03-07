@@ -4,77 +4,20 @@ import lombok.extern.slf4j.Slf4j;
 import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.repository.entities.EventEntity;
 import no.fintlabs.repository.entities.InstanceFlowHeadersEmbeddable;
-import org.hibernate.SessionFactory;
-import org.hibernate.metamodel.spi.MetamodelImplementor;
-import org.hibernate.persister.entity.AbstractEntityPersister;
-import org.springframework.stereotype.Service;
 
-import javax.persistence.EntityManagerFactory;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Slf4j
-@Service
 public class EventEntityGenerator {
     private final Random random;
     private long instanceIdCounter = 0;
-    private final String tableName;
-    private final String entityPropertyColumnNames;
-    private final Function<EventEntity, List<Object>> getEntityPropertyValues;
 
-    public EventEntityGenerator(EntityManagerFactory entityManagerFactory) {
-        this.random = new Random(42);
-        SessionFactory sessionFactory = entityManagerFactory.unwrap(SessionFactory.class);
-        MetamodelImplementor metamodel = (MetamodelImplementor) sessionFactory.getMetamodel();
-        AbstractEntityPersister entityPersister =
-                (AbstractEntityPersister) metamodel.entityPersister(EventEntity.class.getName());
-
-        tableName = entityPersister.getTableName();
-        entityPropertyColumnNames = Arrays.stream(entityPersister.getPropertyNames())
-                .map(name -> entityPersister.getPropertyColumnNames(name)[0])
-                .collect(Collectors.joining(", "));
-        getEntityPropertyValues = eventEntity ->
-                Arrays.stream(entityPersister.getPropertyValues(eventEntity)).toList();
-    }
-
-    // TODO 07/02/2025 eivindmorch: Fix
-    public void generateEventsInitScript(
-            String name,
-            long sourceApplicationId,
-            String sourceApplicationIntegrationId,
-            long integrationId,
-            OffsetDateTime minTimestamp,
-            OffsetDateTime maxTimestamp,
-            List<SequenceGenerationConfig> sequenceGenerationConfigs
-    ) {
-        //BufferedWriter writer = new BufferedWriter(new FileWriter("db/" + name + ".sql", true));
-        generateEvents(
-                sourceApplicationId,
-                sourceApplicationIntegrationId,
-                integrationId,
-                minTimestamp,
-                maxTimestamp,
-                sequenceGenerationConfigs,
-                eventEntity -> {
-                    // try {
-                    log.info(generateInsertStatement(eventEntity));
-                    //writer.write((generateInsertStatement(eventEntity)));
-                    //writer.newLine();
-                    //} catch (IOException e) {
-                    //     throw new RuntimeException(e);
-                    // }
-                }
-        );
-    }
-
-    private String generateInsertStatement(EventEntity eventEntity) {
-        return "INSERT INTO " + tableName + " (" + entityPropertyColumnNames + ")" +
-               " VALUES (" + getEntityPropertyValues.apply(eventEntity) + ")";
+    public EventEntityGenerator(long seed) {
+        this.random = new Random(seed);
     }
 
     public List<EventEntity> generateEvents(
@@ -113,7 +56,7 @@ public class EventEntityGenerator {
                 List<EventCategory> sequenceEventOrder = sequenceGenerationConfig.getEventSequence();
                 String sequenceSourceApplicationInstanceId =
                         Optional.ofNullable(sequenceGenerationConfig.getSourceApplicationInstanceIdOverride())
-                                .orElse(generateStringOfMaxNLength(10));
+                                .orElse(generateStringOfMaxNLength(20));
                 List<OffsetDateTime> sequenceMinMaxTimestamps = generateNOrderedOffsetDateTimeInRange(
                         minTimestamp,
                         maxTimestamp,

@@ -1,12 +1,6 @@
-CREATE INDEX nameIndex ON event (name);
-
-CREATE INDEX sourceApplicationAggregateIdAndNameAndTimestampIndex ON event (source_application_id,
-                                                                            source_application_integration_id,
-                                                                            source_application_instance_id, name,
-                                                                            timestamp);
-
-CREATE INDEX sourceApplicationAggregateIdAndNameIndex ON event (source_application_id,
-                                                                source_application_integration_id,
-                                                                source_application_instance_id, name);
-
-CREATE INDEX timestampIndex ON event (timestamp);
+CREATE INDEX source_application_aggregate_id_and_timestamp_index ON event (source_application_id,
+                                                                           source_application_integration_id,
+                                                                           source_application_instance_id,
+                                                                           timestamp);
+CREATE INDEX timestamp_index ON event (timestamp);
+ANALYZE;

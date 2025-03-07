@@ -6,7 +6,6 @@ import no.fintlabs.model.instance.InstanceFlowSummariesFilter;
 import no.fintlabs.model.instance.InstanceStorageStatus;
 import no.fintlabs.repository.filters.InstanceFlowSummariesQueryFilter;
 import no.fintlabs.repository.filters.InstanceStorageStatusQueryFilter;
-import no.fintlabs.repository.filters.TimeQueryFilter;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -36,7 +35,7 @@ public class InstanceStatusFilterMappingService {
                 .integrationIds(instanceFlowSummariesFilter.getIntegrationIds())
                 .timeQueryFilter(Optional.ofNullable(instanceFlowSummariesFilter.getTime())
                         .map(timeFilterMappingService::toQueryFilter)
-                        .orElse(TimeQueryFilter.EMPTY)
+                        .orElse(null)
                 )
                 .statusEventNames(Optional.ofNullable(instanceFlowSummariesFilter.getStatuses())
                         .map(eventCategorizationService::getEventNamesByInstanceStatuses)

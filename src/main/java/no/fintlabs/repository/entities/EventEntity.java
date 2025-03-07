@@ -10,34 +10,35 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 
-@Builder(toBuilder = true)
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Getter
 @Setter
 @Jacksonized
 @Entity
-// TODO 15/12/2024 eivindmorch: Sjekk EXPLAIN -- Bruker kun sourceApplicationAggregateIdAndNameAndTimestampIndex og sourceApplicationAggregateIdAndNameIndex
-@Table(
-        name = "event",
-        indexes = {
-                @Index(name = "sourceApplicationAggregateIdAndNameIndex",
-                        columnList = "sourceApplicationId, sourceApplicationIntegrationId, sourceApplicationInstanceId, name"
-                ),
-                @Index(name = "sourceApplicationAggregateIdAndNameAndTimestampIndex",
-                        columnList = "sourceApplicationId, sourceApplicationIntegrationId, sourceApplicationInstanceId, name, timestamp"
-                ),
-                @Index(name = "timestampIndex",
-                        columnList = "timestamp"
-                ),
-                @Index(name = "nameIndex",
-                        columnList = "name"
-                )
-        })
+@Table(name = "event", indexes = {
+        @Index(
+                name = "source_application_aggregate_id_and_timestamp_index",
+                columnList = "sourceApplicationId, " +
+                             "sourceApplicationIntegrationId, " +
+                             "sourceApplicationInstanceId, " +
+                             "timestamp"
+        ),
+        @Index(name = "timestamp_index", columnList = "timestamp")
+})
 public class EventEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(
+            strategy = GenerationType.SEQUENCE,
+            generator = "event_id_seq_gen"
+    )
+    @SequenceGenerator(
+            name = "event_id_seq_gen",
+            sequenceName = "event_id_seq",
+            allocationSize = 500
+    )
     @JsonIgnore
     @Setter(AccessLevel.NONE)
     private long id;
