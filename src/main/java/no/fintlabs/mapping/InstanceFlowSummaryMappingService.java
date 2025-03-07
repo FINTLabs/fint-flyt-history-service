@@ -25,6 +25,7 @@ public class InstanceFlowSummaryMappingService {
                 .sourceApplicationIntegrationId(projection.getSourceApplicationIntegrationId())
                 .sourceApplicationInstanceId(projection.getSourceApplicationInstanceId())
                 .integrationId(projection.getIntegrationId())
+                .latestInstanceId(projection.getLatestInstanceId())
                 .latestUpdate(projection.getLatestUpdate())
                 .status(
                         eventCategorizationService.getCategoryByName(projection.getLatestStatusEventName())
@@ -36,7 +37,7 @@ public class InstanceFlowSummaryMappingService {
                                 .map(EventCategory::getInstanceStorageStatus)
                                 .orElse(InstanceStorageStatus.NEVER_STORED)
                 )
-                .destinationId(projection.getDestinationId())
+                .latestDestinationId(projection.getLatestDestinationId())
                 .build();
     }
 }

@@ -18,13 +18,14 @@ public class InstanceFlowSummary {
 
     private final Long integrationId;
 
+    private final Long latestInstanceId;
+
     private final OffsetDateTime latestUpdate;
 
     private final InstanceStatus status;
 
     private final InstanceStorageStatus intermediateStorageStatus;
 
-    private final String destinationId;
+    private final String latestDestinationId;
 
-    // TODO 28/02/2025 eivindmorch: Missing instanceId (latestInstanceId)
 }

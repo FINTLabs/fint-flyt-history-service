@@ -298,10 +298,11 @@ public class EventRepositoryTest {
             private final String sourceApplicationIntegrationId;
             private final String sourceApplicationInstanceId;
             private final Long integrationId;
+            private final Long latestInstanceId;
             private final OffsetDateTime latestUpdate;
             private final String latestStatusEventName;
             private final String latestStorageStatusEventName;
-            private final String destinationId;
+            private final String latestDestinationId;
         }
 
         @Test
@@ -408,6 +409,7 @@ public class EventRepositoryTest {
                                                     .sourceApplicationId(1L)
                                                     .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
                                                     .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                                    .instanceId(5L)
                                                     .archiveInstanceId("testArchiveInstanceId1")
                                                     .build()
                                     )
@@ -421,6 +423,7 @@ public class EventRepositoryTest {
                                                     .sourceApplicationId(1L)
                                                     .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
                                                     .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                                    .instanceId(5L)
                                                     .archiveInstanceId("testArchiveInstanceId1")
                                                     .build()
                                     )
@@ -471,25 +474,19 @@ public class EventRepositoryTest {
             instanceFlowSummaries.forEach(ifs -> log.info(ifs.getLatestStatusEventName()));
 
             assertThat(instanceFlowSummaries).hasSize(1);
-            assertThat(instanceFlowSummaries.getContent().get(0))
-                    .usingRecursiveComparison()
-                    .withEqualsForType(
-                            OffsetDateTime::isEqual,
-                            OffsetDateTime.class
-                    )
-                    .isEqualTo(
-                            TestInstanceFlowSummariesProjection
-                                    .builder()
-                                    .sourceApplicationId(1L)
-                                    .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
-                                    .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
-                                    .integrationId(null)
-                                    .latestUpdate(OffsetDateTime.of(2024, 1, 1, 13, 0, 0, 0, ZoneOffset.UTC))
-                                    .latestStatusEventName("testStatusName2")
-                                    .latestStorageStatusEventName("testStorageName1")
-                                    .destinationId("testArchiveInstanceId1")
-                                    .build()
-                    );
+            InstanceFlowSummaryProjection projection = instanceFlowSummaries.getContent().get(0);
+
+            assertThat(projection.getSourceApplicationId()).isEqualTo(1L);
+            assertThat(projection.getSourceApplicationIntegrationId()).isEqualTo("testSourceApplicationIntegrationId1");
+            assertThat(projection.getSourceApplicationInstanceId()).isEqualTo("testSourceApplicationInstanceId1");
+            assertThat(projection.getIntegrationId()).isEqualTo(null);
+            assertThat(projection.getLatestInstanceId()).isEqualTo(5L);
+            assertThat(projection.getLatestUpdate()).isEqualTo(
+                    OffsetDateTime.of(2024, 1, 1, 13, 0, 0, 0, ZoneOffset.UTC)
+            );
+            assertThat(projection.getLatestStatusEventName()).isEqualTo("testStatusName2");
+            assertThat(projection.getLatestStorageStatusEventName()).isEqualTo("testStorageName1");
+            assertThat(projection.getLatestDestinationId()).isEqualTo("testArchiveInstanceId1");
         }
     }
 

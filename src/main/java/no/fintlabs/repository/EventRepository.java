@@ -28,10 +28,11 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                 statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId AS sourceApplicationIntegrationId,
                 statusEvent.instanceFlowHeaders.sourceApplicationInstanceId AS sourceApplicationInstanceId,
                 statusEvent.instanceFlowHeaders.integrationId AS integrationId,
+                statusEvent.instanceFlowHeaders.instanceId AS latestInstanceId,
                 statusEvent.timestamp AS latestUpdate,
                 statusEvent.name AS latestStatusEventName,
                 storageEvent.name AS latestStorageStatusEventName,
-                statusEvent.instanceFlowHeaders.archiveInstanceId AS destinationId
+                statusEvent.instanceFlowHeaders.archiveInstanceId AS latestDestinationId
              FROM EventEntity statusEvent
              LEFT OUTER JOIN EventEntity storageEvent
                 ON statusEvent.instanceFlowHeaders.sourceApplicationId = storageEvent.instanceFlowHeaders.sourceApplicationId

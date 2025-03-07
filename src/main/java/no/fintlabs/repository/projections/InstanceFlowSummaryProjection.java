@@ -11,11 +11,13 @@ public interface InstanceFlowSummaryProjection {
 
     Long getIntegrationId();
 
+    Long getLatestInstanceId();
+
     OffsetDateTime getLatestUpdate();
 
     String getLatestStatusEventName();
 
     String getLatestStorageStatusEventName();
 
-    String getDestinationId();
+    String getLatestDestinationId();
 }
