@@ -7,10 +7,14 @@ import java.time.Duration;
 @Slf4j
 public class Timer {
 
-    private Long startTime;
+    private final Long startTime;
 
-    public void start() {
-        startTime = System.nanoTime();
+    private Timer(Long startTime) {
+        this.startTime = startTime;
+    }
+
+    public static Timer start() {
+        return new Timer(System.nanoTime());
     }
 
     public Duration getElapsedTime() {

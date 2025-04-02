@@ -7,6 +7,7 @@ import no.fintlabs.model.instance.InstanceStorageStatus;
 import no.fintlabs.repository.projections.InstanceFlowSummaryProjection;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 
 @Service
@@ -26,7 +27,7 @@ public class InstanceFlowSummaryMappingService {
                 .sourceApplicationInstanceId(projection.getSourceApplicationInstanceId())
                 .integrationId(projection.getIntegrationId())
                 .latestInstanceId(projection.getLatestInstanceId())
-                .latestUpdate(projection.getLatestUpdate())
+                .latestUpdate(OffsetDateTime.from(projection.getLatestUpdate().toInstant()))
                 .status(
                         eventCategorizationService.getCategoryByName(projection.getLatestStatusEventName())
                                 .getInstanceStatus()

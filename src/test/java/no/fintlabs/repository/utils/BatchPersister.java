@@ -12,32 +12,34 @@ import java.util.stream.IntStream;
 import static no.fintlabs.repository.utils.performance.DurationFormatter.formatDuration;
 
 @Slf4j
-public class BatchPersister {
+public class BatchPersister<T> {
 
+    private final JpaRepository<T, Long> repository;
     private final int batchSize;
-    private final Timer timer;
 
-    public BatchPersister(int batchSize) {
+    public BatchPersister(
+            JpaRepository<T, Long> repository,
+            int batchSize
+    ) {
+        this.repository = repository;
         this.batchSize = batchSize;
-        this.timer = new Timer();
     }
 
-    public <T> void persistInBatches(JpaRepository<T, Long> repository, List<T> entities) {
+    public void persistInBatches(List<T> entities) {
         int numberOfEntities = entities.size();
         List<List<T>> entityBatches = Lists.partition(entities, batchSize);
         int numberOfBatches = entityBatches.size();
 
-        log.info("Persisting {} entities in {} batches of size {}", numberOfEntities, numberOfBatches, batchSize);
-        timer.start();
+        log.debug("Persisting {} entities in {} batches of size {}", numberOfEntities, numberOfBatches, batchSize);
+        Timer timer = Timer.start();
 
         IntStream.range(0, numberOfBatches)
                 .forEach(i -> {
                     List<T> batchEntities = entityBatches.get(i);
-                    Timer batchTimer = new Timer();
-                    batchTimer.start();
+                    Timer batchTimer = Timer.start();
                     repository.saveAllAndFlush(batchEntities);
                     Duration batchElapsedTime = batchTimer.getElapsedTime();
-                    log.info("Persisted batch {} of {} in {} ({}/s)",
+                    log.debug("Persisted batch {} of {} in {} ({}/s)",
                             i + 1,
                             numberOfBatches,
                             formatDuration(batchElapsedTime),
@@ -45,10 +47,10 @@ public class BatchPersister {
                     );
                 });
         Duration elapsedTime = timer.getElapsedTime();
-        log.info("Persisted {} entities in {} ({}/s)",
+        log.debug("Persisted {} entities in {} ({}/s)",
                 numberOfEntities,
                 formatDuration(elapsedTime),
-                String.format("%.2f", (double) numberOfEntities / elapsedTime.toSeconds())
+                String.format("%.2f", (double) numberOfEntities * 1000 / elapsedTime.toMillis())
         );
     }
 

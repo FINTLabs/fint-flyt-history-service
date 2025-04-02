@@ -17,6 +17,7 @@ import no.fintlabs.model.statistics.IntegrationStatisticsFilter;
 import no.fintlabs.repository.EventRepository;
 import no.fintlabs.repository.entities.EventEntity;
 import no.fintlabs.repository.entities.InstanceFlowHeadersEmbeddable;
+import no.fintlabs.repository.filters.InstanceFlowSummariesQueryFilter;
 import no.fintlabs.repository.projections.InstanceStatisticsProjection;
 import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,8 +38,8 @@ public class EventService {
     private final String applicationId;
     private final EventRepository eventRepository;
     private final EventMappingService eventMappingService;
+    private final InstanceFlowSummariesFilterMappingService instanceFlowSummariesFilterMappingService;
     private final InstanceFlowHeadersMappingService instanceFlowHeadersMappingService;
-    private final InstanceStatusFilterMappingService instanceStatusFilterMappingService;
     private final InstanceFlowSummaryMappingService instanceFlowSummaryMappingService;
     private final IntegrationStatisticsFilterMappingService integrationStatisticsFilterMappingService;
     private final EventCategorizationService eventCategorizationService;
@@ -48,7 +49,7 @@ public class EventService {
             EventRepository eventRepository,
             EventMappingService eventMappingService,
             InstanceFlowHeadersMappingService instanceFlowHeadersMappingService,
-            InstanceStatusFilterMappingService instanceStatusFilterMappingService,
+            InstanceFlowSummariesFilterMappingService instanceFlowSummariesFilterMappingService,
             InstanceFlowSummaryMappingService instanceFlowSummaryMappingService,
             IntegrationStatisticsFilterMappingService integrationStatisticsFilterMappingService,
             EventCategorizationService eventCategorizationService
@@ -57,23 +58,28 @@ public class EventService {
         this.eventRepository = eventRepository;
         this.eventMappingService = eventMappingService;
         this.instanceFlowHeadersMappingService = instanceFlowHeadersMappingService;
-        this.instanceStatusFilterMappingService = instanceStatusFilterMappingService;
+        this.instanceFlowSummariesFilterMappingService = instanceFlowSummariesFilterMappingService;
         this.instanceFlowSummaryMappingService = instanceFlowSummaryMappingService;
         this.integrationStatisticsFilterMappingService = integrationStatisticsFilterMappingService;
         this.eventCategorizationService = eventCategorizationService;
     }
 
-    public Slice<InstanceFlowSummary> getInstanceFlowSummaries(
+    public List<InstanceFlowSummary> getInstanceFlowSummaries(
             InstanceFlowSummariesFilter instanceFlowSummariesFilter,
-            Pageable pageable
+            int limit
     ) {
+        InstanceFlowSummariesQueryFilter instanceFlowSummariesQueryFilter = instanceFlowSummariesFilterMappingService
+                .toQueryFilter(instanceFlowSummariesFilter);
+
         return eventRepository.getInstanceFlowSummaries(
-                        instanceStatusFilterMappingService.toQueryFilter(instanceFlowSummariesFilter),
+                        instanceFlowSummariesQueryFilter,
                         eventCategorizationService.getAllInstanceStatusEventNames(),
                         eventCategorizationService.getAllInstanceStorageStatusEventNames(),
-                        pageable
+                        limit
                 )
-                .map(instanceFlowSummaryMappingService::toInstanceFlowSummary);
+                .stream()
+                .map(instanceFlowSummaryMappingService::toInstanceFlowSummary)
+                .toList();
     }
 
     public Page<Event> getAllEventsBySourceApplicationAggregateInstanceId(

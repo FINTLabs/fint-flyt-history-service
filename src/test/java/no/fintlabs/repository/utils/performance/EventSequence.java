@@ -1,4 +1,4 @@
-package no.fintlabs.repository.utils;
+package no.fintlabs.repository.utils.performance;
 
 import lombok.Getter;
 import no.fintlabs.model.event.EventCategory;

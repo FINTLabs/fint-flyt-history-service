@@ -10,14 +10,18 @@ import java.util.StringJoiner;
 @Getter
 @AllArgsConstructor
 public class PageSizePerformanceTestCase {
-    private final int pageSize;
+    private final int requestedMaxSize;
+    private final int expectedSize;
     private final Duration maxElapsedTime;
 
     @Override
     public String toString() {
-        StringJoiner joiner = new StringJoiner(",", "(", ")");
+        StringJoiner joiner = new StringJoiner(", ", "(", ")");
         JavaUtils.INSTANCE.acceptIfNotNull(
-                pageSize, pageSize -> joiner.add("pageSize=" + pageSize)
+                requestedMaxSize, requestedSize -> joiner.add("requestedSize=" + requestedSize)
+        );
+        JavaUtils.INSTANCE.acceptIfNotNull(
+                expectedSize, expectedSize -> joiner.add("expectedSize=" + expectedSize)
         );
         JavaUtils.INSTANCE.acceptIfNotNull(
                 maxElapsedTime, maxElapsedTime -> joiner.add("maxElapsedTime=" + maxElapsedTime)

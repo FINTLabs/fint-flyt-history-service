@@ -1,17 +1,19 @@
-package no.fintlabs.repository.utils;
+package no.fintlabs.repository.utils.performance;
 
 import lombok.Getter;
+import lombok.ToString;
 import no.fintlabs.model.event.EventCategory;
 
 import java.util.List;
 
+@ToString
 @Getter
-public class SequenceGenerationConfig {
+public class EventSequenceGenerationConfig {
     private final List<EventCategory> eventSequence;
     private final int numberOfSequences;
     private final String sourceApplicationInstanceIdOverride;
 
-    public SequenceGenerationConfig(
+    public EventSequenceGenerationConfig(
             List<EventCategory> eventSequence,
             int numberOfSequences,
             String sourceApplicationInstanceIdOverride
@@ -21,7 +23,7 @@ public class SequenceGenerationConfig {
         this.sourceApplicationInstanceIdOverride = sourceApplicationInstanceIdOverride;
     }
 
-    public SequenceGenerationConfig(
+    public EventSequenceGenerationConfig(
             EventSequence eventSequence,
             int numberOfSequences,
             String sourceApplicationInstanceIdOverride
@@ -29,14 +31,14 @@ public class SequenceGenerationConfig {
         this(eventSequence.getOrder(), numberOfSequences, sourceApplicationInstanceIdOverride);
     }
 
-    public SequenceGenerationConfig(
+    public EventSequenceGenerationConfig(
             List<EventCategory> eventSequence,
             int numberOfSequences
     ) {
         this(eventSequence, numberOfSequences, null);
     }
 
-    public SequenceGenerationConfig(
+    public EventSequenceGenerationConfig(
             EventSequence eventSequence,
             int numberOfSequences
     ) {

@@ -1,23 +1,25 @@
 package no.fintlabs.repository.filters;
 
 import lombok.Builder;
+import lombok.Getter;
 import org.springframework.kafka.support.JavaUtils;
 
 import java.util.Collection;
 import java.util.Optional;
 import java.util.StringJoiner;
 
+@Getter
 @Builder
 public class InstanceFlowSummariesQueryFilter {
     private final Collection<Long> sourceApplicationIds;
     private final Collection<String> sourceApplicationIntegrationIds;
     private final Collection<String> sourceApplicationInstanceIds;
     private final Collection<Long> integrationIds;
-    private final TimeQueryFilter timeQueryFilter;
     private final Collection<String> statusEventNames;
-    private final InstanceStorageStatusQueryFilter storageStatusFilter;
+    private final InstanceStorageStatusQueryFilter instanceStorageStatusQueryFilter;
     private final Collection<String> associatedEventNames;
     private final Collection<String> destinationIds;
+    private final TimeQueryFilter timeQueryFilter;
 
     public Optional<Collection<Long>> getSourceApplicationIds() {
         return Optional.ofNullable(sourceApplicationIds);
@@ -35,16 +37,12 @@ public class InstanceFlowSummariesQueryFilter {
         return Optional.ofNullable(integrationIds);
     }
 
-    public TimeQueryFilter getTimeQueryFilter() {
-        return Optional.ofNullable(timeQueryFilter).orElse(TimeQueryFilter.EMPTY);
-    }
-
     public Optional<Collection<String>> getStatusEventNames() {
         return Optional.ofNullable(statusEventNames);
     }
 
-    public Optional<InstanceStorageStatusQueryFilter> getStorageStatusFilter() {
-        return Optional.ofNullable(storageStatusFilter);
+    public Optional<InstanceStorageStatusQueryFilter> getInstanceStorageStatusQueryFilter() {
+        return Optional.ofNullable(instanceStorageStatusQueryFilter);
     }
 
     public Optional<Collection<String>> getAssociatedEventNames() {
@@ -55,6 +53,10 @@ public class InstanceFlowSummariesQueryFilter {
         return Optional.ofNullable(destinationIds);
     }
 
+    public Optional<TimeQueryFilter> getTimeQueryFilter() {
+        return Optional.ofNullable(timeQueryFilter);
+    }
+
     @Override
     public String toString() {
         StringJoiner joiner = new StringJoiner(",", "(", ")");
@@ -62,10 +64,12 @@ public class InstanceFlowSummariesQueryFilter {
                 sourceApplicationIds, sourceApplicationIds -> joiner.add("sourceApplicationIds=" + sourceApplicationIds)
         );
         JavaUtils.INSTANCE.acceptIfNotNull(
-                sourceApplicationIntegrationIds, sourceApplicationIntegrationIds -> joiner.add("sourceApplicationIntegrationIds=" + sourceApplicationIntegrationIds)
+                sourceApplicationIntegrationIds, sourceApplicationIntegrationIds ->
+                        joiner.add("sourceApplicationIntegrationIds=" + sourceApplicationIntegrationIds)
         );
         JavaUtils.INSTANCE.acceptIfNotNull(
-                sourceApplicationInstanceIds, sourceApplicationInstanceIds -> joiner.add("sourceApplicationInstanceIds=" + sourceApplicationInstanceIds)
+                sourceApplicationInstanceIds, sourceApplicationInstanceIds ->
+                        joiner.add("sourceApplicationInstanceIds=" + sourceApplicationInstanceIds)
         );
         JavaUtils.INSTANCE.acceptIfNotNull(
                 integrationIds, integrationIds -> joiner.add("integrationIds=" + integrationIds)
@@ -77,7 +81,8 @@ public class InstanceFlowSummariesQueryFilter {
                 statusEventNames, statusEventNames -> joiner.add("statusEventNames=" + statusEventNames)
         );
         JavaUtils.INSTANCE.acceptIfNotNull(
-                storageStatusFilter, storageStatusFilter -> joiner.add("storageStatusFilter=" + storageStatusFilter)
+                instanceStorageStatusQueryFilter, instanceStorageStatusQueryFilter ->
+                        joiner.add("instanceStorageStatusQueryFilter=" + instanceStorageStatusQueryFilter)
         );
         JavaUtils.INSTANCE.acceptIfNotNull(
                 associatedEventNames, associatedEventNames -> joiner.add("associatedEventNames=" + associatedEventNames)
@@ -87,5 +92,4 @@ public class InstanceFlowSummariesQueryFilter {
         );
         return joiner.toString();
     }
-
 }

@@ -18,14 +18,15 @@ import java.util.Collection;
 @Jacksonized
 @Entity
 @Table(name = "event", indexes = {
+        @Index(name = "timestamp_index", columnList = "timestamp"),
         @Index(
-                name = "source_application_aggregate_id_and_timestamp_index",
+                name = "source_application_aggregate_id_and_timestamp_and_name_index",
                 columnList = "sourceApplicationId, " +
                              "sourceApplicationIntegrationId, " +
                              "sourceApplicationInstanceId, " +
-                             "timestamp"
+                             "timestamp," +
+                             "name"
         ),
-        @Index(name = "timestamp_index", columnList = "timestamp")
 })
 public class EventEntity {
 

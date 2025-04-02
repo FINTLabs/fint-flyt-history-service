@@ -11,12 +11,12 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 @Service
-public class InstanceStatusFilterMappingService {
+public class InstanceFlowSummariesFilterMappingService {
 
     private final EventCategorizationService eventCategorizationService;
     private final TimeFilterMappingService timeFilterMappingService;
 
-    public InstanceStatusFilterMappingService(
+    public InstanceFlowSummariesFilterMappingService(
             EventCategorizationService eventCategorizationService,
             TimeFilterMappingService timeFilterMappingService
     ) {
@@ -24,39 +24,36 @@ public class InstanceStatusFilterMappingService {
         this.timeFilterMappingService = timeFilterMappingService;
     }
 
-    public InstanceFlowSummariesQueryFilter toQueryFilter(
-            InstanceFlowSummariesFilter instanceFlowSummariesFilter
-    ) {
+    public InstanceFlowSummariesQueryFilter toQueryFilter(InstanceFlowSummariesFilter instanceFlowSummariesFilter) {
         return InstanceFlowSummariesQueryFilter
                 .builder()
                 .sourceApplicationIds(instanceFlowSummariesFilter.getSourceApplicationIds())
                 .sourceApplicationIntegrationIds(instanceFlowSummariesFilter.getSourceApplicationIntegrationIds())
                 .sourceApplicationInstanceIds(instanceFlowSummariesFilter.getSourceApplicationInstanceIds())
                 .integrationIds(instanceFlowSummariesFilter.getIntegrationIds())
-                .timeQueryFilter(Optional.ofNullable(instanceFlowSummariesFilter.getTime())
-                        .map(timeFilterMappingService::toQueryFilter)
-                        .orElse(null)
+                .statusEventNames(
+                        Optional.ofNullable(instanceFlowSummariesFilter.getStatuses())
+                                .map(eventCategorizationService::getEventNamesByInstanceStatuses)
+                                .orElse(null)
                 )
-                .statusEventNames(Optional.ofNullable(instanceFlowSummariesFilter.getStatuses())
-                        .map(eventCategorizationService::getEventNamesByInstanceStatuses)
-                        .orElse(null))
-                .storageStatusFilter(Optional.ofNullable(instanceFlowSummariesFilter.getStorageStatuses())
-                        .map(storageStatus ->
-                                new InstanceStorageStatusQueryFilter(
-                                        eventCategorizationService.getEventNamesByInstanceStorageStatuses(storageStatus),
-                                        storageStatus.contains(InstanceStorageStatus.NEVER_STORED)
-                                )
-                        ).orElse(null))
+                .instanceStorageStatusQueryFilter(
+                        Optional.ofNullable(instanceFlowSummariesFilter.getStorageStatuses())
+                                .map(storageStatus ->
+                                        new InstanceStorageStatusQueryFilter(
+                                                eventCategorizationService.getEventNamesByInstanceStorageStatuses(storageStatus),
+                                                storageStatus.contains(InstanceStorageStatus.NEVER_STORED)
+                                        )
+                                ).orElse(InstanceStorageStatusQueryFilter.EMPTY)
+                )
                 .associatedEventNames(
                         Optional.ofNullable(instanceFlowSummariesFilter.getAssociatedEvents())
                                 .map(eventCategories -> eventCategories.stream()
                                         .map(EventCategory::getEventName)
                                         .toList()
-                                )
-                                .orElse(null)
+                                ).orElse(null)
                 )
                 .destinationIds(instanceFlowSummariesFilter.getDestinationIds())
+                .timeQueryFilter(timeFilterMappingService.toQueryFilter(instanceFlowSummariesFilter.getTime()))
                 .build();
     }
-
 }

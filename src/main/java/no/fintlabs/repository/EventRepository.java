@@ -2,9 +2,8 @@ package no.fintlabs.repository;
 
 import no.fintlabs.model.SourceApplicationAggregateInstanceId;
 import no.fintlabs.repository.entities.EventEntity;
-import no.fintlabs.repository.filters.EventNamesPerInstanceStatus;
-import no.fintlabs.repository.filters.InstanceFlowSummariesQueryFilter;
-import no.fintlabs.repository.filters.IntegrationStatisticsQueryFilter;
+import no.fintlabs.repository.filters.*;
+import no.fintlabs.repository.projections.InstanceFlowSummaryNativeProjection;
 import no.fintlabs.repository.projections.InstanceFlowSummaryProjection;
 import no.fintlabs.repository.projections.InstanceStatisticsProjection;
 import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
@@ -13,113 +12,175 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 
 @Repository
 public interface EventRepository extends JpaRepository<EventEntity, Long> {
 
     @Query(value = """
-             SELECT statusEvent.instanceFlowHeaders.sourceApplicationId AS sourceApplicationId,
-                statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId AS sourceApplicationIntegrationId,
-                statusEvent.instanceFlowHeaders.sourceApplicationInstanceId AS sourceApplicationInstanceId,
-                statusEvent.instanceFlowHeaders.integrationId AS integrationId,
-                statusEvent.instanceFlowHeaders.instanceId AS latestInstanceId,
-                statusEvent.timestamp AS latestUpdate,
-                statusEvent.name AS latestStatusEventName,
-                storageEvent.name AS latestStorageStatusEventName,
-                statusEvent.instanceFlowHeaders.archiveInstanceId AS latestDestinationId
-             FROM EventEntity statusEvent
-             LEFT OUTER JOIN EventEntity storageEvent
-                ON statusEvent.instanceFlowHeaders.sourceApplicationId = storageEvent.instanceFlowHeaders.sourceApplicationId
-                AND statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId = storageEvent.instanceFlowHeaders.sourceApplicationIntegrationId
-                AND statusEvent.instanceFlowHeaders.sourceApplicationInstanceId = storageEvent.instanceFlowHeaders.sourceApplicationInstanceId
-                AND storageEvent.name IN :#{#allInstanceStorageStatusEventNames}
-                AND storageEvent.timestamp >= ALL(
-                    SELECT e.timestamp
-                    FROM EventEntity e
-                    WHERE e.instanceFlowHeaders.sourceApplicationId = storageEvent.instanceFlowHeaders.sourceApplicationId
-                      AND e.instanceFlowHeaders.sourceApplicationIntegrationId = storageEvent.instanceFlowHeaders.sourceApplicationIntegrationId
-                      AND e.instanceFlowHeaders.sourceApplicationInstanceId = storageEvent.instanceFlowHeaders.sourceApplicationInstanceId
-                      AND e.name IN :#{#allInstanceStorageStatusEventNames}
-                )
-             WHERE statusEvent.name IN :#{#allInstanceStatusEventNames}
-             AND (
-                :#{#filter.statusEventNames.empty} IS TRUE
-                 OR statusEvent.name IN :#{#filter.statusEventNames.orElse(null)}
+             SELECT  statusEvent.source_application_id             AS sourceApplicationId,
+                     statusEvent.source_application_integration_id AS sourceApplicationIntegrationId,
+                     statusEvent.source_application_instance_id    AS sourceApplicationInstanceId,
+                     statusEvent.integration_id                    AS integrationId,
+                     statusEvent.instance_id                       AS latestInstanceId,
+                     statusEvent.timestamp                         AS latestUpdate,
+                     statusEvent.name                              AS latestStatusEventName,
+                     storageEvent.name                             AS latestStorageStatusEventName,
+                     statusEvent.archive_instance_id               AS latestDestinationId
+             FROM event statusEvent
+             LEFT OUTER JOIN event storageEvent
+             ON statusEvent.source_application_id = storageEvent.source_application_id
+             AND statusEvent.source_application_integration_id = storageEvent.source_application_integration_id
+             AND statusEvent.source_application_instance_id = storageEvent.source_application_instance_id
+             AND storageEvent.name IN :allInstanceStorageStatusEventNames
+             AND storageEvent.timestamp >= ALL (
+                 SELECT e.timestamp
+                 FROM event e
+                 WHERE e.source_application_id = storageEvent.source_application_id
+                 AND e.source_application_integration_id = storageEvent.source_application_integration_id
+                 AND e.source_application_instance_id = storageEvent.source_application_instance_id
+                 AND e.name IN :allInstanceStorageStatusEventNames
+             )
+             LEFT OUTER JOIN (
+                 SELECT  source_application_id,
+                         source_application_integration_id,
+                         source_application_instance_id,
+                         array_agg(name) AS names
+                 FROM event
+                 GROUP BY source_application_id, source_application_integration_id,source_application_instance_id
+             ) nameAgg
+             ON statusEvent.source_application_id = nameAgg.source_application_id
+             AND statusEvent.source_application_integration_id = nameAgg.source_application_integration_id
+             AND statusEvent.source_application_instance_id = nameAgg.source_application_instance_id
+             WHERE (
+                 (COALESCE(:statusEventNames, null) IS NULL AND statusEvent.name IN :allInstanceStatusEventNames)
+                 OR (statusEvent.name IS NOT NULL AND statusEvent.name IN :statusEventNames)
+             )
+             AND statusEvent.timestamp >= ALL (
+                 SELECT e.timestamp
+                 FROM event e
+                 WHERE e.source_application_id = statusEvent.source_application_id
+                 AND e.source_application_integration_id = statusEvent.source_application_integration_id
+                 AND e.source_application_instance_id = statusEvent.source_application_instance_id
+                 AND e.name IN :allInstanceStatusEventNames
              )
              AND (
-                :#{#filter.storageStatusFilter.empty} IS TRUE
-                OR (
-                    storageEvent.name IN :#{#filter.storageStatusFilter
-                        .orElse(T(no.fintlabs.repository.filters.InstanceStorageStatusQueryFilter).EMPTY)
-                        .instanceStorageStatusNames}
-                    OR (
-                        storageEvent IS NULL
-                        AND :#{#filter.storageStatusFilter
-                        .orElse(T(no.fintlabs.repository.filters.InstanceStorageStatusQueryFilter).EMPTY)
-                        .neverStored} IS TRUE)
-                )
+                 COALESCE(:sourceApplicationIds, null) IS NULL
+                 OR statusEvent.source_application_id IN :sourceApplicationIds
              )
              AND (
-                 :#{#filter.sourceApplicationIds.empty} IS TRUE
-                 OR statusEvent.instanceFlowHeaders.sourceApplicationId IN :#{#filter.sourceApplicationIds.orElse(null)}
+                 COALESCE(:sourceApplicationIntegrationIds, null) IS NULL
+                 OR statusEvent.source_application_integration_id IN :sourceApplicationIntegrationIds
              )
              AND (
-                 :#{#filter.sourceApplicationIntegrationIds.empty} IS TRUE
-                 OR statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId
-                    IN :#{#filter.sourceApplicationIntegrationIds.orElse(null)}
+                 COALESCE(:sourceApplicationInstanceIds, null) IS NULL
+                 OR statusEvent.source_application_instance_id IN :sourceApplicationInstanceIds
              )
              AND (
-                 :#{#filter.sourceApplicationInstanceIds.empty} IS TRUE
-                 OR statusEvent.instanceFlowHeaders.sourceApplicationInstanceId
-                    IN :#{#filter.sourceApplicationInstanceIds.orElse(null)}
+                 COALESCE(:integrationIds, null) IS NULL
+                 OR statusEvent.integration_id IN :integrationIds
              )
              AND (
-                 :#{#filter.integrationIds.empty} IS TRUE
-                 OR statusEvent.instanceFlowHeaders.integrationId IN :#{#filter.integrationIds.orElse(null)}
+                 CAST(:latestStatusTimestampMin AS TIMESTAMP) IS NULL
+                 OR statusEvent.timestamp >= CAST(:latestStatusTimestampMin AS TIMESTAMP WITH TIME ZONE)
              )
              AND (
-                 :#{#filter.destinationIds.empty} IS TRUE
-                 OR statusEvent.instanceFlowHeaders.archiveInstanceId IN :#{#filter.destinationIds.orElse(null)}
+                 CAST(:latestStatusTimestampMax AS TIMESTAMP) IS NULL
+                 OR statusEvent.timestamp <= CAST(:latestStatusTimestampMax AS TIMESTAMP WITH TIME ZONE)
              )
              AND (
-                 :#{#filter.timeQueryFilter.latestStatusTimestampMin.empty} IS TRUE
-                 OR statusEvent.timestamp >= :#{#filter.timeQueryFilter.latestStatusTimestampMin.orElse(null)}
+                 (COALESCE(:instanceStorageStatusNames, null) IS NULL AND :instanceStorageStatusNeverStored IS NULL)
+                 OR storageEvent.name IN :instanceStorageStatusNames
+                 OR (storageEvent IS NULL AND :instanceStorageStatusNeverStored IS TRUE)
+             )
+            AND (
+                 :associatedEventNamesAsSqlArrayString IS NULL
+                 OR nameAgg.names @> CAST(:associatedEventNamesAsSqlArrayString AS CHARACTER VARYING[])
              )
              AND (
-                 :#{#filter.timeQueryFilter.latestStatusTimestampMax.empty} IS TRUE
-                 OR statusEvent.timestamp <= :#{#filter.timeQueryFilter.latestStatusTimestampMax.orElse(null)}
+                 COALESCE(:destinationIds, null) IS NULL
+                 OR statusEvent.archive_instance_id IN (:destinationIds)
              )
-             AND statusEvent.timestamp >= ALL(
-                SELECT e.timestamp
-                FROM EventEntity e
-                WHERE e.instanceFlowHeaders.sourceApplicationId = statusEvent.instanceFlowHeaders.sourceApplicationId
-                  AND e.instanceFlowHeaders.sourceApplicationIntegrationId = statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId
-                  AND e.instanceFlowHeaders.sourceApplicationInstanceId = statusEvent.instanceFlowHeaders.sourceApplicationInstanceId
-                  AND e.name IN :#{#allInstanceStatusEventNames}
-             )
-             AND (
-                :#{#filter.associatedEventNames.empty} IS TRUE
-                OR CAST(:#{#filter.associatedEventNames.orElse(T(java.util.List).of()).size} AS long) = (
-                    SELECT COUNT(DISTINCT e.name)
-                    FROM EventEntity e
-                    WHERE (e.instanceFlowHeaders.sourceApplicationId = statusEvent.instanceFlowHeaders.sourceApplicationId
-                    AND e.instanceFlowHeaders.sourceApplicationIntegrationId = statusEvent.instanceFlowHeaders.sourceApplicationIntegrationId
-                    AND e.instanceFlowHeaders.sourceApplicationInstanceId = statusEvent.instanceFlowHeaders.sourceApplicationInstanceId
-                    AND e.name IN :#{#filter.associatedEventNames.orElse(null)})
-                )
-            )""")
-    Slice<InstanceFlowSummaryProjection> getInstanceFlowSummaries(
+             ORDER BY latestUpdate DESC
+             LIMIT :limit""",
+            nativeQuery = true
+    )
+    List<InstanceFlowSummaryNativeProjection> getInstanceFlowSummaries(
+            @Param("sourceApplicationIds") Collection<Long> sourceApplicationIds,
+            @Param("sourceApplicationIntegrationIds") Collection<String> sourceApplicationIntegrationIds,
+            @Param("sourceApplicationInstanceIds") Collection<String> sourceApplicationInstanceIds,
+            @Param("integrationIds") Collection<Long> integrationIds,
+            @Param("statusEventNames") Collection<String> statusEventNames,
+            @Param("instanceStorageStatusNames") Collection<String> instanceStorageStatusNames,
+            @Param("instanceStorageStatusNeverStored") Boolean instanceStorageStatusNeverStored,
+            @Param("associatedEventNamesAsSqlArrayString") String associatedEventNamesAsSqlArrayString,
+            @Param("destinationIds") Collection<String> destinationIds,
+            @Param("latestStatusTimestampMin") OffsetDateTime latestStatusTimestampMin,
+            @Param("latestStatusTimestampMax") OffsetDateTime latestStatusTimestampMax,
+            @Param("allInstanceStatusEventNames") Collection<String> allInstanceStatusEventNames,
+            @Param("allInstanceStorageStatusEventNames") Collection<String> allInstanceStorageStatusEventNames,
+            @Param("limit") Integer limit
+    );
+
+    default List<InstanceFlowSummaryProjection> getInstanceFlowSummaries(
             InstanceFlowSummariesQueryFilter filter,
             Collection<String> allInstanceStatusEventNames,
             Collection<String> allInstanceStorageStatusEventNames,
-            Pageable pageable
-    );
+            Integer limit
+    ) {
+        String associatedEventNamesArrayString = filter.getAssociatedEventNames()
+                .map(names -> names
+                        .stream()
+                        .collect(Collectors.joining(", ", "{", "}"))
+                )
+                .orElse(null);
+
+        return getInstanceFlowSummaries(
+                filter.getSourceApplicationIds().orElse(List.of()),
+                filter.getSourceApplicationIntegrationIds().orElse(List.of()),
+                filter.getSourceApplicationInstanceIds().orElse(List.of()),
+                filter.getIntegrationIds().orElse(List.of()),
+                filter.getStatusEventNames().orElse(List.of()),
+                filter.getInstanceStorageStatusQueryFilter()
+                        .map(InstanceStorageStatusQueryFilter::getInstanceStorageStatusNames).orElse(List.of()),
+                filter.getInstanceStorageStatusQueryFilter()
+                        .map(InstanceStorageStatusQueryFilter::getNeverStored).orElse(null),
+                associatedEventNamesArrayString,
+                filter.getDestinationIds().orElse(List.of()),
+                filter.getTimeQueryFilter().flatMap(TimeQueryFilter::getLatestStatusTimestampMin).orElse(null),
+                filter.getTimeQueryFilter().flatMap(TimeQueryFilter::getLatestStatusTimestampMax).orElse(null),
+                allInstanceStatusEventNames,
+                allInstanceStorageStatusEventNames,
+                limit
+        ).stream()
+                .map(nativeProjection -> InstanceFlowSummaryProjection
+                        .builder()
+                        .sourceApplicationId(nativeProjection.getSourceApplicationId())
+                        .sourceApplicationIntegrationId(nativeProjection.getSourceApplicationIntegrationId())
+                        .sourceApplicationInstanceId(nativeProjection.getSourceApplicationInstanceId())
+                        .integrationId(nativeProjection.getIntegrationId())
+                        .latestInstanceId(nativeProjection.getLatestInstanceId())
+                        .latestUpdate(
+                                // TODO 01/04/2025 eivindmorch: Zoned vs offset date time?
+                                OffsetDateTime.from(
+                                        nativeProjection.getLatestUpdate().atOffset(ZoneOffset.UTC)
+                                )
+                        )
+                        .latestStatusEventName(nativeProjection.getLatestStatusEventName())
+                        .latestStorageStatusEventName(nativeProjection.getLatestStorageStatusEventName())
+                        .latestDestinationId(nativeProjection.getLatestDestinationId())
+                        .build()
+                ).toList();
+    }
 
     @Query(value = """
             SELECT e

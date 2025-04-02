@@ -84,7 +84,7 @@ public class HistoryController {
     public ResponseEntity<?> getInstanceFlowSummaries(
             @AuthenticationPrincipal Authentication authentication,
             InstanceFlowSummariesFilter instanceFlowSummariesFilter,
-            Pageable pageable
+            @RequestParam int size
     ) {
         InstanceFlowSummariesFilter filterLimitedByUserAuthorization =
                 authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
@@ -102,7 +102,7 @@ public class HistoryController {
         return ResponseEntity.ok(
                 eventService.getInstanceFlowSummaries(
                         filterLimitedByUserAuthorization,
-                        pageable
+                        size
                 )
         );
     }
