@@ -80,6 +80,25 @@ public class HistoryController {
         );
     }
 
+    @GetMapping(path = "summariesTotalCount")
+    public ResponseEntity<?> getInstanceFlowSummariesTotalCount(
+            @AuthenticationPrincipal Authentication authentication,
+            InstanceFlowSummariesFilter instanceFlowSummariesFilter
+    ) {
+        InstanceFlowSummariesFilter filterLimitedByUserAuthorization =
+                authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
+                        authentication,
+                        instanceFlowSummariesFilter
+                );
+        Set<ConstraintViolation<InstanceFlowSummariesFilter>> constraintViolations =
+                validator.validate(instanceFlowSummariesFilter);
+        if (!constraintViolations.isEmpty()) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(validationErrorsFormattingService.format(constraintViolations));
+        }
+        return ResponseEntity.ok(eventService.getInstanceFlowSummariesTotalCount(filterLimitedByUserAuthorization));
+    }
+
     @GetMapping(path = "summaries")
     public ResponseEntity<?> getInstanceFlowSummaries(
             @AuthenticationPrincipal Authentication authentication,

@@ -27,6 +27,131 @@ import java.util.stream.Collectors;
 public interface EventRepository extends JpaRepository<EventEntity, Long> {
 
     @Query(value = """
+             SELECT count(*)
+             FROM event statusEvent
+             LEFT OUTER JOIN event storageEvent
+             ON statusEvent.source_application_id = storageEvent.source_application_id
+             AND statusEvent.source_application_integration_id = storageEvent.source_application_integration_id
+             AND statusEvent.source_application_instance_id = storageEvent.source_application_instance_id
+             AND storageEvent.name IN :allInstanceStorageStatusEventNames
+             AND storageEvent.timestamp >= ALL (
+                 SELECT e.timestamp
+                 FROM event e
+                 WHERE e.source_application_id = storageEvent.source_application_id
+                 AND e.source_application_integration_id = storageEvent.source_application_integration_id
+                 AND e.source_application_instance_id = storageEvent.source_application_instance_id
+                 AND e.name IN :allInstanceStorageStatusEventNames
+             )
+             LEFT OUTER JOIN (
+                 SELECT  source_application_id,
+                         source_application_integration_id,
+                         source_application_instance_id,
+                         array_agg(name) AS names
+                 FROM event
+                 GROUP BY source_application_id, source_application_integration_id,source_application_instance_id
+             ) nameAgg
+             ON statusEvent.source_application_id = nameAgg.source_application_id
+             AND statusEvent.source_application_integration_id = nameAgg.source_application_integration_id
+             AND statusEvent.source_application_instance_id = nameAgg.source_application_instance_id
+             WHERE (
+                 (COALESCE(:statusEventNames, null) IS NULL AND statusEvent.name IN :allInstanceStatusEventNames)
+                 OR (statusEvent.name IS NOT NULL AND statusEvent.name IN :statusEventNames)
+             )
+             AND statusEvent.timestamp >= ALL (
+                 SELECT e.timestamp
+                 FROM event e
+                 WHERE e.source_application_id = statusEvent.source_application_id
+                 AND e.source_application_integration_id = statusEvent.source_application_integration_id
+                 AND e.source_application_instance_id = statusEvent.source_application_instance_id
+                 AND e.name IN :allInstanceStatusEventNames
+             )
+             AND (
+                 COALESCE(:sourceApplicationIds, null) IS NULL
+                 OR statusEvent.source_application_id IN :sourceApplicationIds
+             )
+             AND (
+                 COALESCE(:sourceApplicationIntegrationIds, null) IS NULL
+                 OR statusEvent.source_application_integration_id IN :sourceApplicationIntegrationIds
+             )
+             AND (
+                 COALESCE(:sourceApplicationInstanceIds, null) IS NULL
+                 OR statusEvent.source_application_instance_id IN :sourceApplicationInstanceIds
+             )
+             AND (
+                 COALESCE(:integrationIds, null) IS NULL
+                 OR statusEvent.integration_id IN :integrationIds
+             )
+             AND (
+                 CAST(:latestStatusTimestampMin AS TIMESTAMP) IS NULL
+                 OR statusEvent.timestamp >= CAST(:latestStatusTimestampMin AS TIMESTAMP WITH TIME ZONE)
+             )
+             AND (
+                 CAST(:latestStatusTimestampMax AS TIMESTAMP) IS NULL
+                 OR statusEvent.timestamp <= CAST(:latestStatusTimestampMax AS TIMESTAMP WITH TIME ZONE)
+             )
+             AND (
+                 (COALESCE(:instanceStorageStatusNames, null) IS NULL AND :instanceStorageStatusNeverStored IS NULL)
+                 OR storageEvent.name IN :instanceStorageStatusNames
+                 OR (storageEvent IS NULL AND :instanceStorageStatusNeverStored IS TRUE)
+             )
+            AND (
+                 :associatedEventNamesAsSqlArrayString IS NULL
+                 OR nameAgg.names @> CAST(:associatedEventNamesAsSqlArrayString AS CHARACTER VARYING[])
+             )
+             AND (
+                 COALESCE(:destinationIds, null) IS NULL
+                 OR statusEvent.archive_instance_id IN (:destinationIds)
+             )""",
+            nativeQuery = true
+    )
+    long getInstanceFlowSummariesTotalCount(
+            @Param("sourceApplicationIds") Collection<Long> sourceApplicationIds,
+            @Param("sourceApplicationIntegrationIds") Collection<String> sourceApplicationIntegrationIds,
+            @Param("sourceApplicationInstanceIds") Collection<String> sourceApplicationInstanceIds,
+            @Param("integrationIds") Collection<Long> integrationIds,
+            @Param("statusEventNames") Collection<String> statusEventNames,
+            @Param("instanceStorageStatusNames") Collection<String> instanceStorageStatusNames,
+            @Param("instanceStorageStatusNeverStored") Boolean instanceStorageStatusNeverStored,
+            @Param("associatedEventNamesAsSqlArrayString") String associatedEventNamesAsSqlArrayString,
+            @Param("destinationIds") Collection<String> destinationIds,
+            @Param("latestStatusTimestampMin") OffsetDateTime latestStatusTimestampMin,
+            @Param("latestStatusTimestampMax") OffsetDateTime latestStatusTimestampMax,
+            @Param("allInstanceStatusEventNames") Collection<String> allInstanceStatusEventNames,
+            @Param("allInstanceStorageStatusEventNames") Collection<String> allInstanceStorageStatusEventNames
+    );
+
+    default long getInstanceFlowSummariesTotalCount(
+            InstanceFlowSummariesQueryFilter filter,
+            Collection<String> allInstanceStatusEventNames,
+            Collection<String> allInstanceStorageStatusEventNames
+    ) {
+        String associatedEventNamesArrayString = filter.getAssociatedEventNames()
+                .map(names -> names
+                        .stream()
+                        .collect(Collectors.joining(", ", "{", "}"))
+                )
+                .orElse(null);
+
+        return getInstanceFlowSummariesTotalCount(
+                filter.getSourceApplicationIds().orElse(List.of()),
+                filter.getSourceApplicationIntegrationIds().orElse(List.of()),
+                filter.getSourceApplicationInstanceIds().orElse(List.of()),
+                filter.getIntegrationIds().orElse(List.of()),
+                filter.getStatusEventNames().orElse(List.of()),
+                filter.getInstanceStorageStatusQueryFilter()
+                        .map(InstanceStorageStatusQueryFilter::getInstanceStorageStatusNames).orElse(List.of()),
+                filter.getInstanceStorageStatusQueryFilter()
+                        .map(InstanceStorageStatusQueryFilter::getNeverStored).orElse(null),
+                associatedEventNamesArrayString,
+                filter.getDestinationIds().orElse(List.of()),
+                filter.getTimeQueryFilter().flatMap(TimeQueryFilter::getLatestStatusTimestampMin).orElse(null),
+                filter.getTimeQueryFilter().flatMap(TimeQueryFilter::getLatestStatusTimestampMax).orElse(null),
+                allInstanceStatusEventNames,
+                allInstanceStorageStatusEventNames
+        );
+    }
+
+    @Query(value = """
              SELECT  statusEvent.source_application_id             AS sourceApplicationId,
                      statusEvent.source_application_integration_id AS sourceApplicationIntegrationId,
                      statusEvent.source_application_instance_id    AS sourceApplicationInstanceId,

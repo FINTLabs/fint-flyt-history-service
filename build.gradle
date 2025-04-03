@@ -22,12 +22,6 @@ test {
     useJUnitPlatform()
 }
 
-def excludePerformanceTest = tasks.register("excludePerformanceTest", Test) {
-    useJUnitPlatform {
-        excludeTags "performance"
-    }
-}
-
 repositories {
     mavenCentral()
     repositories {

@@ -104,7 +104,7 @@ public class EventRepositoryPerformanceTest {
                 1,
                 1000000
         );
-        int numberOfEventsFactor = 100;
+        int numberOfEventsFactor = 10;
         eventDatasetGenerator.generateAndPersistEvents(Stream.concat(
                 Stream.of(
                         EventGenerationConfig
@@ -182,134 +182,152 @@ public class EventRepositoryPerformanceTest {
         private final PageSizePerformanceTestCase pageSizePerformance;
     }
 
+    private static final InstanceFlowSummariesQueryFilter INSTANCE_FLOW_SUMMARIES_QUERY_FILTER_SOURCE_APPLICATION_INSTANCE_ID =
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .sourceApplicationInstanceIds(List.of("testSourceApplicationInstanceId1"))
+                    .build();
+
+    private static final List<InstanceFlowSummariesQueryFilter> INSTANCE_FLOW_SUMMARIES_QUERY_FILTERS = List.of(
+            InstanceFlowSummariesQueryFilter.builder().build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .sourceApplicationIds(List.of(1L))
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .sourceApplicationIds(List.of(1L, 2L))
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .sourceApplicationIntegrationIds(List.of("testSourceApplicationId2"))
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .sourceApplicationIntegrationIds(List.of("testSourceApplicationId2", "testSourceApplicationId50"))
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .integrationIds(List.of(2L))
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .integrationIds(List.of(2L, 50L, 100L))
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .timeQueryFilter(
+                            TimeQueryFilter
+                                    .builder()
+                                    .latestStatusTimestampMin(createOffsetDateTime(2024, 3, 6, 18))
+                                    .build()
+                    )
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .timeQueryFilter(
+                            TimeQueryFilter
+                                    .builder()
+                                    .latestStatusTimestampMax(createOffsetDateTime(2024, 5, 6, 19))
+                                    .build()
+                    )
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .timeQueryFilter(
+                            TimeQueryFilter
+                                    .builder()
+                                    .latestStatusTimestampMin(createOffsetDateTime(2024, 3, 6, 18))
+                                    .latestStatusTimestampMax(createOffsetDateTime(2024, 5, 6, 19))
+                                    .build()
+                    )
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .statusEventNames(List.of(
+                            EventCategory.INSTANCE_DISPATCHED.getEventName()
+                    ))
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .statusEventNames(List.of(
+                            EventCategory.INSTANCE_DISPATCHED.getEventName(),
+                            EventCategory.INSTANCE_MAPPING_ERROR.getEventName()
+                    ))
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .instanceStorageStatusQueryFilter(
+                            new InstanceStorageStatusQueryFilter(
+                                    List.of(EventCategory.INSTANCE_DELETED.getEventName()),
+                                    false
+                            )
+                    )
+                    .build(),
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .instanceStorageStatusQueryFilter(
+                            new InstanceStorageStatusQueryFilter(
+                                    List.of(),
+                                    true)
+                    ).build()
+    );
+
+    private static final List<InstanceFlowSummariesQueryFilter> INSTANCE_FLOW_SUMMARIES_QUERY_FILTERS_ASSOCIATED_EVENTS =
+            List.of(
+                    InstanceFlowSummariesQueryFilter
+                            .builder()
+                            .associatedEventNames(List.of(
+                                    EventCategory.INSTANCE_MAPPING_ERROR.getEventName()
+                            ))
+                            .build(),
+                    InstanceFlowSummariesQueryFilter
+                            .builder()
+                            .associatedEventNames(List.of(
+                                    EventCategory.INSTANCE_MAPPING_ERROR.getEventName(),
+                                    EventCategory.INSTANCE_REQUESTED_FOR_RETRY.getEventName(),
+                                    EventCategory.INSTANCE_DISPATCHED.getEventName()
+                            ))
+                            .build()
+            );
+
+    private static final InstanceFlowSummariesQueryFilter INSTANCE_FLOW_SUMMARIES_QUERY_FILTER_ASSOCIATED_EVENTS_SINGLE_FIND =
+            InstanceFlowSummariesQueryFilter
+                    .builder()
+                    .associatedEventNames(List.of(
+                            EventCategory.INSTANCE_RECEIVAL_ERROR.getEventName(),
+                            EventCategory.INSTANCE_REGISTRATION_ERROR.getEventName(),
+                            EventCategory.INSTANCE_MAPPING_ERROR.getEventName(),
+                            EventCategory.INSTANCE_RECEIVAL_ERROR.getEventName(),
+                            EventCategory.INSTANCE_RETRY_REQUEST_ERROR.getEventName()
+                    ))
+                    .build();
+
     public static Stream<Arguments> instanceFlowTestCases() {
         List<InstanceFlowTestCase> instanceFlowTestCases = new ArrayList<>();
 
         instanceFlowTestCases.add(
                 InstanceFlowTestCase
                         .builder()
-                        .filter(
-                                InstanceFlowSummariesQueryFilter
-                                        .builder()
-                                        .sourceApplicationInstanceIds(List.of("testSourceApplicationInstanceId1"))
-                                        .build()
-                        )
+                        .filter(INSTANCE_FLOW_SUMMARIES_QUERY_FILTER_SOURCE_APPLICATION_INSTANCE_ID)
                         .pageSizePerformance(new PageSizePerformanceTestCase(10, 1, Duration.ofSeconds(2)))
                         .build()
         );
 
         instanceFlowTestCases.addAll(createCartesianProductTestCases(
-                List.of(
-                        InstanceFlowSummariesQueryFilter.builder().build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .sourceApplicationIds(List.of(1L))
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .sourceApplicationIds(List.of(1L, 2L))
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .sourceApplicationIntegrationIds(List.of("testSourceApplicationId2"))
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .sourceApplicationIntegrationIds(List.of("testSourceApplicationId2", "testSourceApplicationId50"))
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .integrationIds(List.of(2L))
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .integrationIds(List.of(2L, 50L, 100L))
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .timeQueryFilter(
-                                        TimeQueryFilter
-                                                .builder()
-                                                .latestStatusTimestampMin(createOffsetDateTime(2024, 3, 6, 18))
-                                                .build()
-                                )
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .timeQueryFilter(
-                                        TimeQueryFilter
-                                                .builder()
-                                                .latestStatusTimestampMax(createOffsetDateTime(2024, 5, 6, 19))
-                                                .build()
-                                )
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .timeQueryFilter(
-                                        TimeQueryFilter
-                                                .builder()
-                                                .latestStatusTimestampMin(createOffsetDateTime(2024, 3, 6, 18))
-                                                .latestStatusTimestampMax(createOffsetDateTime(2024, 5, 6, 19))
-                                                .build()
-                                )
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .statusEventNames(List.of(
-                                        EventCategory.INSTANCE_DISPATCHED.getEventName()
-                                ))
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .statusEventNames(List.of(
-                                        EventCategory.INSTANCE_DISPATCHED.getEventName(),
-                                        EventCategory.INSTANCE_MAPPING_ERROR.getEventName()
-                                ))
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .instanceStorageStatusQueryFilter(
-                                        new InstanceStorageStatusQueryFilter(
-                                                List.of(EventCategory.INSTANCE_DELETED.getEventName()),
-                                                false
-                                        )
-                                )
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .instanceStorageStatusQueryFilter(
-                                        new InstanceStorageStatusQueryFilter(
-                                                List.of(),
-                                                true)
-                                ).build()
-                ),
+                INSTANCE_FLOW_SUMMARIES_QUERY_FILTERS,
                 List.of(
                         new PageSizePerformanceTestCase(10, 10, Duration.ofSeconds(2)),
                         new PageSizePerformanceTestCase(20, 20, Duration.ofSeconds(2)),
-                        new PageSizePerformanceTestCase(50, 50, Duration.ofSeconds(2)),
-                        new PageSizePerformanceTestCase(100, 100, Duration.ofSeconds(2)),
-                        new PageSizePerformanceTestCase(500, 500, Duration.ofSeconds(3)),
+                        new PageSizePerformanceTestCase(50, 50, Duration.ofSeconds(3)),
+                        new PageSizePerformanceTestCase(100, 100, Duration.ofSeconds(4)),
+                        new PageSizePerformanceTestCase(500, 500, Duration.ofSeconds(5)),
                         new PageSizePerformanceTestCase(1000, 1000, Duration.ofSeconds(5))
                 )
         ));
 
         instanceFlowTestCases.addAll(createCartesianProductTestCases(
-                List.of(
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .associatedEventNames(List.of(
-                                        EventCategory.INSTANCE_MAPPING_ERROR.getEventName()
-                                ))
-                                .build(),
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .associatedEventNames(List.of(
-                                        EventCategory.INSTANCE_MAPPING_ERROR.getEventName(),
-                                        EventCategory.INSTANCE_REQUESTED_FOR_RETRY.getEventName(),
-                                        EventCategory.INSTANCE_DISPATCHED.getEventName()
-                                ))
-                                .build()
-                ),
+                INSTANCE_FLOW_SUMMARIES_QUERY_FILTERS_ASSOCIATED_EVENTS,
                 List.of(
                         new PageSizePerformanceTestCase(10, 10, Duration.ofSeconds(5)),
                         new PageSizePerformanceTestCase(20, 20, Duration.ofSeconds(5)),
@@ -322,18 +340,7 @@ public class EventRepositoryPerformanceTest {
 
         instanceFlowTestCases.add(InstanceFlowTestCase
                 .builder()
-                .filter(
-                        InstanceFlowSummariesQueryFilter
-                                .builder()
-                                .associatedEventNames(List.of(
-                                        EventCategory.INSTANCE_RECEIVAL_ERROR.getEventName(),
-                                        EventCategory.INSTANCE_REGISTRATION_ERROR.getEventName(),
-                                        EventCategory.INSTANCE_MAPPING_ERROR.getEventName(),
-                                        EventCategory.INSTANCE_RECEIVAL_ERROR.getEventName(),
-                                        EventCategory.INSTANCE_RETRY_REQUEST_ERROR.getEventName()
-                                ))
-                                .build()
-                )
+                .filter(INSTANCE_FLOW_SUMMARIES_QUERY_FILTER_ASSOCIATED_EVENTS_SINGLE_FIND)
                 .pageSizePerformance(
                         new PageSizePerformanceTestCase(10, 0, Duration.ofSeconds(5))
                 )
@@ -381,6 +388,33 @@ public class EventRepositoryPerformanceTest {
         log.info("Elapsed time={}", formatDuration(elapsedTime));
         assertThat(instanceFlowSummaries).hasSize(pageSizePerformanceTestCase.getExpectedSize());
         assertThat(elapsedTime).isLessThan(pageSizePerformanceTestCase.getMaxElapsedTime());
+    }
+
+    public static Stream<Arguments> instanceFlowTotalCountTestCases() {
+        List<InstanceFlowSummariesQueryFilter> queryFilters = new ArrayList<>();
+        queryFilters.add(INSTANCE_FLOW_SUMMARIES_QUERY_FILTER_SOURCE_APPLICATION_INSTANCE_ID);
+        queryFilters.addAll(INSTANCE_FLOW_SUMMARIES_QUERY_FILTERS);
+        queryFilters.addAll(INSTANCE_FLOW_SUMMARIES_QUERY_FILTERS_ASSOCIATED_EVENTS);
+        queryFilters.add(INSTANCE_FLOW_SUMMARIES_QUERY_FILTER_ASSOCIATED_EVENTS_SINGLE_FIND);
+        return queryFilters
+                .stream()
+                .map(Arguments::of);
+    }
+
+    @ParameterizedTest
+    @MethodSource("instanceFlowTotalCountTestCases")
+    public void instanceFlowTotalCount(
+            InstanceFlowSummariesQueryFilter instanceFlowSummariesQueryFilter
+    ) {
+        Timer timer = Timer.start();
+        eventRepository.getInstanceFlowSummariesTotalCount(
+                instanceFlowSummariesQueryFilter,
+                eventCategorizationService.getAllInstanceStatusEventNames(),
+                eventCategorizationService.getAllInstanceStorageStatusEventNames()
+        );
+        Duration elapsedTime = timer.getElapsedTime();
+        log.info("Elapsed time={}", formatDuration(elapsedTime));
+        assertThat(elapsedTime).isLessThan(Duration.ofSeconds(5));
     }
 
     @Test

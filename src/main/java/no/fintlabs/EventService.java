@@ -64,6 +64,16 @@ public class EventService {
         this.eventCategorizationService = eventCategorizationService;
     }
 
+    public long getInstanceFlowSummariesTotalCount(InstanceFlowSummariesFilter instanceFlowSummariesFilter) {
+        InstanceFlowSummariesQueryFilter instanceFlowSummariesQueryFilter = instanceFlowSummariesFilterMappingService
+                .toQueryFilter(instanceFlowSummariesFilter);
+        return eventRepository.getInstanceFlowSummariesTotalCount(
+                instanceFlowSummariesQueryFilter,
+                eventCategorizationService.getAllInstanceStatusEventNames(),
+                eventCategorizationService.getAllInstanceStorageStatusEventNames()
+        );
+    }
+
     public List<InstanceFlowSummary> getInstanceFlowSummaries(
             InstanceFlowSummariesFilter instanceFlowSummariesFilter,
             int limit

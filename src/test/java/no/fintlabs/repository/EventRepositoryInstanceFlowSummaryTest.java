@@ -339,4 +339,18 @@ public class EventRepositoryInstanceFlowSummaryTest {
         );
         assertThat(instanceFlowSummaries).isEqualTo(expectedInstanceFlowSummaries);
     }
+
+    @ParameterizedTest
+    @MethodSource("generateInstanceFlowSummariesTestCases")
+    public void instanceFlowSummariesTotalCountParameterized(
+            InstanceFlowSummariesQueryFilter filter,
+            List<InstanceFlowSummaryProjection> expectedInstanceFlowSummaries
+    ) {
+        long instanceFlowSummariesTotalCount = eventRepository.getInstanceFlowSummariesTotalCount(
+                filter,
+                ALL_STATUS_EVENT_NAMES,
+                ALL_STORAGE_STATUS_EVENT_NAMES
+        );
+        assertThat(instanceFlowSummariesTotalCount).isEqualTo(expectedInstanceFlowSummaries.size());
+    }
 }
