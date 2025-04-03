@@ -32,7 +32,7 @@ jobs:
           gradle-version: wrapper
 
       - name: Gradle build
-        run: ./gradlew build
+        run: ./gradlew build -x test excludePerformanceTest
 
       - name: Upload Build Artifact
         if: github.ref == 'refs/heads/main'
