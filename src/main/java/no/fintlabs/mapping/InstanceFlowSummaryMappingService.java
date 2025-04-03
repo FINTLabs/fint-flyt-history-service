@@ -27,7 +27,7 @@ public class InstanceFlowSummaryMappingService {
                 .sourceApplicationInstanceId(projection.getSourceApplicationInstanceId())
                 .integrationId(projection.getIntegrationId())
                 .latestInstanceId(projection.getLatestInstanceId())
-                .latestUpdate(OffsetDateTime.from(projection.getLatestUpdate().toInstant()))
+                .latestUpdate(projection.getLatestUpdate())
                 .status(
                         eventCategorizationService.getCategoryByName(projection.getLatestStatusEventName())
                                 .getInstanceStatus()
