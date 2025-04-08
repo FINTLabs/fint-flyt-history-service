@@ -60,11 +60,11 @@ public class ManualEventCreationService {
         Optional<Event> latestStatusEventOptional = eventService
                 .findLatestStatusEventBySourceApplicationAggregateInstanceId(sourceApplicationAggregateInstanceId);
         if (latestStatusEventOptional.isEmpty()) {
-            throw new NoPreviousStatusEventsFoundException(); // TODO 07/04/2025 eivindmorch: error msg
+            throw new NoPreviousStatusEventsFoundException();
         }
         Event latestStatusEvent = latestStatusEventOptional.get();
         if (latestStatusEvent.getType() != EventType.ERROR) {
-            throw new LatestStatusEventNotOfTypeErrorException(); // TODO 07/04/2025 eivindmorch: error msg
+            throw new LatestStatusEventNotOfTypeErrorException();
         }
         return eventService.save(
                 Event.builder()

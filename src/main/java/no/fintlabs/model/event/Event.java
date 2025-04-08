@@ -5,6 +5,7 @@ import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
 import no.fintlabs.repository.entities.ErrorEntity;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 
 @Getter
@@ -19,5 +20,6 @@ public class Event {
     private OffsetDateTime timestamp;
     private EventType type;
     private String applicationId;
-    private Collection<ErrorEntity> errors;
+    @Builder.Default
+    private Collection<ErrorEntity> errors = new ArrayList<>();
 }

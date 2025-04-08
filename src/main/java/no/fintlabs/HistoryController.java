@@ -175,7 +175,7 @@ public class HistoryController {
         try {
             return ResponseEntity.ok(manualEventCreationService.addManuallyProcessedEvent(manuallyProcessedEventAction));
         } catch (NoPreviousStatusEventsFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event not found");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event found");
         } catch (LatestStatusEventNotOfTypeErrorException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Previous event status is not of type ERROR");
         }

@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
-// TODO 03/04/2025 eivindmorch: Test
 @Service
 public class InstanceFlowSummariesFilterMappingService {
 
@@ -26,6 +25,9 @@ public class InstanceFlowSummariesFilterMappingService {
     }
 
     public InstanceFlowSummariesQueryFilter toQueryFilter(InstanceFlowSummariesFilter instanceFlowSummariesFilter) {
+        if (instanceFlowSummariesFilter == null) {
+            throw new IllegalArgumentException("Instance flow summaries filter is null");
+        }
         return InstanceFlowSummariesQueryFilter
                 .builder()
                 .sourceApplicationIds(instanceFlowSummariesFilter.getSourceApplicationIds())

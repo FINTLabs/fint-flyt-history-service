@@ -229,7 +229,6 @@ public class EventRepositoryTest {
     }
 
 
-    // TODO 02/04/2025 eivindmorch: Add
     @Nested
     class findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc {
 
