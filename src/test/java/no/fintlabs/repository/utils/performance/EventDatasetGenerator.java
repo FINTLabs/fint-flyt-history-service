@@ -89,7 +89,7 @@ public class EventDatasetGenerator {
                             String.format("%," + getNumberOfDigits(totalNumberOfConfigs) + "d", configNumber),
                             String.format("%,d", totalNumberOfConfigs),
                             String.format("%," + getNumberOfDigits(largestNumberOfEventsPerSequence.get()) + "d", numberOfEventsFromConfig),
-                            formatDuration(configElapsedTime), // TODO 14/03/2025 eivindmorch: Move format strings
+                            formatDuration(configElapsedTime),
                             String.format("%,6.2f", numberOfEventsPerSecondForConfig),
                             String.format("%," + getNumberOfDigits(totalNumberOfEvents) + "d", totalNumberOfEventsGeneratedAndPersistedValue),
                             String.format("%,d", totalNumberOfEvents),

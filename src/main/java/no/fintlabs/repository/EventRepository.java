@@ -360,13 +360,13 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
 
     @Query(value = """
              SELECT COUNT(e) AS total,
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END)
+                    COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END), 0)
                         AS inProgress,
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END)
+                    COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END), 0)
                         AS transferred,
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END)
+                    COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END), 0)
                         AS aborted,
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END)
+                    COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END), 0)
                         AS failed
              FROM EventEntity e
              WHERE e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds}
@@ -388,21 +388,21 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
     @Query(value = """
              SELECT e.instanceFlowHeaders.integrationId AS integrationId,
                     COUNT(e) AS total,
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END)
+                    COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END), 0)
                         AS inProgress,
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END)
+                    COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END), 0)
                         AS transferred,
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END)
+                    COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END), 0)
                         AS aborted,
-                    SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END)
+                    COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END), 0)
                         AS failed
              FROM EventEntity e
-             WHERE (:#{#integrationStatisticsQueryFilter.sourceApplicationIds.empty} IS TRUE
-                 OR e.instanceFlowHeaders.sourceApplicationId IN :#{#integrationStatisticsQueryFilter.sourceApplicationIds.orElse(null)})
-             AND (:#{#integrationStatisticsQueryFilter.sourceApplicationIntegrationIds.empty} IS TRUE
-                 OR e.instanceFlowHeaders.sourceApplicationIntegrationId IN :#{#integrationStatisticsQueryFilter.sourceApplicationIntegrationIds.orElse(null)})
-             AND (:#{#integrationStatisticsQueryFilter.integrationIds.empty} IS TRUE
-                 OR e.instanceFlowHeaders.integrationId IN :#{#integrationStatisticsQueryFilter.integrationIds.orElse(null)})
+             WHERE (:#{#sourceApplicationIds.empty} IS TRUE
+                 OR e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds})
+             AND (:#{#sourceApplicationIntegrationIds.empty} IS TRUE
+                 OR e.instanceFlowHeaders.sourceApplicationIntegrationId IN :#{#sourceApplicationIntegrationIds})
+             AND (:#{#integrationIds.empty} IS TRUE
+                 OR e.instanceFlowHeaders.integrationId IN :#{#integrationIds})
              AND e.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
              AND e.timestamp >= ALL(
                 SELECT e1.timestamp
@@ -415,9 +415,28 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
              GROUP BY e.instanceFlowHeaders.integrationId
             """)
     Slice<IntegrationStatisticsProjection> getIntegrationStatistics(
-            IntegrationStatisticsQueryFilter integrationStatisticsQueryFilter,
+            Collection<Long> sourceApplicationIds,
+            Collection<String> sourceApplicationIntegrationIds,
+            Collection<Long> integrationIds,
             EventNamesPerInstanceStatus eventNamesPerInstanceStatus,
             Pageable pageable
     );
+
+    default Slice<IntegrationStatisticsProjection> getIntegrationStatistics(
+            IntegrationStatisticsQueryFilter integrationStatisticsQueryFilter,
+            EventNamesPerInstanceStatus eventNamesPerInstanceStatus,
+            Pageable pageable
+    ) {
+        if (integrationStatisticsQueryFilter == null) {
+            return getIntegrationStatistics(List.of(), List.of(), List.of(), eventNamesPerInstanceStatus, pageable);
+        }
+        return getIntegrationStatistics(
+                integrationStatisticsQueryFilter.getSourceApplicationIds().orElse(List.of()),
+                integrationStatisticsQueryFilter.getSourceApplicationIntegrationIds().orElse(List.of()),
+                integrationStatisticsQueryFilter.getIntegrationIds().orElse(List.of()),
+                eventNamesPerInstanceStatus,
+                pageable
+        );
+    }
 
 }

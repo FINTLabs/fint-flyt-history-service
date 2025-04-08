@@ -12,6 +12,7 @@ import java.util.Collection;
 @Builder(toBuilder = true)
 @AllArgsConstructor
 @NoArgsConstructor
+@EqualsAndHashCode
 public class Event {
     private InstanceFlowHeaders instanceFlowHeaders;
     private EventCategory category;

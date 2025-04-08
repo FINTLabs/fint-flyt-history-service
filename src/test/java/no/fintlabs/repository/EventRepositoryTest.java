@@ -9,13 +9,17 @@ import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.model.event.EventType;
 import no.fintlabs.repository.entities.EventEntity;
 import no.fintlabs.repository.entities.InstanceFlowHeadersEmbeddable;
+import no.fintlabs.repository.filters.IntegrationStatisticsQueryFilter;
 import no.fintlabs.repository.projections.InstanceStatisticsProjection;
+import no.fintlabs.repository.projections.IntegrationStatisticsProjection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -28,6 +32,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -39,7 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 public class EventRepositoryTest {
 
     @Autowired
@@ -518,6 +523,93 @@ public class EventRepositoryTest {
     class getTotalStatistics {
 
         @Test
+        public void givenNullSourceApplicationIdListShouldReturnEmptyStatistics() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .archiveInstanceId("testArchiveInstanceId1")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            InstanceStatisticsProjection totalStatistics = eventRepository.getTotalStatistics(
+                    null,
+                    eventCategorizationService.getEventNamesPerInstanceStatus()
+            );
+
+            assertThat(totalStatistics.getTotal()).isZero();
+            assertThat(totalStatistics.getInProgress()).isZero();
+            assertThat(totalStatistics.getTransferred()).isZero();
+            assertThat(totalStatistics.getAborted()).isZero();
+            assertThat(totalStatistics.getFailed()).isZero();
+        }
+
+        @Test
+        public void givenEmptySourceApplicationIdListShouldReturnEmptyStatistics() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .archiveInstanceId("testArchiveInstanceId1")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            InstanceStatisticsProjection totalStatistics = eventRepository.getTotalStatistics(
+                    List.of(),
+                    eventCategorizationService.getEventNamesPerInstanceStatus()
+            );
+
+            assertThat(totalStatistics.getTotal()).isZero();
+            assertThat(totalStatistics.getInProgress()).isZero();
+            assertThat(totalStatistics.getTransferred()).isZero();
+            assertThat(totalStatistics.getAborted()).isZero();
+            assertThat(totalStatistics.getFailed()).isZero();
+        }
+
+        @Test
+        public void givenNoEventsWithMatchingSourceApplicationIdShouldReturnZeroes() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .archiveInstanceId("testArchiveInstanceId1")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            InstanceStatisticsProjection totalStatistics = eventRepository.getTotalStatistics(
+                    List.of(2L),
+                    eventCategorizationService.getEventNamesPerInstanceStatus()
+            );
+
+            assertThat(totalStatistics.getTotal()).isZero();
+            assertThat(totalStatistics.getInProgress()).isZero();
+            assertThat(totalStatistics.getTransferred()).isZero();
+            assertThat(totalStatistics.getAborted()).isZero();
+            assertThat(totalStatistics.getFailed()).isZero();
+        }
+
+        @Test
         public void givenSingleInProgressInstanceWithMatchingSourceApplicationIdShouldReturnOneInProgress() {
             eventRepository.saveAllAndFlush(List.of(
                     EventEntity.builder()
@@ -667,20 +759,519 @@ public class EventRepositoryTest {
 
         @Test
         public void givenInstancesOfAllStatusesWithMatchingSourceApplicationIdShouldReturnStatisticsForAllStatuses() {
-
-        }
-
-        @Test
-        public void givenNoEventsWithMatchingSourceApplicationIdShouldReturnZeroes() {
-
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId2")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId3")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId4")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId5")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_MANUALLY_REJECTED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId6")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_MANUALLY_REJECTED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId7")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_MAPPING_ERROR.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.ERROR)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId8")
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_MAPPING_ERROR.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.ERROR)
+                            .build()
+            ));
+            InstanceStatisticsProjection totalStatistics = eventRepository.getTotalStatistics(
+                    List.of(1L),
+                    eventCategorizationService.getEventNamesPerInstanceStatus()
+            );
+            assertThat(totalStatistics.getTotal()).isEqualTo(8);
+            assertThat(totalStatistics.getInProgress()).isEqualTo(2);
+            assertThat(totalStatistics.getTransferred()).isEqualTo(2);
+            assertThat(totalStatistics.getAborted()).isEqualTo(2);
+            assertThat(totalStatistics.getFailed()).isEqualTo(2);
         }
 
     }
 
     @Nested
     class getIntegrationStatistics {
-        // TODO 06/03/2025 eivindmorch: With matching events
-        // TODO 06/03/2025 eivindmorch: With no matching events
+
+        @Test
+        public void givenNullFilterShouldReturnStatisticsForAll() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(1L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            Slice<IntegrationStatisticsProjection> integrationStatistics = eventRepository.getIntegrationStatistics(
+                    null,
+                    eventCategorizationService.getEventNamesPerInstanceStatus(),
+                    Pageable.unpaged()
+            );
+
+            assertThat(integrationStatistics).hasSize(1);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            assertThat(integrationStatistic.getIntegrationId()).isEqualTo(1);
+            assertThat(integrationStatistic.getTotal()).isEqualTo(1);
+            assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
+            assertThat(integrationStatistic.getTransferred()).isEqualTo(0);
+            assertThat(integrationStatistic.getAborted()).isEqualTo(0);
+            assertThat(integrationStatistic.getFailed()).isEqualTo(0);
+        }
+
+        @Test
+        public void givenFilterWithNullValuesShouldReturnStatisticsForAll() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(1L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            Slice<IntegrationStatisticsProjection> integrationStatistics = eventRepository.getIntegrationStatistics(
+                    IntegrationStatisticsQueryFilter
+                            .builder()
+                            .sourceApplicationIds(null)
+                            .sourceApplicationIntegrationIds(null)
+                            .integrationIds(null)
+                            .build(),
+                    eventCategorizationService.getEventNamesPerInstanceStatus(),
+                    Pageable.unpaged()
+            );
+
+            assertThat(integrationStatistics).hasSize(1);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            assertThat(integrationStatistic.getIntegrationId()).isEqualTo(1);
+            assertThat(integrationStatistic.getTotal()).isEqualTo(1);
+            assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
+            assertThat(integrationStatistic.getTransferred()).isEqualTo(0);
+            assertThat(integrationStatistic.getAborted()).isEqualTo(0);
+            assertThat(integrationStatistic.getFailed()).isEqualTo(0);
+        }
+
+        @Test
+        public void givenFilterWithEmptyValuesShouldReturnStatisticsForAll() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(1L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            Slice<IntegrationStatisticsProjection> integrationStatistics = eventRepository.getIntegrationStatistics(
+                    IntegrationStatisticsQueryFilter
+                            .builder()
+                            .sourceApplicationIds(List.of())
+                            .sourceApplicationIntegrationIds(List.of())
+                            .integrationIds(List.of())
+                            .build(),
+                    eventCategorizationService.getEventNamesPerInstanceStatus(),
+                    Pageable.unpaged()
+            );
+
+            assertThat(integrationStatistics).hasSize(1);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            assertThat(integrationStatistic.getIntegrationId()).isEqualTo(1);
+            assertThat(integrationStatistic.getTotal()).isEqualTo(1);
+            assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
+            assertThat(integrationStatistic.getTransferred()).isEqualTo(0);
+            assertThat(integrationStatistic.getAborted()).isEqualTo(0);
+            assertThat(integrationStatistic.getFailed()).isEqualTo(0);
+        }
+
+        @Test
+        public void givenFilterWithMatchingSourceApplicationIdShouldReturnStatisticsForSourceApplicationId() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(1L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(2L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(2L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            Slice<IntegrationStatisticsProjection> integrationStatistics = eventRepository.getIntegrationStatistics(
+                    IntegrationStatisticsQueryFilter
+                            .builder()
+                            .sourceApplicationIds(List.of(2L))
+                            .build(),
+                    eventCategorizationService.getEventNamesPerInstanceStatus(),
+                    Pageable.unpaged()
+            );
+
+            assertThat(integrationStatistics).hasSize(1);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            assertThat(integrationStatistic.getIntegrationId()).isEqualTo(2);
+            assertThat(integrationStatistic.getTotal()).isEqualTo(1);
+            assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
+            assertThat(integrationStatistic.getTransferred()).isEqualTo(0);
+            assertThat(integrationStatistic.getAborted()).isEqualTo(0);
+            assertThat(integrationStatistic.getFailed()).isEqualTo(0);
+        }
+
+        @Test
+        public void givenFilterWithMatchingSourceApplicationIntegrationIdShouldReturnStatisticsForSourceApplicationId() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(1L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(2L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId2")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(2L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            Slice<IntegrationStatisticsProjection> integrationStatistics = eventRepository.getIntegrationStatistics(
+                    IntegrationStatisticsQueryFilter
+                            .builder()
+                            .sourceApplicationIntegrationIds(List.of("testSourceApplicationIntegrationId2"))
+                            .build(),
+                    eventCategorizationService.getEventNamesPerInstanceStatus(),
+                    Pageable.unpaged()
+            );
+
+            assertThat(integrationStatistics).hasSize(1);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            assertThat(integrationStatistic.getIntegrationId()).isEqualTo(2);
+            assertThat(integrationStatistic.getTotal()).isEqualTo(1);
+            assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
+            assertThat(integrationStatistic.getTransferred()).isEqualTo(0);
+            assertThat(integrationStatistic.getAborted()).isEqualTo(0);
+            assertThat(integrationStatistic.getFailed()).isEqualTo(0);
+        }
+
+        @Test
+        public void givenFilterWithMatchingIntegrationIdShouldReturnStatisticsForIntegrationId() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(1L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(2L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId2")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(2L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            Slice<IntegrationStatisticsProjection> integrationStatistics = eventRepository.getIntegrationStatistics(
+                    IntegrationStatisticsQueryFilter
+                            .builder()
+                            .integrationIds(List.of(2L))
+                            .build(),
+                    eventCategorizationService.getEventNamesPerInstanceStatus(),
+                    Pageable.unpaged()
+            );
+
+            assertThat(integrationStatistics).hasSize(1);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            assertThat(integrationStatistic.getIntegrationId()).isEqualTo(2);
+            assertThat(integrationStatistic.getTotal()).isEqualTo(1);
+            assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
+            assertThat(integrationStatistic.getTransferred()).isEqualTo(0);
+            assertThat(integrationStatistic.getAborted()).isEqualTo(0);
+            assertThat(integrationStatistic.getFailed()).isEqualTo(0);
+        }
+
+        @Test
+        public void givenFilterWithNoMatchingEventsShouldReturnNoStatistics() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(1L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(2L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId2")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(2L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            Slice<IntegrationStatisticsProjection> integrationStatistics = eventRepository.getIntegrationStatistics(
+                    IntegrationStatisticsQueryFilter
+                            .builder()
+                            .integrationIds(List.of(3L))
+                            .build(),
+                    eventCategorizationService.getEventNamesPerInstanceStatus(),
+                    Pageable.unpaged()
+            );
+
+            assertThat(integrationStatistics).hasSize(0);
+        }
+
+        @Test
+        public void givenFilterWithMultipleMatchingEventsShouldReturnStatisticsForAllMatchingEvents() {
+            eventRepository.saveAllAndFlush(List.of(
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(1L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(1L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(2L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId2")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(2L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_RECEIVAL_ERROR.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(2L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId2")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId2")
+                                            .integrationId(2L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity.builder()
+                            .instanceFlowHeaders(
+                                    InstanceFlowHeadersEmbeddable.builder()
+                                            .sourceApplicationId(2L)
+                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId3")
+                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+                                            .integrationId(3L)
+                                            .build()
+                            )
+                            .name(EventCategory.INSTANCE_MANUALLY_REJECTED.getEventName())
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build()
+            ));
+            Slice<IntegrationStatisticsProjection> integrationStatistics = eventRepository.getIntegrationStatistics(
+                    IntegrationStatisticsQueryFilter
+                            .builder()
+                            .sourceApplicationIds(List.of(1L, 2L, 3L))
+                            .sourceApplicationIntegrationIds(List.of(
+                                    "testSourceApplicationIntegrationId1",
+                                    "testSourceApplicationIntegrationId2",
+                                    "testSourceApplicationIntegrationId3"
+                            ))
+                            .integrationIds(List.of(1L, 2L, 3L))
+                            .build(),
+                    eventCategorizationService.getEventNamesPerInstanceStatus(),
+                    Pageable.unpaged()
+            );
+
+            assertThat(integrationStatistics).hasSize(3);
+            List<IntegrationStatisticsProjection> integrationStatisticsSorted = integrationStatistics.getContent()
+                    .stream()
+                    .sorted(Comparator.comparing(IntegrationStatisticsProjection::getIntegrationId))
+                    .toList();
+
+            IntegrationStatisticsProjection integrationStatistics0 = integrationStatisticsSorted.get(0);
+            assertThat(integrationStatistics0.getIntegrationId()).isEqualTo(1);
+            assertThat(integrationStatistics0.getTotal()).isEqualTo(1);
+            assertThat(integrationStatistics0.getInProgress()).isEqualTo(1);
+            assertThat(integrationStatistics0.getTransferred()).isEqualTo(0);
+            assertThat(integrationStatistics0.getAborted()).isEqualTo(0);
+            assertThat(integrationStatistics0.getFailed()).isEqualTo(0);
+
+            IntegrationStatisticsProjection integrationStatistics1 = integrationStatisticsSorted.get(1);
+            assertThat(integrationStatistics1.getIntegrationId()).isEqualTo(2);
+            assertThat(integrationStatistics1.getTotal()).isEqualTo(2);
+            assertThat(integrationStatistics1.getInProgress()).isEqualTo(0);
+            assertThat(integrationStatistics1.getTransferred()).isEqualTo(1);
+            assertThat(integrationStatistics1.getAborted()).isEqualTo(0);
+            assertThat(integrationStatistics1.getFailed()).isEqualTo(1);
+
+            IntegrationStatisticsProjection integrationStatistics2 = integrationStatisticsSorted.get(2);
+            assertThat(integrationStatistics2.getIntegrationId()).isEqualTo(3);
+            assertThat(integrationStatistics2.getTotal()).isEqualTo(1);
+            assertThat(integrationStatistics2.getInProgress()).isEqualTo(0);
+            assertThat(integrationStatistics2.getTransferred()).isEqualTo(0);
+            assertThat(integrationStatistics2.getAborted()).isEqualTo(1);
+            assertThat(integrationStatistics2.getFailed()).isEqualTo(0);
+        }
     }
 
 }

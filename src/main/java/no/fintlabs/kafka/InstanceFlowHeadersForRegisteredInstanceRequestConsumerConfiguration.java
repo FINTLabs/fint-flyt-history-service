@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
 
-// TODO 20/12/2024 eivindmorch: Test
 @Configuration
 public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguration {
 

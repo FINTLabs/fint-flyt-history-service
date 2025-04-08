@@ -1,6 +1,6 @@
 package no.fintlabs;
 
-import no.fintlabs.exceptions.LatesStatusEventNotOfTypeErrorException;
+import no.fintlabs.exceptions.LatestStatusEventNotOfTypeErrorException;
 import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
 import no.fintlabs.model.action.ManuallyProcessedEventAction;
 import no.fintlabs.model.action.ManuallyRejectedEventAction;
@@ -33,16 +33,19 @@ public class HistoryController {
 
     private final AuthorizationService authorizationService;
     private final EventService eventService;
+    private final ManualEventCreationService manualEventCreationService;
     private final Validator validator;
     private final ValidationErrorsFormattingService validationErrorsFormattingService;
 
     public HistoryController(
             AuthorizationService authorizationService,
             EventService eventService,
+            ManualEventCreationService manualEventCreationService,
             ValidatorFactory validatorFactory,
             ValidationErrorsFormattingService validationErrorsFormattingService) {
         this.authorizationService = authorizationService;
         this.eventService = eventService;
+        this.manualEventCreationService = manualEventCreationService;
         this.validator = validatorFactory.getValidator();
         this.validationErrorsFormattingService = validationErrorsFormattingService;
     }
@@ -170,10 +173,10 @@ public class HistoryController {
         }
 
         try {
-            return ResponseEntity.ok(eventService.addManuallyProcessedEvent(manuallyProcessedEventAction));
+            return ResponseEntity.ok(manualEventCreationService.addManuallyProcessedEvent(manuallyProcessedEventAction));
         } catch (NoPreviousStatusEventsFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event not found");
-        } catch (LatesStatusEventNotOfTypeErrorException e) {
+        } catch (LatestStatusEventNotOfTypeErrorException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Previous event status is not of type ERROR");
         }
     }
@@ -196,10 +199,10 @@ public class HistoryController {
         }
 
         try {
-            return ResponseEntity.ok(eventService.addManuallyRejectedEvent(manuallyRejectedEventAction));
+            return ResponseEntity.ok(manualEventCreationService.addManuallyRejectedEvent(manuallyRejectedEventAction));
         } catch (NoPreviousStatusEventsFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event not found");
-        } catch (LatesStatusEventNotOfTypeErrorException e) {
+        } catch (LatestStatusEventNotOfTypeErrorException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Previous event status is not of type ERROR");
         }
     }

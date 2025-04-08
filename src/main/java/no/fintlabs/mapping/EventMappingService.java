@@ -39,4 +39,19 @@ public class EventMappingService {
         return events.map(this::toEvent);
     }
 
+    // TODO 07/04/2025 eivindmorch: Test
+    public EventEntity toEventEntity(Event event) {
+        return EventEntity
+                .builder()
+                .instanceFlowHeaders(
+                        instanceFlowHeadersMappingService.toEmbeddable(
+                                event.getInstanceFlowHeaders()
+                        )
+                )
+                .name(event.getCategory().getEventName())
+                .type(event.getType())
+                .applicationId(event.getApplicationId())
+                .errors(event.getErrors())
+                .build();
+    }
 }
