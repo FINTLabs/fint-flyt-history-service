@@ -33,7 +33,8 @@ class TimeFilterMappingServiceTest {
     public void setup() {
         clock = Clock.fixed(
                 OffsetDateTime.of(2024, 2, 3, 12, 16, 54, 251200, ZoneOffset.UTC).toInstant(),
-                ZoneOffset.UTC);
+                ZoneOffset.UTC
+        );
         validator = mock(Validator.class);
         timeFilterMappingService = new TimeFilterMappingService(clock, validator);
     }
@@ -172,6 +173,64 @@ class TimeFilterMappingServiceTest {
         );
         assertThat(queryFilter.getLatestStatusTimestampMax()).contains(
                 OffsetDateTime.of(2024, 12, 31, 23, 0, 0, 0, ZoneOffset.UTC)
+        );
+    }
+
+    @Test
+    public void givenValidTimeFilterWithCurrentPeriodTodayAndZoneIdWithWinterTime_whenToQueryFilter_thenReturnToQueryFilterSummertimeAdjustedMinAndMax() {
+        TimeFilterMappingService timeFilterMappingServiceWinterTimeInOslo = new TimeFilterMappingService(
+                Clock.fixed(
+                        OffsetDateTime.of(2024, 2, 3, 12, 16, 54, 251200, ZoneOffset.UTC).toInstant(),
+                        ZoneOffset.UTC
+                ),
+                validator
+        );
+        when(validator.validate(any())).thenReturn(Set.of());
+        TimeQueryFilter queryFilter = timeFilterMappingServiceWinterTimeInOslo.toQueryFilter(
+                TimeFilter.builder()
+                        .currentPeriod(
+                                ActiveTimePeriodFilter
+                                        .builder()
+                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .zoneId(ZoneId.of("Europe/Oslo"))
+                                        .build()
+                        )
+                        .build()
+        );
+        assertThat(queryFilter.getLatestStatusTimestampMin()).contains(
+                OffsetDateTime.of(2024, 2, 2, 23, 0, 0, 0, ZoneOffset.UTC)
+        );
+        assertThat(queryFilter.getLatestStatusTimestampMax()).contains(
+                OffsetDateTime.of(2024, 2, 3, 23, 0, 0, 0, ZoneOffset.UTC)
+        );
+    }
+
+    @Test
+    public void givenValidTimeFilterWithCurrentPeriodTodayAndZoneIdWithSummerTime_whenToQueryFilter_thenReturnToQueryFilterSummertimeAdjustedMinAndMax() {
+        TimeFilterMappingService timeFilterMappingServiceSummerTimeInOslo = new TimeFilterMappingService(
+                Clock.fixed(
+                        OffsetDateTime.of(2024, 7, 3, 12, 16, 54, 251200, ZoneOffset.UTC).toInstant(),
+                        ZoneOffset.UTC
+                ),
+                validator
+        );
+        when(validator.validate(any())).thenReturn(Set.of());
+        TimeQueryFilter queryFilter = timeFilterMappingServiceSummerTimeInOslo.toQueryFilter(
+                TimeFilter.builder()
+                        .currentPeriod(
+                                ActiveTimePeriodFilter
+                                        .builder()
+                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .zoneId(ZoneId.of("Europe/Oslo"))
+                                        .build()
+                        )
+                        .build()
+        );
+        assertThat(queryFilter.getLatestStatusTimestampMin()).contains(
+                OffsetDateTime.of(2024, 7, 2, 22, 0, 0, 0, ZoneOffset.UTC)
+        );
+        assertThat(queryFilter.getLatestStatusTimestampMax()).contains(
+                OffsetDateTime.of(2024, 7, 3, 22, 0, 0, 0, ZoneOffset.UTC)
         );
     }
 
