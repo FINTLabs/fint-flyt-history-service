@@ -1,6 +1,7 @@
 package no.fintlabs.repository.filters;
 
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import org.springframework.kafka.support.JavaUtils;
 
 import java.time.OffsetDateTime;
@@ -8,6 +9,7 @@ import java.util.Optional;
 import java.util.StringJoiner;
 
 @Builder
+@EqualsAndHashCode
 public class TimeQueryFilter {
 
     public static final TimeQueryFilter EMPTY =

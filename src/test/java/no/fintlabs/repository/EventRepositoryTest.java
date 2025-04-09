@@ -86,7 +86,7 @@ public class EventRepositoryTest {
     class findLatestStatusEventBySourceApplicationAggregateInstanceId {
 
         @Test
-        public void givenNoEventsWhenFindLatestStatusEventBySourceApplicationAggregateInstanceIdShouldReturnEmpty() {
+        public void givenNoEvents_whenFindLatestStatusEventBySourceApplicationAggregateInstanceId_thenReturnEmpty() {
             Optional<EventEntity> latestStatusEventBySourceApplicationAggregateInstanceId =
                     eventRepository.findLatestStatusEventBySourceApplicationAggregateInstanceId(
                             TestSourceApplicationAggregateInstanceId
@@ -102,7 +102,7 @@ public class EventRepositoryTest {
         }
 
         @Test
-        public void givenNoEventsWithMatchingSourceApplicationAggregateIdWhenFindLatestStatusEventBySourceApplicationAggregateInstanceIdShouldReturnEmpty() {
+        public void givenNoEventsWithMatchingSourceApplicationAggregateId_whenFindLatestStatusEventBySourceApplicationAggregateInstanceId_thenReturnEmpty() {
             eventRepository.save(
                     EventEntity.builder()
                             .instanceFlowHeaders(
@@ -134,7 +134,7 @@ public class EventRepositoryTest {
         }
 
         @Test
-        public void givenEventsWithMatchingSourceApplicationAggregateInstanceIdWhenCalledShouldReturnLatestStatusEvent() {
+        public void givenEventsWithMatchingSourceApplicationAggregateInstanceId_whenCalled_thenReturnLatestStatusEvent() {
             eventRepository.saveAll(List.of(
                     EventEntity.builder()
                             .instanceFlowHeaders(

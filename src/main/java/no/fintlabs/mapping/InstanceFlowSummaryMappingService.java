@@ -1,13 +1,11 @@
 package no.fintlabs.mapping;
 
 import no.fintlabs.model.event.EventCategorizationService;
-import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.model.instance.InstanceFlowSummary;
 import no.fintlabs.model.instance.InstanceStorageStatus;
 import no.fintlabs.repository.projections.InstanceFlowSummaryProjection;
 import org.springframework.stereotype.Service;
 
-import java.time.OffsetDateTime;
 import java.util.Optional;
 
 @Service
@@ -20,6 +18,9 @@ public class InstanceFlowSummaryMappingService {
     }
 
     public InstanceFlowSummary toInstanceFlowSummary(InstanceFlowSummaryProjection projection) {
+        if (projection == null) {
+            throw new IllegalArgumentException("Projection is null");
+        }
         return InstanceFlowSummary
                 .builder()
                 .sourceApplicationId(projection.getSourceApplicationId())
@@ -29,13 +30,13 @@ public class InstanceFlowSummaryMappingService {
                 .latestInstanceId(projection.getLatestInstanceId())
                 .latestUpdate(projection.getLatestUpdate())
                 .status(
-                        eventCategorizationService.getCategoryByName(projection.getLatestStatusEventName())
-                                .getInstanceStatus()
+                        Optional.ofNullable(projection.getLatestStatusEventName())
+                                .map(eventCategorizationService::getStatusByEventName)
+                                .orElse(null)
                 )
                 .intermediateStorageStatus(
                         Optional.ofNullable(projection.getLatestStorageStatusEventName())
-                                .map(eventCategorizationService::getCategoryByName)
-                                .map(EventCategory::getInstanceStorageStatus)
+                                .map(eventCategorizationService::getStorageStatusByEventName)
                                 .orElse(InstanceStorageStatus.NEVER_STORED)
                 )
                 .latestDestinationId(projection.getLatestDestinationId())

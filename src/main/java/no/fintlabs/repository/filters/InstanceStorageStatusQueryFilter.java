@@ -1,6 +1,7 @@
 package no.fintlabs.repository.filters;
 
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.springframework.kafka.support.JavaUtils;
 
@@ -9,6 +10,7 @@ import java.util.StringJoiner;
 
 @Getter
 @AllArgsConstructor
+@EqualsAndHashCode
 public class InstanceStorageStatusQueryFilter {
 
     public static final InstanceStorageStatusQueryFilter EMPTY =

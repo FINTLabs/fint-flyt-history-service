@@ -38,7 +38,7 @@ class EventMappingServiceTest {
     }
 
     @Test
-    public void givenNullEventEntityWhenToEventShouldThrowException() {
+    public void givenNullEventEntity_whenToEvent_thenThrowException() {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> eventMappingService.toEvent(null)
@@ -47,7 +47,7 @@ class EventMappingServiceTest {
     }
 
     @Test
-    public void givenEmptyEventEntityWhenToEventShouldReturnEmptyEvent() {
+    public void givenEmptyEventEntity_whenToEvent_thenReturnEmptyEvent() {
         Event event = eventMappingService.toEvent(
                 EventEntity
                         .builder()
@@ -59,13 +59,13 @@ class EventMappingServiceTest {
     }
 
     @Test
-    public void givenEventEntityWithValuesWhenToEventShouldReturnEventWithValues() {
+    public void givenEventEntityWithValues_whenToEvent_thenReturnEventWithValues() {
         InstanceFlowHeadersEmbeddable instanceFlowHeadersEmbeddable = mock(InstanceFlowHeadersEmbeddable.class);
         InstanceFlowHeaders instanceFlowHeaders = mock(InstanceFlowHeaders.class);
         when(instanceFlowHeadersMappingService.toInstanceFlowHeaders(instanceFlowHeadersEmbeddable))
                 .thenReturn(instanceFlowHeaders);
 
-        when(eventCategorizationService.getCategoryByName("testName"))
+        when(eventCategorizationService.getCategoryByEventName("testName"))
                 .thenReturn(EventCategory.INSTANCE_DISPATCHED);
 
         OffsetDateTime offsetDateTime = OffsetDateTime.of(2024, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
@@ -90,7 +90,7 @@ class EventMappingServiceTest {
                 instanceFlowHeadersEmbeddable
         );
 
-        verify(eventCategorizationService, times(1)).getCategoryByName("testName");
+        verify(eventCategorizationService, times(1)).getCategoryByEventName("testName");
 
         verifyNoMoreInteractions(instanceFlowHeadersMappingService, eventCategorizationService);
 
@@ -103,7 +103,7 @@ class EventMappingServiceTest {
     }
 
     @Test
-    public void givenNullEventEntityWhenToEventPageShouldThrowException() {
+    public void givenNullEventEntity_whenToEventPage_thenThrowException() {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> eventMappingService.toEventPage(null)
@@ -112,7 +112,7 @@ class EventMappingServiceTest {
     }
 
     @Test
-    public void givenEmptyEventEntityWhenToPageEventShouldReturnEmptyEvent() {
+    public void givenEmptyEventEntity_whenToPageEvent_thenReturnEmptyEvent() {
         Page<Event> eventPage = eventMappingService.toEventPage(
                 new PageImpl<>(List.of(
                         EventEntity
@@ -128,13 +128,13 @@ class EventMappingServiceTest {
     }
 
     @Test
-    public void givenEventEntityWithValuesWhenToEventPageShouldReturnEventWithValues() {
+    public void givenEventEntityWithValues_whenToEventPage_thenReturnEventWithValues() {
         InstanceFlowHeadersEmbeddable instanceFlowHeadersEmbeddable = mock(InstanceFlowHeadersEmbeddable.class);
         InstanceFlowHeaders instanceFlowHeaders = mock(InstanceFlowHeaders.class);
         when(instanceFlowHeadersMappingService.toInstanceFlowHeaders(instanceFlowHeadersEmbeddable))
                 .thenReturn(instanceFlowHeaders);
 
-        when(eventCategorizationService.getCategoryByName("testName"))
+        when(eventCategorizationService.getCategoryByEventName("testName"))
                 .thenReturn(EventCategory.INSTANCE_DISPATCHED);
 
         OffsetDateTime offsetDateTime = OffsetDateTime.of(2024, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
@@ -161,7 +161,7 @@ class EventMappingServiceTest {
                 instanceFlowHeadersEmbeddable
         );
 
-        verify(eventCategorizationService, times(1)).getCategoryByName("testName");
+        verify(eventCategorizationService, times(1)).getCategoryByEventName("testName");
 
         verifyNoMoreInteractions(instanceFlowHeadersMappingService, eventCategorizationService);
 
@@ -176,7 +176,7 @@ class EventMappingServiceTest {
     }
 
     @Test
-    public void givenNullEventWhenToEventEntityShouldThrowException() {
+    public void givenNullEvent_whenToEventEntity_thenThrowException() {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> eventMappingService.toEventEntity(null)
@@ -185,7 +185,7 @@ class EventMappingServiceTest {
     }
 
     @Test
-    public void givenEmptyEventWhenToEventEntityShouldReturnEmptyEventEntity() {
+    public void givenEmptyEvent_whenToEventEntity_thenReturnEmptyEventEntity() {
         EventEntity eventEntity = eventMappingService.toEventEntity(Event.builder().build());
         verifyNoMoreInteractions(instanceFlowHeadersMappingService, eventCategorizationService);
         assertThat(eventEntity).hasAllNullFieldsOrPropertiesExcept("id", "errors");
@@ -194,7 +194,7 @@ class EventMappingServiceTest {
     }
 
     @Test
-    public void givenEventWithValuesWhenToEventEntityShouldReturnEventWithValues() {
+    public void givenEventWithValues_whenToEventEntity_thenReturnEventWithValues() {
         InstanceFlowHeaders instanceFlowHeaders = mock(InstanceFlowHeaders.class);
         InstanceFlowHeadersEmbeddable instanceFlowHeadersEmbeddable = mock(InstanceFlowHeadersEmbeddable.class);
         when(instanceFlowHeadersMappingService.toEmbeddable(instanceFlowHeaders))

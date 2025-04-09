@@ -1,6 +1,7 @@
 package no.fintlabs.repository.filters;
 
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.springframework.kafka.support.JavaUtils;
 
@@ -10,13 +11,15 @@ import java.util.StringJoiner;
 
 @Getter
 @Builder
+@EqualsAndHashCode
 public class InstanceFlowSummariesQueryFilter {
     private final Collection<Long> sourceApplicationIds;
     private final Collection<String> sourceApplicationIntegrationIds;
     private final Collection<String> sourceApplicationInstanceIds;
     private final Collection<Long> integrationIds;
     private final Collection<String> statusEventNames;
-    private final InstanceStorageStatusQueryFilter instanceStorageStatusQueryFilter;
+    @Builder.Default
+    private final InstanceStorageStatusQueryFilter instanceStorageStatusQueryFilter = InstanceStorageStatusQueryFilter.EMPTY;
     private final Collection<String> associatedEventNames;
     private final Collection<String> destinationIds;
     private final TimeQueryFilter timeQueryFilter;

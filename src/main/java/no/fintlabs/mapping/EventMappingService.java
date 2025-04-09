@@ -35,7 +35,7 @@ public class EventMappingService {
                 )
                 .category(
                         Optional.ofNullable(eventEntity.getName())
-                                .map(eventCategorizationService::getCategoryByName)
+                                .map(eventCategorizationService::getCategoryByEventName)
                                 .orElse(null)
                 )
                 .timestamp(eventEntity.getTimestamp())

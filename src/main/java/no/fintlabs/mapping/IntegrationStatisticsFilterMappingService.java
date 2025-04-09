@@ -8,6 +8,9 @@ import org.springframework.stereotype.Service;
 public class IntegrationStatisticsFilterMappingService {
 
     public IntegrationStatisticsQueryFilter toQueryFilter(IntegrationStatisticsFilter integrationStatisticsFilter) {
+        if (integrationStatisticsFilter == null) {
+            throw new IllegalArgumentException("IntegrationStatisticsFilter must not be null");
+        }
         return IntegrationStatisticsQueryFilter
                 .builder()
                 .sourceApplicationIds(integrationStatisticsFilter.getSourceApplicationIds())

@@ -63,7 +63,7 @@ class EventServiceTest {
     }
 
     @Test
-    public void save() {
+    public void whenSave_thenInvokeDtoToEntityMappingAndEventRepositorySaveAndEntityToDtoMapping() {
         Event event = mock(Event.class);
         EventEntity eventEntity = mock(EventEntity.class);
         EventEntity persistedEventEntity = mock(EventEntity.class);
@@ -88,7 +88,7 @@ class EventServiceTest {
     }
 
     @Test
-    void getInstanceFlowSummariesTotalCount() {
+    void whenGetInstanceFlowSummariesTotalCountInvokeFilterMappingAndGetEventCategorizationAndInvokeRepositoryQuery() {
         InstanceFlowSummariesFilter instanceFlowSummariesFilter = mock(InstanceFlowSummariesFilter.class);
         InstanceFlowSummariesQueryFilter instanceFlowSummariesQueryFilter = mock(InstanceFlowSummariesQueryFilter.class);
         when(instanceFlowSummariesFilterMappingService.toQueryFilter(instanceFlowSummariesFilter))
@@ -130,7 +130,7 @@ class EventServiceTest {
     }
 
     @Test
-    void getInstanceFlowSummaries() {
+    void whenGetInstanceFlowSummariesInvokeFilterMappingAndGetEventCategorizationAndInvokeRepositoryQueryAndInstanceFlowMapping() {
         InstanceFlowSummariesFilter instanceFlowSummariesFilter = mock(InstanceFlowSummariesFilter.class);
         InstanceFlowSummariesQueryFilter instanceFlowSummariesQueryFilter = mock(InstanceFlowSummariesQueryFilter.class);
         when(instanceFlowSummariesFilterMappingService.toQueryFilter(instanceFlowSummariesFilter))
@@ -188,7 +188,7 @@ class EventServiceTest {
     }
 
     @Test
-    void getAllEventsBySourceApplicationAggregateInstanceId() {
+    void whenGetAllEventsBySourceApplicationAggregateInstanceIdInvokeRepositoryQueryAndEventMapping() {
         Pageable pageable = mock(Pageable.class);
         Page<EventEntity> eventEntityPage = mock(Page.class);
         Page<Event> eventPage = mock(Page.class);
@@ -232,7 +232,7 @@ class EventServiceTest {
     }
 
     @Test
-    void findInstanceFlowHeadersForLatestInstanceRegisteredEventEmpty() {
+    void givenEmptyQueryResult_whenFindInstanceFlowHeadersForLatestInstanceRegisteredEvent_thenReturnEmpty() {
         when(eventRepository.findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(
                 1L,
                 EventCategory.INSTANCE_REGISTERED.getEventName()
@@ -261,7 +261,7 @@ class EventServiceTest {
     }
 
     @Test
-    void findInstanceFlowHeadersForLatestInstanceRegisteredEventVal() { // TODO 07/04/2025 eivindmorch: test names
+    void givenQueryResultWithValue_whenFindInstanceFlowHeadersForLatestInstanceRegisteredEvent_thenReturnValue() {
         EventEntity eventEntity = mock(EventEntity.class);
         InstanceFlowHeadersEmbeddable instanceFlowHeadersEmbeddable = mock(InstanceFlowHeadersEmbeddable.class);
         InstanceFlowHeaders instanceFlowHeaders = mock(InstanceFlowHeaders.class);
@@ -302,7 +302,7 @@ class EventServiceTest {
     }
 
     @Test
-    void findLatestArchiveInstanceIdEmpty() {
+    void givenEmptyQueryResult_whenFindLatestArchiveInstanceId_thenReturnEmpty() {
         SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId =
                 new SourceApplicationAggregateInstanceId() {
                     @Override
@@ -358,7 +358,7 @@ class EventServiceTest {
     }
 
     @Test
-    void findLatestArchiveInstanceIdSingleValue() {
+    void givenQueryResultWithValue_whenFindLatestArchiveInstanceId_thenReturnValue() {
         SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId =
                 new SourceApplicationAggregateInstanceId() {
                     @Override
@@ -415,7 +415,7 @@ class EventServiceTest {
     }
 
     @Test
-    void findLatestArchiveInstanceIdMultipleValues() {
+    void givenQueryResultWithMultipleValues_whenFindLatestArchiveInstanceId_thenReturnFirstValue() {
         SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId =
                 new SourceApplicationAggregateInstanceId() {
                     @Override
@@ -472,7 +472,7 @@ class EventServiceTest {
     }
 
     @Test
-    void findLatestStatusEventBySourceApplicationAggregateInstanceIdEmpty() {
+    void givenEmptyQueryResult_whenFindLatestStatusEventBySourceApplicationAggregateInstanceId_thenReturnEmpty() {
         SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId =
                 new SourceApplicationAggregateInstanceId() {
                     @Override
@@ -525,7 +525,7 @@ class EventServiceTest {
     }
 
     @Test
-    void findLatestStatusEventBySourceApplicationAggregateInstanceIdValue() {
+    void givenQueryResultWithEvent_whenFindLatestStatusEventBySourceApplicationAggregateInstanceId_thenReturnEvent() {
         SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId =
                 new SourceApplicationAggregateInstanceId() {
                     @Override
@@ -584,8 +584,9 @@ class EventServiceTest {
         assertThat(latestStatusEventBySourceApplicationAggregateInstanceId.get()).isEqualTo(event);
     }
 
+    // TODO 08/04/2025 eivindmorch: Test names
     @Test
-    void getStatisticsA() {
+    void whenGetStatistics_thenInvoke() {
         List<Long> sourceApplicationIds = mock(List.class);
         EventNamesPerInstanceStatus eventNamesPerInstanceStatus = mock(EventNamesPerInstanceStatus.class);
         when(eventCategorizationService.getEventNamesPerInstanceStatus()).thenReturn(eventNamesPerInstanceStatus);

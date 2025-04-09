@@ -1,6 +1,7 @@
 package no.fintlabs.model.instance;
 
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.ToString;
 
@@ -9,6 +10,7 @@ import java.time.OffsetDateTime;
 @ToString
 @Getter
 @Builder
+@EqualsAndHashCode
 public class InstanceFlowSummary {
     private final Long sourceApplicationId;
 

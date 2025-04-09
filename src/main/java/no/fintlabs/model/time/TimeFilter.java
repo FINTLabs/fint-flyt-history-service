@@ -1,7 +1,6 @@
 package no.fintlabs.model.time;
 
 import lombok.*;
-import no.fintlabs.model.instance.ActiveTimePeriod;
 import no.fintlabs.validation.OnlyOneTimeFilterType;
 
 import javax.validation.Valid;
@@ -17,7 +16,8 @@ public class TimeFilter {
     @Valid
     private OffsetTimeFilter offset;
 
-    private ActiveTimePeriod currentPeriod;
+    @Valid
+    private ActiveTimePeriodFilter currentPeriod;
 
     @Valid
     private ManualTimeFilter manual;

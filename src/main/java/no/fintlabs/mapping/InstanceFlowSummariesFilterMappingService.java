@@ -41,12 +41,12 @@ public class InstanceFlowSummariesFilterMappingService {
                 )
                 .instanceStorageStatusQueryFilter(
                         Optional.ofNullable(instanceFlowSummariesFilter.getStorageStatuses())
-                                .map(storageStatus ->
-                                        new InstanceStorageStatusQueryFilter(
-                                                eventCategorizationService.getEventNamesByInstanceStorageStatuses(storageStatus),
-                                                storageStatus.contains(InstanceStorageStatus.NEVER_STORED)
-                                        )
-                                ).orElse(InstanceStorageStatusQueryFilter.EMPTY)
+                                .map(storageStatuses -> new InstanceStorageStatusQueryFilter(
+                                        eventCategorizationService.getEventNamesByInstanceStorageStatuses(
+                                                storageStatuses
+                                        ),
+                                        storageStatuses.contains(InstanceStorageStatus.NEVER_STORED)
+                                )).orElse(InstanceStorageStatusQueryFilter.EMPTY)
                 )
                 .associatedEventNames(
                         Optional.ofNullable(instanceFlowSummariesFilter.getAssociatedEvents())
@@ -56,7 +56,11 @@ public class InstanceFlowSummariesFilterMappingService {
                                 ).orElse(null)
                 )
                 .destinationIds(instanceFlowSummariesFilter.getDestinationIds())
-                .timeQueryFilter(timeFilterMappingService.toQueryFilter(instanceFlowSummariesFilter.getTime()))
+                .timeQueryFilter(
+                        Optional.ofNullable(instanceFlowSummariesFilter.getTime())
+                                .map(timeFilterMappingService::toQueryFilter)
+                                .orElse(null)
+                )
                 .build();
     }
 }

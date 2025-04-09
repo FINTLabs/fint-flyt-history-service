@@ -41,7 +41,7 @@ class ManualEventCreationServiceTest {
     }
 
     @Test
-    public void givenNoPreviousEventForAggregateSourceApplicationIdWhenSaveShouldThrowException() {
+    public void givenNoPreviousEventForAggregateSourceApplicationId_whenSave_thenThrowException() {
         SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId =
                 new SourceApplicationAggregateInstanceId() {
                     @Override
@@ -87,7 +87,7 @@ class ManualEventCreationServiceTest {
     }
 
     @Test
-    public void givenPreviousEventForAggregateSourceApplicationIdNotOfTypeErrorWhenSaveShouldThrowException() {
+    public void givenPreviousEventForAggregateSourceApplicationIdNotOfTypeError_whenSave_thenThrowException() {
         SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId =
                 new SourceApplicationAggregateInstanceId() {
                     @Override
@@ -136,7 +136,7 @@ class ManualEventCreationServiceTest {
     }
 
     @Test
-    public void givenPreviousEventForAggregateSourceApplicationIdIsOfTypeInfoWhenSaveShouldCallRepositorySaveAndReturnResult() {
+    public void givenPreviousEventForAggregateSourceApplicationIdIsOfTypeInfo_whenSave_thenCallRepositorySaveAndReturnResult() {
         SourceApplicationAggregateInstanceId sourceApplicationAggregateInstanceId =
                 new SourceApplicationAggregateInstanceId() {
                     @Override

@@ -60,8 +60,32 @@ public class EventCategorizationService {
     private final Map<String, EventCategory> categoryByName = Arrays.stream(EventCategory.values())
             .collect(Collectors.toMap(EventCategory::getEventName, Function.identity()));
 
-    public EventCategory getCategoryByName(String name) {
+    public EventCategory getCategoryByEventName(String name) {
         return categoryByName.get(name);
+    }
+
+    public InstanceStatus getStatusByEventName(String name) {
+        EventCategory category = getCategoryByEventName(name);
+        if (category == null) {
+            throw new IllegalArgumentException("No category with name=" + name);
+        }
+        InstanceStatus status = category.getInstanceStatus();
+        if (status == null) {
+            throw new IllegalArgumentException("Category=" + name + " is not an instance status category");
+        }
+        return status;
+    }
+
+    public InstanceStorageStatus getStorageStatusByEventName(String name) {
+        EventCategory category = getCategoryByEventName(name);
+        if (category == null) {
+            throw new IllegalArgumentException("No category with name=" + name);
+        }
+        InstanceStorageStatus status = category.getInstanceStorageStatus();
+        if (status == null) {
+            throw new IllegalArgumentException("Category=" + name + " is not an instance storage status category");
+        }
+        return status;
     }
 
     public Set<EventCategory> getInstanceStatusCategories() {

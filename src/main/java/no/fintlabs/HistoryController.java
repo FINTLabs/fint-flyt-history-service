@@ -13,6 +13,7 @@ import no.fintlabs.validation.ValidationErrorsFormattingService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -23,10 +24,13 @@ import org.springframework.web.bind.support.WebExchangeBindException;
 import javax.validation.ConstraintViolation;
 import javax.validation.Validator;
 import javax.validation.ValidatorFactory;
+import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 
+// TODO 09/04/2025 eivindmorch: Test
 @RestController
 @RequestMapping(INTERNAL_API + "/instance-flow-tracking")
 public class HistoryController {
@@ -70,11 +74,21 @@ public class HistoryController {
             IntegrationStatisticsFilter integrationStatisticsFilter,
             Pageable pageable
     ) {
-        IntegrationStatisticsFilter filterLimitedByUserAuthorization =
-                authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
+        Set<Long> intersectionOfAuthorizedAndFilterSourceApplicationIds =
+                authorizationService.getIntersectionWithAuthorizedSourceApplicationIds(
                         authentication,
-                        integrationStatisticsFilter
+                        integrationStatisticsFilter.getSourceApplicationIds()
                 );
+
+        if (intersectionOfAuthorizedAndFilterSourceApplicationIds.isEmpty()) {
+            return ResponseEntity.ok(new SliceImpl<>(List.of(), pageable, false));
+        }
+
+        IntegrationStatisticsFilter filterLimitedByUserAuthorization = integrationStatisticsFilter
+                .toBuilder()
+                .sourceApplicationIds(intersectionOfAuthorizedAndFilterSourceApplicationIds)
+                .build();
+
         return ResponseEntity.ok(
                 eventService.getIntegrationStatistics(
                         filterLimitedByUserAuthorization,
@@ -88,18 +102,12 @@ public class HistoryController {
             @AuthenticationPrincipal Authentication authentication,
             InstanceFlowSummariesFilter instanceFlowSummariesFilter
     ) {
-        InstanceFlowSummariesFilter filterLimitedByUserAuthorization =
-                authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
-                        authentication,
-                        instanceFlowSummariesFilter
-                );
-        Set<ConstraintViolation<InstanceFlowSummariesFilter>> constraintViolations =
-                validator.validate(instanceFlowSummariesFilter);
-        if (!constraintViolations.isEmpty()) {
-            return ResponseEntity.unprocessableEntity()
-                    .body(validationErrorsFormattingService.format(constraintViolations));
-        }
-        return ResponseEntity.ok(eventService.getInstanceFlowSummariesTotalCount(filterLimitedByUserAuthorization));
+        return getInstanceFlowSummariesData(
+                authentication,
+                instanceFlowSummariesFilter,
+                0,
+                eventService::getInstanceFlowSummariesTotalCount
+        );
     }
 
     @GetMapping(path = "summaries")
@@ -108,25 +116,44 @@ public class HistoryController {
             InstanceFlowSummariesFilter instanceFlowSummariesFilter,
             @RequestParam int size
     ) {
-        InstanceFlowSummariesFilter filterLimitedByUserAuthorization =
-                authorizationService.createNewFilterLimitedByUserAuthorizedSourceApplicationIds(
-                        authentication,
-                        instanceFlowSummariesFilter
-                );
+        return getInstanceFlowSummariesData(
+                authentication,
+                instanceFlowSummariesFilter,
+                List.of(),
+                filter -> eventService.getInstanceFlowSummaries(filter, size)
+        );
+    }
 
+    private <T> ResponseEntity<?> getInstanceFlowSummariesData(
+            Authentication authentication,
+            InstanceFlowSummariesFilter instanceFlowSummariesFilter,
+            T emptyValue,
+            Function<InstanceFlowSummariesFilter, T> eventServiceCallFunction
+    ) {
         Set<ConstraintViolation<InstanceFlowSummariesFilter>> constraintViolations =
                 validator.validate(instanceFlowSummariesFilter);
+
         if (!constraintViolations.isEmpty()) {
             return ResponseEntity.unprocessableEntity()
                     .body(validationErrorsFormattingService.format(constraintViolations));
         }
 
-        return ResponseEntity.ok(
-                eventService.getInstanceFlowSummaries(
-                        filterLimitedByUserAuthorization,
-                        size
-                )
-        );
+        Set<Long> intersectionOfAuthorizedAndFilterSourceApplicationIds =
+                authorizationService.getIntersectionWithAuthorizedSourceApplicationIds(
+                        authentication,
+                        instanceFlowSummariesFilter.getSourceApplicationIds()
+                );
+
+        if (intersectionOfAuthorizedAndFilterSourceApplicationIds.isEmpty()) {
+            return ResponseEntity.ok(emptyValue);
+        }
+
+        InstanceFlowSummariesFilter filterLimitedByUserAuthorization = instanceFlowSummariesFilter
+                .toBuilder()
+                .sourceApplicationIds(intersectionOfAuthorizedAndFilterSourceApplicationIds)
+                .build();
+
+        return ResponseEntity.ok(eventServiceCallFunction.apply(filterLimitedByUserAuthorization));
     }
 
     @GetMapping(path = "events", params = {

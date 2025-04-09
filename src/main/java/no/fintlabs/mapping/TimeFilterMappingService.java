@@ -1,25 +1,37 @@
 package no.fintlabs.mapping;
 
-import no.fintlabs.model.instance.ActiveTimePeriod;
+import no.fintlabs.model.time.ActiveTimePeriodFilter;
 import no.fintlabs.model.time.ManualTimeFilter;
 import no.fintlabs.model.time.OffsetTimeFilter;
 import no.fintlabs.model.time.TimeFilter;
 import no.fintlabs.repository.filters.TimeQueryFilter;
 import org.springframework.stereotype.Service;
 
-import java.time.DayOfWeek;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
+import javax.validation.ConstraintViolation;
+import javax.validation.Validator;
+import java.time.*;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
-// TODO 08/04/2025 eivindmorch: Test
 @Service
 public class TimeFilterMappingService {
 
+    private final Clock clock;
+    private final Validator validator;
+
+    public TimeFilterMappingService(Clock clock, Validator validator) {
+        this.clock = clock;
+        this.validator = validator;
+    }
+
     public TimeQueryFilter toQueryFilter(TimeFilter timeFilter) {
+        Set<ConstraintViolation<TimeFilter>> validate = validator.validate(timeFilter);
+        if (!validate.isEmpty()) {
+            throw new IllegalArgumentException(validate.toString());
+        }
+
         if (Objects.isNull(timeFilter)) {
             return TimeQueryFilter.EMPTY;
         }
@@ -29,8 +41,8 @@ public class TimeFilterMappingService {
                 .orElse(TimeQueryFilter.EMPTY);
     }
 
-    public TimeQueryFilter createQueryFilterFromOffsetTimeFilter(OffsetTimeFilter offsetTimeFilter) {
-        OffsetDateTime currentTime = OffsetDateTime.now();
+    private TimeQueryFilter createQueryFilterFromOffsetTimeFilter(OffsetTimeFilter offsetTimeFilter) {
+        OffsetDateTime currentTime = OffsetDateTime.now(clock);
         return TimeQueryFilter.builder()
                 .latestStatusTimestampMin(
                         currentTime
@@ -41,57 +53,74 @@ public class TimeFilterMappingService {
                 .build();
     }
 
-    public TimeQueryFilter createQueryFilterFromCurrentPeriodTimeFilter(ActiveTimePeriod currentTimePeriod) {
-        OffsetDateTime currentTime = OffsetDateTime.now(ZoneId.of("Z"));
-        return switch (currentTimePeriod) {
+    private TimeQueryFilter createQueryFilterFromCurrentPeriodTimeFilter(ActiveTimePeriodFilter activeTimePeriodFilter) {
+        ZonedDateTime currentZonedTime = OffsetDateTime.now(clock).atZoneSameInstant(activeTimePeriodFilter.getZoneId());
+        return switch (activeTimePeriodFilter.getActiveTimePeriod()) {
             case TODAY -> TimeQueryFilter
                     .builder()
-                    .latestStatusTimestampMin(getStartOfDay(currentTime))
-                    .latestStatusTimestampMax(getEndOfDay(currentTime))
+                    .latestStatusTimestampMin(getStartOfDayInUtc(currentZonedTime))
+                    .latestStatusTimestampMax(getEndOfDayInUtc(currentZonedTime))
                     .build();
             case THIS_WEEK -> TimeQueryFilter
                     .builder()
-                    .latestStatusTimestampMin(getStartOfDay(
-                            currentTime.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                    .latestStatusTimestampMin(getStartOfDayInUtc(
+                            currentZonedTime.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                     ))
-                    .latestStatusTimestampMax(getEndOfDay(
-                            currentTime.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
+                    .latestStatusTimestampMax(getEndOfDayInUtc(
+                            currentZonedTime.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
                     ))
                     .build();
             case THIS_MONTH -> TimeQueryFilter
                     .builder()
-                    .latestStatusTimestampMin(getStartOfDay(
-                            currentTime.with(TemporalAdjusters.firstDayOfMonth())
+                    .latestStatusTimestampMin(getStartOfDayInUtc(
+                            currentZonedTime.with(TemporalAdjusters.firstDayOfMonth())
                     ))
-                    .latestStatusTimestampMax(getEndOfDay(
-                            currentTime.with(TemporalAdjusters.lastDayOfMonth())
+                    .latestStatusTimestampMax(getEndOfDayInUtc(
+                            currentZonedTime.with(TemporalAdjusters.lastDayOfMonth())
                     ))
                     .build();
             case THIS_YEAR -> TimeQueryFilter
                     .builder()
-                    .latestStatusTimestampMin(getStartOfDay(
-                            currentTime.with(TemporalAdjusters.firstDayOfYear())
+                    .latestStatusTimestampMin(getStartOfDayInUtc(
+                            currentZonedTime.with(TemporalAdjusters.firstDayOfYear())
                     ))
-                    .latestStatusTimestampMax(getEndOfDay(
-                            currentTime.with(TemporalAdjusters.lastDayOfYear())
+                    .latestStatusTimestampMax(getEndOfDayInUtc(
+                            currentZonedTime.with(TemporalAdjusters.lastDayOfYear())
                     ))
                     .build();
         };
     }
 
-    private OffsetDateTime getStartOfDay(OffsetDateTime offsetDateTime) {
-        return offsetDateTime.toLocalDate().atStartOfDay().atOffset(ZoneOffset.UTC);
+    private OffsetDateTime getStartOfDayInUtc(ZonedDateTime zonedDateTime) {
+        return OffsetDateTime.of(
+                zonedDateTime
+                        .toLocalDate()
+                        .atStartOfDay(),
+                zonedDateTime.getOffset()
+        ).withOffsetSameInstant(ZoneOffset.UTC);
     }
 
-    private OffsetDateTime getEndOfDay(OffsetDateTime offsetDateTime) {
-        return offsetDateTime.toLocalDate().plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+    private OffsetDateTime getEndOfDayInUtc(ZonedDateTime zonedDateTime) {
+        return OffsetDateTime.of(
+                zonedDateTime
+                        .toLocalDate()
+                        .plusDays(1).atStartOfDay(),
+                zonedDateTime.getOffset()
+        ).withOffsetSameInstant(ZoneOffset.UTC);
     }
 
-    public TimeQueryFilter createQueryFilterFromManualTimeFilter(ManualTimeFilter manualTimeFilter) {
+    private TimeQueryFilter createQueryFilterFromManualTimeFilter(ManualTimeFilter manualTimeFilter) {
         return TimeQueryFilter
                 .builder()
-                .latestStatusTimestampMin(manualTimeFilter.getMin())
-                .latestStatusTimestampMax(manualTimeFilter.getMax())
+                .latestStatusTimestampMin(
+                        Optional.ofNullable(manualTimeFilter.getMin())
+                                .map(t -> t.withOffsetSameInstant(ZoneOffset.UTC))
+                                .orElse(null)
+                )
+                .latestStatusTimestampMax(Optional.ofNullable(manualTimeFilter.getMax())
+                        .map(t -> t.withOffsetSameInstant(ZoneOffset.UTC))
+                        .orElse(null)
+                )
                 .build();
     }
 

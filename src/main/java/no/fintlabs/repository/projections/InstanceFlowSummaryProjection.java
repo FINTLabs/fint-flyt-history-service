@@ -8,9 +8,9 @@ import org.springframework.kafka.support.JavaUtils;
 import java.time.OffsetDateTime;
 import java.util.StringJoiner;
 
-@EqualsAndHashCode
 @Getter
 @Builder
+@EqualsAndHashCode
 public class InstanceFlowSummaryProjection {
     Long sourceApplicationId;
     String sourceApplicationIntegrationId;

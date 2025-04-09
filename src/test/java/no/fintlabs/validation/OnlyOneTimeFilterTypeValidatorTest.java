@@ -1,10 +1,13 @@
 package no.fintlabs.validation;
 
 import no.fintlabs.model.instance.ActiveTimePeriod;
+import no.fintlabs.model.time.ActiveTimePeriodFilter;
 import no.fintlabs.model.time.ManualTimeFilter;
 import no.fintlabs.model.time.OffsetTimeFilter;
 import no.fintlabs.model.time.TimeFilter;
 import org.junit.jupiter.api.Test;
+
+import java.time.ZoneId;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -17,7 +20,13 @@ class OnlyOneTimeFilterTypeValidatorTest {
                 TimeFilter
                         .builder()
                         .offset(mock(OffsetTimeFilter.class))
-                        .currentPeriod(ActiveTimePeriod.TODAY)
+                        .currentPeriod(
+                                ActiveTimePeriodFilter
+                                        .builder()
+                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .zoneId(ZoneId.of("CET"))
+                                        .build()
+                        )
                         .manual(mock(ManualTimeFilter.class))
                         .build(),
                 null
@@ -30,7 +39,13 @@ class OnlyOneTimeFilterTypeValidatorTest {
         boolean valid = new OnlyOneTimeFilterTypeValidator().isValid(
                 TimeFilter
                         .builder()
-                        .currentPeriod(ActiveTimePeriod.TODAY)
+                        .currentPeriod(
+                                ActiveTimePeriodFilter
+                                        .builder()
+                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .zoneId(ZoneId.of("CET"))
+                                        .build()
+                        )
                         .manual(mock(ManualTimeFilter.class))
                         .build(),
                 null
@@ -66,7 +81,13 @@ class OnlyOneTimeFilterTypeValidatorTest {
         boolean valid = new OnlyOneTimeFilterTypeValidator().isValid(
                 TimeFilter
                         .builder()
-                        .currentPeriod(ActiveTimePeriod.TODAY)
+                        .currentPeriod(
+                                ActiveTimePeriodFilter
+                                        .builder()
+                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .zoneId(ZoneId.of("CET"))
+                                        .build()
+                        )
                         .build(),
                 null
         );
