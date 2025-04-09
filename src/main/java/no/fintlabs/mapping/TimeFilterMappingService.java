@@ -1,6 +1,6 @@
 package no.fintlabs.mapping;
 
-import no.fintlabs.model.time.ActiveTimePeriodFilter;
+import no.fintlabs.model.time.CurrentPeriodTimeFilter;
 import no.fintlabs.model.time.ManualTimeFilter;
 import no.fintlabs.model.time.OffsetTimeFilter;
 import no.fintlabs.model.time.TimeFilter;
@@ -53,9 +53,9 @@ public class TimeFilterMappingService {
                 .build();
     }
 
-    private TimeQueryFilter createQueryFilterFromCurrentPeriodTimeFilter(ActiveTimePeriodFilter activeTimePeriodFilter) {
-        ZonedDateTime currentZonedTime = OffsetDateTime.now(clock).atZoneSameInstant(activeTimePeriodFilter.getZoneId());
-        return switch (activeTimePeriodFilter.getActiveTimePeriod()) {
+    private TimeQueryFilter createQueryFilterFromCurrentPeriodTimeFilter(CurrentPeriodTimeFilter currentPeriodTimeFilter) {
+        ZonedDateTime currentZonedTime = OffsetDateTime.now(clock).atZoneSameInstant(currentPeriodTimeFilter.getZoneId());
+        return switch (currentPeriodTimeFilter.getType()) {
             case TODAY -> TimeQueryFilter
                     .builder()
                     .latestStatusTimestampMin(getStartOfDayInUtc(currentZonedTime))

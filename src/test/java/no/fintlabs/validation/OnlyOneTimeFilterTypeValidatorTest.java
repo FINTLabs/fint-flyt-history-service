@@ -1,7 +1,7 @@
 package no.fintlabs.validation;
 
 import no.fintlabs.model.instance.ActiveTimePeriod;
-import no.fintlabs.model.time.ActiveTimePeriodFilter;
+import no.fintlabs.model.time.CurrentPeriodTimeFilter;
 import no.fintlabs.model.time.ManualTimeFilter;
 import no.fintlabs.model.time.OffsetTimeFilter;
 import no.fintlabs.model.time.TimeFilter;
@@ -21,9 +21,9 @@ class OnlyOneTimeFilterTypeValidatorTest {
                         .builder()
                         .offset(mock(OffsetTimeFilter.class))
                         .currentPeriod(
-                                ActiveTimePeriodFilter
+                                CurrentPeriodTimeFilter
                                         .builder()
-                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .type(ActiveTimePeriod.TODAY)
                                         .zoneId(ZoneId.of("CET"))
                                         .build()
                         )
@@ -40,9 +40,9 @@ class OnlyOneTimeFilterTypeValidatorTest {
                 TimeFilter
                         .builder()
                         .currentPeriod(
-                                ActiveTimePeriodFilter
+                                CurrentPeriodTimeFilter
                                         .builder()
-                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .type(ActiveTimePeriod.TODAY)
                                         .zoneId(ZoneId.of("CET"))
                                         .build()
                         )
@@ -82,9 +82,9 @@ class OnlyOneTimeFilterTypeValidatorTest {
                 TimeFilter
                         .builder()
                         .currentPeriod(
-                                ActiveTimePeriodFilter
+                                CurrentPeriodTimeFilter
                                         .builder()
-                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .type(ActiveTimePeriod.TODAY)
                                         .zoneId(ZoneId.of("CET"))
                                         .build()
                         )

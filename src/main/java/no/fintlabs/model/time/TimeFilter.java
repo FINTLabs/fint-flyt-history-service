@@ -17,7 +17,7 @@ public class TimeFilter {
     private OffsetTimeFilter offset;
 
     @Valid
-    private ActiveTimePeriodFilter currentPeriod;
+    private CurrentPeriodTimeFilter currentPeriod;
 
     @Valid
     private ManualTimeFilter manual;

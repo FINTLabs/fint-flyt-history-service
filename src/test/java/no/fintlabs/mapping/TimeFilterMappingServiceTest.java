@@ -1,7 +1,7 @@
 package no.fintlabs.mapping;
 
 import no.fintlabs.model.instance.ActiveTimePeriod;
-import no.fintlabs.model.time.ActiveTimePeriodFilter;
+import no.fintlabs.model.time.CurrentPeriodTimeFilter;
 import no.fintlabs.model.time.ManualTimeFilter;
 import no.fintlabs.model.time.OffsetTimeFilter;
 import no.fintlabs.model.time.TimeFilter;
@@ -94,9 +94,9 @@ class TimeFilterMappingServiceTest {
         TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
                 TimeFilter.builder()
                         .currentPeriod(
-                                ActiveTimePeriodFilter
+                                CurrentPeriodTimeFilter
                                         .builder()
-                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .type(ActiveTimePeriod.TODAY)
                                         .zoneId(ZoneId.of("CET"))
                                         .build()
                         )
@@ -116,9 +116,9 @@ class TimeFilterMappingServiceTest {
         TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
                 TimeFilter.builder()
                         .currentPeriod(
-                                ActiveTimePeriodFilter
+                                CurrentPeriodTimeFilter
                                         .builder()
-                                        .activeTimePeriod(ActiveTimePeriod.THIS_WEEK)
+                                        .type(ActiveTimePeriod.THIS_WEEK)
                                         .zoneId(ZoneId.of("CET"))
                                         .build()
                         )
@@ -138,9 +138,9 @@ class TimeFilterMappingServiceTest {
         TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
                 TimeFilter.builder()
                         .currentPeriod(
-                                ActiveTimePeriodFilter
+                                CurrentPeriodTimeFilter
                                         .builder()
-                                        .activeTimePeriod(ActiveTimePeriod.THIS_MONTH)
+                                        .type(ActiveTimePeriod.THIS_MONTH)
                                         .zoneId(ZoneId.of("CET"))
                                         .build()
                         )
@@ -160,9 +160,9 @@ class TimeFilterMappingServiceTest {
         TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
                 TimeFilter.builder()
                         .currentPeriod(
-                                ActiveTimePeriodFilter
+                                CurrentPeriodTimeFilter
                                         .builder()
-                                        .activeTimePeriod(ActiveTimePeriod.THIS_YEAR)
+                                        .type(ActiveTimePeriod.THIS_YEAR)
                                         .zoneId(ZoneId.of("CET"))
                                         .build()
                         )
@@ -189,9 +189,9 @@ class TimeFilterMappingServiceTest {
         TimeQueryFilter queryFilter = timeFilterMappingServiceWinterTimeInOslo.toQueryFilter(
                 TimeFilter.builder()
                         .currentPeriod(
-                                ActiveTimePeriodFilter
+                                CurrentPeriodTimeFilter
                                         .builder()
-                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .type(ActiveTimePeriod.TODAY)
                                         .zoneId(ZoneId.of("Europe/Oslo"))
                                         .build()
                         )
@@ -218,9 +218,9 @@ class TimeFilterMappingServiceTest {
         TimeQueryFilter queryFilter = timeFilterMappingServiceSummerTimeInOslo.toQueryFilter(
                 TimeFilter.builder()
                         .currentPeriod(
-                                ActiveTimePeriodFilter
+                                CurrentPeriodTimeFilter
                                         .builder()
-                                        .activeTimePeriod(ActiveTimePeriod.TODAY)
+                                        .type(ActiveTimePeriod.TODAY)
                                         .zoneId(ZoneId.of("Europe/Oslo"))
                                         .build()
                         )

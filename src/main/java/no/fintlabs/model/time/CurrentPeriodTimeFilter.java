@@ -14,7 +14,7 @@ import java.time.ZoneId;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ActiveTimePeriodFilter {
+public class CurrentPeriodTimeFilter {
 
     @JsonProperty
     @NotNull
@@ -22,5 +22,5 @@ public class ActiveTimePeriodFilter {
 
     @JsonProperty
     @NotNull
-    private ActiveTimePeriod activeTimePeriod;
+    private ActiveTimePeriod type;
 }
