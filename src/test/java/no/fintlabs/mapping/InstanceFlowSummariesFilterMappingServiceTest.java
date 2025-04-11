@@ -12,6 +12,7 @@ import no.fintlabs.repository.filters.TimeQueryFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 
@@ -78,7 +79,8 @@ class InstanceFlowSummariesFilterMappingServiceTest {
 
         TimeFilter timeFilter = mock(TimeFilter.class);
         TimeQueryFilter timeQueryFilter = mock(TimeQueryFilter.class);
-        when(timeFilterMappingService.toQueryFilter(timeFilter)).thenReturn(timeQueryFilter);
+
+        when(timeFilterMappingService.toQueryFilter(timeFilter, ZoneId.of("Europe/Oslo"))).thenReturn(timeQueryFilter);
 
         InstanceFlowSummariesQueryFilter queryFilter = instanceFlowSummariesFilterMappingService.toQueryFilter(
                 InstanceFlowSummariesFilter
@@ -124,7 +126,7 @@ class InstanceFlowSummariesFilterMappingServiceTest {
                         InstanceStorageStatus.NEVER_STORED
                 )
         );
-        verify(timeFilterMappingService, times(1)).toQueryFilter(timeFilter);
+        verify(timeFilterMappingService, times(1)).toQueryFilter(timeFilter, ZoneId.of("Europe/Oslo"));
 
         verifyNoMoreInteractions(eventCategorizationService, timeFilterMappingService);
 

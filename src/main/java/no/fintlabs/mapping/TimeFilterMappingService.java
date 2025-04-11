@@ -1,6 +1,6 @@
 package no.fintlabs.mapping;
 
-import no.fintlabs.model.time.CurrentPeriodTimeFilter;
+import no.fintlabs.model.instance.ActiveTimePeriod;
 import no.fintlabs.model.time.ManualTimeFilter;
 import no.fintlabs.model.time.OffsetTimeFilter;
 import no.fintlabs.model.time.TimeFilter;
@@ -26,17 +26,21 @@ public class TimeFilterMappingService {
         this.validator = validator;
     }
 
-    public TimeQueryFilter toQueryFilter(TimeFilter timeFilter) {
+    public TimeQueryFilter toQueryFilter(TimeFilter timeFilter, ZoneId zoneId) {
         Set<ConstraintViolation<TimeFilter>> validate = validator.validate(timeFilter);
         if (!validate.isEmpty()) {
             throw new IllegalArgumentException(validate.toString());
+        }
+        if (zoneId == null) {
+            throw new IllegalArgumentException("Zone id must not be null");
         }
 
         if (Objects.isNull(timeFilter)) {
             return TimeQueryFilter.EMPTY;
         }
         return Optional.ofNullable(timeFilter.getOffset()).map(this::createQueryFilterFromOffsetTimeFilter)
-                .or(() -> Optional.ofNullable(timeFilter.getCurrentPeriod()).map(this::createQueryFilterFromCurrentPeriodTimeFilter))
+                .or(() -> Optional.ofNullable(timeFilter.getCurrentPeriod())
+                        .map(currentPeriod -> createQueryFilterFromCurrentPeriodTimeFilter(currentPeriod, zoneId)))
                 .or(() -> Optional.ofNullable(timeFilter.getManual()).map(this::createQueryFilterFromManualTimeFilter))
                 .orElse(TimeQueryFilter.EMPTY);
     }
@@ -53,9 +57,9 @@ public class TimeFilterMappingService {
                 .build();
     }
 
-    private TimeQueryFilter createQueryFilterFromCurrentPeriodTimeFilter(CurrentPeriodTimeFilter currentPeriodTimeFilter) {
-        ZonedDateTime currentZonedTime = OffsetDateTime.now(clock).atZoneSameInstant(currentPeriodTimeFilter.getZoneId());
-        return switch (currentPeriodTimeFilter.getType()) {
+    private TimeQueryFilter createQueryFilterFromCurrentPeriodTimeFilter(ActiveTimePeriod activeTimePeriod, ZoneId zoneId) {
+        ZonedDateTime currentZonedTime = OffsetDateTime.now(clock).atZoneSameInstant(zoneId);
+        return switch (activeTimePeriod) {
             case TODAY -> TimeQueryFilter
                     .builder()
                     .latestStatusTimestampMin(getStartOfDayInUtc(currentZonedTime))

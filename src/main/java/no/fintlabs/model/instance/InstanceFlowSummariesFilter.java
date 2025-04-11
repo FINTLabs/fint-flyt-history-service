@@ -7,6 +7,7 @@ import no.fintlabs.model.time.TimeFilter;
 import javax.validation.Valid;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
+import java.time.ZoneId;
 import java.util.Collection;
 
 @Getter
@@ -16,6 +17,8 @@ import java.util.Collection;
 @Builder(toBuilder = true)
 @EqualsAndHashCode
 public class InstanceFlowSummariesFilter {
+
+    private final ZoneId timeZone = ZoneId.of("Europe/Oslo");
 
     @Valid
     private TimeFilter time;

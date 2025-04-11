@@ -1,7 +1,6 @@
 package no.fintlabs.mapping;
 
 import no.fintlabs.model.instance.ActiveTimePeriod;
-import no.fintlabs.model.time.CurrentPeriodTimeFilter;
 import no.fintlabs.model.time.ManualTimeFilter;
 import no.fintlabs.model.time.OffsetTimeFilter;
 import no.fintlabs.model.time.TimeFilter;
@@ -42,14 +41,20 @@ class TimeFilterMappingServiceTest {
     @Test
     public void givenNullTimeFilter_whenToQueryFilter_thenReturnEmptyTimeQueryFilter() {
         when(validator.validate(any())).thenReturn(Set.of());
-        TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(null);
+        TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
+                null,
+                ZoneId.of("CET")
+        );
         assertThat(queryFilter).isEqualTo(TimeQueryFilter.EMPTY);
     }
 
     @Test
     public void givenEmptyTimeFilter_whenToQueryFilter_thenReturnEmptyTimeQueryFilter() {
         when(validator.validate(any())).thenReturn(Set.of());
-        TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(TimeFilter.builder().build());
+        TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
+                TimeFilter.builder().build(),
+                ZoneId.of("CET")
+        );
         assertThat(queryFilter).isEqualTo(TimeQueryFilter.EMPTY);
     }
 
@@ -61,7 +66,8 @@ class TimeFilterMappingServiceTest {
                         TimeFilter.builder()
                                 .offset(OffsetTimeFilter.builder().build())
                                 .manual(ManualTimeFilter.builder().build())
-                                .build()
+                                .build(),
+                        ZoneId.of("CET")
                 )
         );
     }
@@ -78,7 +84,8 @@ class TimeFilterMappingServiceTest {
                                         .minutes(11)
                                         .build()
                         )
-                        .build()
+                        .build(),
+                ZoneId.of("CET")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).contains(
                 OffsetDateTime.of(2024, 2, 3, 10, 5, 54, 251200, ZoneOffset.UTC)
@@ -93,14 +100,9 @@ class TimeFilterMappingServiceTest {
         when(validator.validate(any())).thenReturn(Set.of());
         TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
                 TimeFilter.builder()
-                        .currentPeriod(
-                                CurrentPeriodTimeFilter
-                                        .builder()
-                                        .type(ActiveTimePeriod.TODAY)
-                                        .zoneId(ZoneId.of("CET"))
-                                        .build()
-                        )
-                        .build()
+                        .currentPeriod(ActiveTimePeriod.TODAY)
+                        .build(),
+                ZoneId.of("CET")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).contains(
                 OffsetDateTime.of(2024, 2, 2, 23, 0, 0, 0, ZoneOffset.UTC)
@@ -115,14 +117,9 @@ class TimeFilterMappingServiceTest {
         when(validator.validate(any())).thenReturn(Set.of());
         TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
                 TimeFilter.builder()
-                        .currentPeriod(
-                                CurrentPeriodTimeFilter
-                                        .builder()
-                                        .type(ActiveTimePeriod.THIS_WEEK)
-                                        .zoneId(ZoneId.of("CET"))
-                                        .build()
-                        )
-                        .build()
+                        .currentPeriod(ActiveTimePeriod.THIS_WEEK)
+                        .build(),
+                ZoneId.of("CET")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).contains(
                 OffsetDateTime.of(2024, 1, 28, 23, 0, 0, 0, ZoneOffset.UTC)
@@ -137,14 +134,9 @@ class TimeFilterMappingServiceTest {
         when(validator.validate(any())).thenReturn(Set.of());
         TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
                 TimeFilter.builder()
-                        .currentPeriod(
-                                CurrentPeriodTimeFilter
-                                        .builder()
-                                        .type(ActiveTimePeriod.THIS_MONTH)
-                                        .zoneId(ZoneId.of("CET"))
-                                        .build()
-                        )
-                        .build()
+                        .currentPeriod(ActiveTimePeriod.THIS_MONTH)
+                        .build(),
+                ZoneId.of("CET")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).contains(
                 OffsetDateTime.of(2024, 1, 31, 23, 0, 0, 0, ZoneOffset.UTC)
@@ -159,14 +151,9 @@ class TimeFilterMappingServiceTest {
         when(validator.validate(any())).thenReturn(Set.of());
         TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
                 TimeFilter.builder()
-                        .currentPeriod(
-                                CurrentPeriodTimeFilter
-                                        .builder()
-                                        .type(ActiveTimePeriod.THIS_YEAR)
-                                        .zoneId(ZoneId.of("CET"))
-                                        .build()
-                        )
-                        .build()
+                        .currentPeriod(ActiveTimePeriod.THIS_YEAR)
+                        .build(),
+                ZoneId.of("CET")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).contains(
                 OffsetDateTime.of(2023, 12, 31, 23, 0, 0, 0, ZoneOffset.UTC)
@@ -188,14 +175,9 @@ class TimeFilterMappingServiceTest {
         when(validator.validate(any())).thenReturn(Set.of());
         TimeQueryFilter queryFilter = timeFilterMappingServiceWinterTimeInOslo.toQueryFilter(
                 TimeFilter.builder()
-                        .currentPeriod(
-                                CurrentPeriodTimeFilter
-                                        .builder()
-                                        .type(ActiveTimePeriod.TODAY)
-                                        .zoneId(ZoneId.of("Europe/Oslo"))
-                                        .build()
-                        )
-                        .build()
+                        .currentPeriod(ActiveTimePeriod.TODAY)
+                        .build(),
+                ZoneId.of("Europe/Oslo")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).contains(
                 OffsetDateTime.of(2024, 2, 2, 23, 0, 0, 0, ZoneOffset.UTC)
@@ -217,14 +199,9 @@ class TimeFilterMappingServiceTest {
         when(validator.validate(any())).thenReturn(Set.of());
         TimeQueryFilter queryFilter = timeFilterMappingServiceSummerTimeInOslo.toQueryFilter(
                 TimeFilter.builder()
-                        .currentPeriod(
-                                CurrentPeriodTimeFilter
-                                        .builder()
-                                        .type(ActiveTimePeriod.TODAY)
-                                        .zoneId(ZoneId.of("Europe/Oslo"))
-                                        .build()
-                        )
-                        .build()
+                        .currentPeriod(ActiveTimePeriod.TODAY)
+                        .build(),
+                ZoneId.of("Europe/Oslo")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).contains(
                 OffsetDateTime.of(2024, 7, 2, 22, 0, 0, 0, ZoneOffset.UTC)
@@ -240,7 +217,8 @@ class TimeFilterMappingServiceTest {
         TimeQueryFilter queryFilter = timeFilterMappingService.toQueryFilter(
                 TimeFilter.builder()
                         .manual(ManualTimeFilter.builder().build())
-                        .build()
+                        .build(),
+                ZoneId.of("CET")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).isEmpty();
         assertThat(queryFilter.getLatestStatusTimestampMax()).isEmpty();
@@ -257,7 +235,8 @@ class TimeFilterMappingServiceTest {
                                         .min(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
                                         .build()
                         )
-                        .build()
+                        .build(),
+                ZoneId.of("CET")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).contains(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC));
         assertThat(queryFilter.getLatestStatusTimestampMax()).isEmpty();
@@ -274,7 +253,8 @@ class TimeFilterMappingServiceTest {
                                         .max(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
                                         .build()
                         )
-                        .build()
+                        .build(),
+                ZoneId.of("CET")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).isEmpty();
         assertThat(queryFilter.getLatestStatusTimestampMax()).contains(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC));
@@ -292,7 +272,8 @@ class TimeFilterMappingServiceTest {
                                         .max(OffsetDateTime.of(2024, 1, 2, 12, 0, 0, 0, ZoneOffset.UTC))
                                         .build()
                         )
-                        .build()
+                        .build(),
+                ZoneId.of("CET")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).contains(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC));
         assertThat(queryFilter.getLatestStatusTimestampMax()).contains(OffsetDateTime.of(2024, 1, 2, 12, 0, 0, 0, ZoneOffset.UTC));
@@ -310,7 +291,8 @@ class TimeFilterMappingServiceTest {
                                         .max(OffsetDateTime.of(2024, 1, 2, 12, 0, 0, 0, ZoneOffset.ofHours(-4)))
                                         .build()
                         )
-                        .build()
+                        .build(),
+                ZoneId.of("CET")
         );
         assertThat(queryFilter.getLatestStatusTimestampMin()).contains(OffsetDateTime.of(2024, 1, 1, 14, 0, 0, 0, ZoneOffset.UTC));
         assertThat(queryFilter.getLatestStatusTimestampMax()).contains(OffsetDateTime.of(2024, 1, 2, 16, 0, 0, 0, ZoneOffset.UTC));

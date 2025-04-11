@@ -58,7 +58,10 @@ public class InstanceFlowSummariesFilterMappingService {
                 .destinationIds(instanceFlowSummariesFilter.getDestinationIds())
                 .timeQueryFilter(
                         Optional.ofNullable(instanceFlowSummariesFilter.getTime())
-                                .map(timeFilterMappingService::toQueryFilter)
+                                .map(timeFilter -> timeFilterMappingService.toQueryFilter(
+                                        timeFilter,
+                                        instanceFlowSummariesFilter.getTimeZone()
+                                ))
                                 .orElse(null)
                 )
                 .build();
