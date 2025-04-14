@@ -11,6 +11,9 @@ public class OnlyOneTimeFilterTypeValidator implements ConstraintValidator<OnlyO
 
     @Override
     public boolean isValid(TimeFilter timeFilter, ConstraintValidatorContext constraintValidatorContext) {
+        if (timeFilter == null) {
+            return true;
+        }
         return Stream.of(
                         timeFilter.getOffset(),
                         timeFilter.getCurrentPeriod(),

@@ -12,6 +12,15 @@ import static org.mockito.Mockito.mock;
 class OnlyOneTimeFilterTypeValidatorTest {
 
     @Test
+    public void givenNullTimeFilter_shourdReturnTrue() {
+        boolean valid = new OnlyOneTimeFilterTypeValidator().isValid(
+                null,
+                null
+        );
+        assertThat(valid).isTrue();
+    }
+
+    @Test
     public void givenAllTimeFilters_shouldReturnFalse() {
         boolean valid = new OnlyOneTimeFilterTypeValidator().isValid(
                 TimeFilter

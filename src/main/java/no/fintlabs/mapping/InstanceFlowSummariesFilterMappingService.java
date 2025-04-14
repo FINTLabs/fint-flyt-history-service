@@ -8,18 +8,26 @@ import no.fintlabs.repository.filters.InstanceFlowSummariesQueryFilter;
 import no.fintlabs.repository.filters.InstanceStorageStatusQueryFilter;
 import org.springframework.stereotype.Service;
 
+import javax.validation.ConstraintViolation;
+import javax.validation.Validator;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class InstanceFlowSummariesFilterMappingService {
 
+    private final Validator validator;
     private final EventCategorizationService eventCategorizationService;
     private final TimeFilterMappingService timeFilterMappingService;
 
     public InstanceFlowSummariesFilterMappingService(
+            Validator validator,
             EventCategorizationService eventCategorizationService,
             TimeFilterMappingService timeFilterMappingService
+
     ) {
+        this.validator = validator;
         this.eventCategorizationService = eventCategorizationService;
         this.timeFilterMappingService = timeFilterMappingService;
     }
@@ -27,6 +35,10 @@ public class InstanceFlowSummariesFilterMappingService {
     public InstanceFlowSummariesQueryFilter toQueryFilter(InstanceFlowSummariesFilter instanceFlowSummariesFilter) {
         if (instanceFlowSummariesFilter == null) {
             throw new IllegalArgumentException("Instance flow summaries filter is null");
+        }
+        Set<ConstraintViolation<InstanceFlowSummariesFilter>> validate = validator.validate(instanceFlowSummariesFilter);
+        if (!validate.isEmpty()) {
+            throw new IllegalArgumentException("Invalid instance flow summaries filter: " + validate);
         }
         return InstanceFlowSummariesQueryFilter
                 .builder()
@@ -37,7 +49,12 @@ public class InstanceFlowSummariesFilterMappingService {
                 .statusEventNames(
                         Optional.ofNullable(instanceFlowSummariesFilter.getStatuses())
                                 .map(eventCategorizationService::getEventNamesByInstanceStatuses)
-                                .orElse(null)
+                                .or(() -> Optional.ofNullable(instanceFlowSummariesFilter.getLatestStatusEvents())
+                                        .map(lse -> lse.stream()
+                                                .map(EventCategory::getEventName)
+                                                .collect(Collectors.toSet())
+                                        )
+                                ).orElse(null)
                 )
                 .instanceStorageStatusQueryFilter(
                         Optional.ofNullable(instanceFlowSummariesFilter.getStorageStatuses())
@@ -66,4 +83,5 @@ public class InstanceFlowSummariesFilterMappingService {
                 )
                 .build();
     }
+
 }
