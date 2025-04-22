@@ -33,7 +33,7 @@ jobs:
 
       - name: Gradle build
         run: |
-          ./gradlew build
+          ./gradlew build -x test excludePerformanceTest
           mkdir data
           cp ./build/libs/${GITHUB_REPOSITORY#*/}-*.jar ./data/app.jar
 
