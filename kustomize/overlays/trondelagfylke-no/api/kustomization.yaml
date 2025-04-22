@@ -22,7 +22,7 @@ patches:
         value: "/trondelagfylke-no"
       - op: replace
         path: "/spec/ingress/basePath"
-        value: "/trondelagfylke-no/api/intern/historikk"
+        value: "/trondelagfylke-no/api/intern/instance-flow-tracking"
       - op: replace
         path: "/spec/env/1/value"
         value: |

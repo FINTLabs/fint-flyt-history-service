@@ -22,7 +22,7 @@ patches:
         value: "/beta/rogfk-no"
       - op: replace
         path: "/spec/ingress/basePath"
-        value: "/beta/rogfk-no/api/intern/historikk"
+        value: "/beta/rogfk-no/api/intern/instance-flow-tracking"
       - op: replace
         path: "/spec/env/1/value"
         value: |
