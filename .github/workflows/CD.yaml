@@ -36,7 +36,7 @@ jobs:
           tags: type=sha,enable=true,priority=100,prefix=shaF-,suffix=,format=short
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -100,7 +100,7 @@ jobs:
 
       - name: Bake manifests with Kustomize
         id: bake
-        uses: azure/k8s-bake@v2
+        uses: azure/k8s-bake@v3
         with:
           renderEngine: 'kustomize'
           kustomizationPath: 'kustomize/overlays/${{ matrix.org }}/${{ steps.environment.outputs.result }}'
@@ -114,7 +114,7 @@ jobs:
           kubelogin-version: 'v0.0.32'
 
       - name: Set the target cluster
-        uses: azure/aks-set-context@v3
+        uses: azure/aks-set-context@v4
         with:
           cluster-name: '${{ matrix.cluster }}'
           resource-group: '${{ steps.resource-group.outputs.result }}'
@@ -123,7 +123,7 @@ jobs:
 
       - name: Deploy
         if: github.ref == 'refs/heads/main'
-        uses: azure/k8s-deploy@v4
+        uses: azure/k8s-deploy@v5
         with:
           action: deploy
           manifests: ${{ steps.bake.outputs.manifestsBundle }}
