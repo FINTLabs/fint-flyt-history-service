@@ -90,10 +90,10 @@ jobs:
           java-version: '17'
 
       - name: Gradle Wrapper Validation
-        uses: gradle/wrapper-validation-action@v3
+        uses: gradle/wrapper-validation-action@v1
 
       - name: Gradle Setup
-        uses: gradle/gradle-build-action@v3
+        uses: gradle/gradle-build-action@v2
         with:
           gradle-version: wrapper
 
@@ -116,7 +116,7 @@ jobs:
             type=sha,enable=true,priority=100,prefix=sha-,suffix=,format=short
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v5
         with:
           context: .
           push: true
@@ -124,7 +124,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Bake manifests with Kustomize
-        uses: azure/k8s-bake@v3
+        uses: azure/k8s-bake@v2
         with:
           renderEngine: 'kustomize'
           kustomizationPath: 'kustomize/overlays/${{ env.ORG}}/${{ steps.environment.outputs.result }}'
@@ -139,7 +139,7 @@ jobs:
           kubelogin-version: 'v0.0.32'
 
       - name: Set the target cluster
-        uses: azure/aks-set-context@v4
+        uses: azure/aks-set-context@v3
         with:
           cluster-name: ${{ env.CLUSTER_NAME }}
           resource-group: ${{ steps.rg.outputs.result }}
