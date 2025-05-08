@@ -2,6 +2,7 @@ package no.fintlabs;
 
 import no.fintlabs.exceptions.LatestStatusEventNotOfTypeErrorException;
 import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
+import no.fintlabs.model.action.InstanceStatusTransferredOverrideAction;
 import no.fintlabs.model.action.ManuallyProcessedEventAction;
 import no.fintlabs.model.action.ManuallyRejectedEventAction;
 import no.fintlabs.model.event.Event;
@@ -228,7 +229,36 @@ public class HistoryController {
         try {
             return ResponseEntity.ok(manualEventCreationService.addManuallyRejectedEvent(manuallyRejectedEventAction));
         } catch (NoPreviousStatusEventsFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event not found");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event found");
+        } catch (LatestStatusEventNotOfTypeErrorException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Previous event status is not of type ERROR");
+        }
+    }
+
+    @PostMapping("events/instance-status-overridden-as-transferred")
+    public ResponseEntity<?> setInstanceStatusTransferredOverride(
+            @AuthenticationPrincipal Authentication authentication,
+            InstanceStatusTransferredOverrideAction instanceStatusTransferredOverrideAction
+
+    ) {
+        authorizationService.validateUserIsAuthorizedForSourceApplication(
+                authentication,
+                instanceStatusTransferredOverrideAction.getSourceApplicationId()
+        );
+
+        Set<ConstraintViolation<InstanceStatusTransferredOverrideAction>> constraintViolations =
+                validator.validate(instanceStatusTransferredOverrideAction);
+        if (!constraintViolations.isEmpty()) {
+            return ResponseEntity.unprocessableEntity()
+                    .body(validationErrorsFormattingService.format(constraintViolations));
+        }
+
+        try {
+            return ResponseEntity.ok(manualEventCreationService.addInstanceStatusOverriddenAsTransferredEvent(
+                    instanceStatusTransferredOverrideAction
+            ));
+        } catch (NoPreviousStatusEventsFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No previous event found");
         } catch (LatestStatusEventNotOfTypeErrorException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Previous event status is not of type ERROR");
         }

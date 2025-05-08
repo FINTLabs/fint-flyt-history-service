@@ -19,5 +19,5 @@ public interface InstanceFlowSummaryNativeProjection {
 
     String getLatestStorageStatusEventName();
 
-    String getLatestDestinationId(); // TODO 26/03/2025 eivindmorch: Rename to destinationInstanceId
+    String getDestinationInstanceIds();
 }

@@ -64,7 +64,7 @@ class InstanceFlowSummaryMappingServiceTest {
                         .latestUpdate(OffsetDateTime.of(2024, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
                         .latestStatusEventName("testStatusEventName")
                         .latestStorageStatusEventName("testStorageStatusEventName")
-                        .latestDestinationId("testDestinationId")
+                        .destinationInstanceIds("testDestinationId")
                         .build()
         );
 
@@ -83,7 +83,7 @@ class InstanceFlowSummaryMappingServiceTest {
                         .latestUpdate(OffsetDateTime.of(2024, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
                         .status(InstanceStatus.IN_PROGRESS)
                         .intermediateStorageStatus(InstanceStorageStatus.STORED)
-                        .latestDestinationId("testDestinationId")
+                        .destinationInstanceIds("testDestinationId")
                         .build()
         );
     }

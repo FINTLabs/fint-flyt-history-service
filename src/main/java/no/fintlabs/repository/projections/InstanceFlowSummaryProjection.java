@@ -20,7 +20,7 @@ public class InstanceFlowSummaryProjection {
     OffsetDateTime latestUpdate;
     String latestStatusEventName;
     String latestStorageStatusEventName;
-    String latestDestinationId; // TODO 26/03/2025 eivindmorch: Rename to destinationInstanceId
+    String destinationInstanceIds;
 
     @Override
     public String toString() {
@@ -52,7 +52,7 @@ public class InstanceFlowSummaryProjection {
                 latestStorageStatusEventName, latestStorageStatusEventName -> joiner.add("latestStorageStatusEventName=" + latestStorageStatusEventName)
         );
         JavaUtils.INSTANCE.acceptIfNotNull(
-                latestDestinationId, latestDestinationId -> joiner.add("latestDestinationId=" + latestDestinationId)
+                destinationInstanceIds, destinationInstanceIds -> joiner.add("destinationInstanceIds=" + destinationInstanceIds)
         );
         return joiner.toString();
     }

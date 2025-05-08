@@ -15,7 +15,7 @@ public class InstanceStatusSelectableMappingService {
                 .build();
     }
 
-    private String getDisplayText(InstanceStatus instanceStatus) {
+    public String getDisplayText(InstanceStatus instanceStatus) {
         return switch (instanceStatus) {
             case IN_PROGRESS -> "Under behandling";
             case TRANSFERRED -> "Overført";

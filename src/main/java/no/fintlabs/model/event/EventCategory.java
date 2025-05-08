@@ -64,6 +64,13 @@ public enum EventCategory {
             null,
             false
     ),
+    INSTANCE_STATUS_OVERRIDDEN_AS_TRANSFERRED(
+            "instance-status-overridden-as-transferred",
+            EventType.INFO,
+            InstanceStatus.TRANSFERRED,
+            null,
+            false
+    ),
     INSTANCE_RECEIVAL_ERROR(
             "instance-receival-error",
             EventType.ERROR,

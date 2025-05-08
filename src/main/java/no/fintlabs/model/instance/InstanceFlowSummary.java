@@ -28,6 +28,6 @@ public class InstanceFlowSummary {
 
     private final InstanceStorageStatus intermediateStorageStatus;
 
-    private final String latestDestinationId;
+    private final String destinationInstanceIds;
 
 }
