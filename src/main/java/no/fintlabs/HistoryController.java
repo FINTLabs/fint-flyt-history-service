@@ -238,8 +238,7 @@ public class HistoryController {
     @PostMapping("events/instance-status-overridden-as-transferred")
     public ResponseEntity<?> setInstanceStatusTransferredOverride(
             @AuthenticationPrincipal Authentication authentication,
-            InstanceStatusTransferredOverrideAction instanceStatusTransferredOverrideAction
-
+            @RequestBody InstanceStatusTransferredOverrideAction instanceStatusTransferredOverrideAction
     ) {
         authorizationService.validateUserIsAuthorizedForSourceApplication(
                 authentication,
