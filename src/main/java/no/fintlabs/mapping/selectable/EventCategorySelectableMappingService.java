@@ -8,7 +8,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class EventCategorySelectableMappingService {
 
-    InstanceStatusSelectableMappingService instanceStatusSelectableMappingService;
+    private final InstanceStatusSelectableMappingService instanceStatusSelectableMappingService;
+
+    public EventCategorySelectableMappingService(
+            InstanceStatusSelectableMappingService instanceStatusSelectableMappingService
+    ) {
+        this.instanceStatusSelectableMappingService = instanceStatusSelectableMappingService;
+    }
 
     public Selectable<String> toSelectable(EventCategory eventCategory) {
         return Selectable
