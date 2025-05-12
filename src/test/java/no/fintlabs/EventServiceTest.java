@@ -327,21 +327,17 @@ class EventServiceTest {
         when(eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
                 1L,
                 "testSourceApplicationIntegrationId",
-                "testSourceApplicationInstanceId",
-                eventNamesPerInstanceStatus
+                "testSourceApplicationInstanceId"
         )).thenReturn(List.of());
 
         Optional<String> latestArchiveInstanceId =
                 eventService.findLatestArchiveInstanceId(sourceApplicationAggregateInstanceId);
 
-        verify(eventCategorizationService, times(1)).getEventNamesPerInstanceStatus();
-
         verify(eventRepository, times(1))
                 .findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
                         1L,
                         "testSourceApplicationIntegrationId",
-                        "testSourceApplicationInstanceId",
-                        eventNamesPerInstanceStatus
+                        "testSourceApplicationInstanceId"
                 );
 
         verifyNoMoreInteractions(
@@ -383,21 +379,17 @@ class EventServiceTest {
         when(eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
                 1L,
                 "testSourceApplicationIntegrationId",
-                "testSourceApplicationInstanceId",
-                eventNamesPerInstanceStatus
+                "testSourceApplicationInstanceId"
         )).thenReturn(List.of("testArchiveInstanceId"));
 
         Optional<String> latestArchiveInstanceId =
                 eventService.findLatestArchiveInstanceId(sourceApplicationAggregateInstanceId);
 
-        verify(eventCategorizationService, times(1)).getEventNamesPerInstanceStatus();
-
         verify(eventRepository, times(1))
                 .findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
                         1L,
                         "testSourceApplicationIntegrationId",
-                        "testSourceApplicationInstanceId",
-                        eventNamesPerInstanceStatus
+                        "testSourceApplicationInstanceId"
                 );
 
         verifyNoMoreInteractions(
@@ -440,21 +432,17 @@ class EventServiceTest {
         when(eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
                 1L,
                 "testSourceApplicationIntegrationId",
-                "testSourceApplicationInstanceId",
-                eventNamesPerInstanceStatus
+                "testSourceApplicationInstanceId"
         )).thenReturn(List.of("testArchiveInstanceId1", "testArchiveInstanceId2", "testArchiveInstanceId3"));
 
         Optional<String> latestArchiveInstanceId =
                 eventService.findLatestArchiveInstanceId(sourceApplicationAggregateInstanceId);
 
-        verify(eventCategorizationService, times(1)).getEventNamesPerInstanceStatus();
-
         verify(eventRepository, times(1))
                 .findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
                         1L,
                         "testSourceApplicationIntegrationId",
-                        "testSourceApplicationInstanceId",
-                        eventNamesPerInstanceStatus
+                        "testSourceApplicationInstanceId"
                 );
 
         verifyNoMoreInteractions(

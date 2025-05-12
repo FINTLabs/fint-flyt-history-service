@@ -122,8 +122,7 @@ public class EventService {
                 eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
                         sourceApplicationAggregateInstanceId.getSourceApplicationId(),
                         sourceApplicationAggregateInstanceId.getSourceApplicationIntegrationId(),
-                        sourceApplicationAggregateInstanceId.getSourceApplicationInstanceId(),
-                        eventCategorizationService.getEventNamesPerInstanceStatus()
+                        sourceApplicationAggregateInstanceId.getSourceApplicationInstanceId()
                 );
         return archiveInstanceIdsOrderedByTimestamp.isEmpty()
                 ? Optional.empty()

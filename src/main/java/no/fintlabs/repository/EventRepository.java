@@ -362,20 +362,22 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
     //  Requires adding of replyErrorChecker in replyingKafkaTemplate and cathing the produced error
     //      Wrap this as default behaviour of FINT Kafka RequestProducer?
     @Query(value = """
-            SELECT e.instanceFlowHeaders.archiveInstanceId
-            FROM EventEntity e
-            WHERE e.type = no.fintlabs.model.event.EventType.INFO
-            AND e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId
-            AND (:sourceApplicationIntegrationId IS NULL OR e.instanceFlowHeaders.sourceApplicationIntegrationId = :sourceApplicationIntegrationId)
-            AND e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId
-            AND e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames}
-            ORDER BY e.timestamp DESC
-            """)
+            SELECT archive_instance_id
+            FROM (
+                SELECT DISTINCT (archive_instance_id), timestamp
+                FROM event
+                WHERE source_application_id = :sourceApplicationId
+                AND (:sourceApplicationIntegrationId IS NULL OR source_application_integration_id = :sourceApplicationIntegrationId)
+                AND source_application_instance_id = :sourceApplicationInstanceId
+                AND archive_instance_id IS NOT NULL
+            ) distinctArchiveInstanceIdAndTimestamp
+            ORDER BY timestamp DESC
+            """,
+            nativeQuery = true)
     List<String> findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
-            Long sourceApplicationId,
-            String sourceApplicationIntegrationId,
-            String sourceApplicationInstanceId,
-            EventNamesPerInstanceStatus eventNamesPerInstanceStatus
+            @Param("sourceApplicationId") Long sourceApplicationId,
+            @Param("sourceApplicationIntegrationId") String sourceApplicationIntegrationId,
+            @Param("sourceApplicationInstanceId") String sourceApplicationInstanceId
     );
 
     @Query(value = """
