@@ -134,6 +134,46 @@
 //        }
 //
 //        @Test
+//        void givenInstanceWithInstanceDispatchedFollowedByInstanceStatusOverriddenShouldReturnArchiveInstanceId() {
+//            eventRepository.saveAll(List.of(
+//                    EventEntity.builder()
+//                            .instanceFlowHeaders(
+//                                    InstanceFlowHeadersEmbeddable.builder()
+//                                            .sourceApplicationId(1L)
+//                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+//                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+//                                            .archiveInstanceId("testArchiveInstanceId1")
+//                                            .build()
+//                            )
+//                            .name(EventCategory.INSTANCE_DISPATCHED.getEventName())
+//                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
+//                            .type(EventType.INFO)
+//                            .build(),
+//                    EventEntity.builder()
+//                            .instanceFlowHeaders(
+//                                    InstanceFlowHeadersEmbeddable.builder()
+//                                            .sourceApplicationId(1L)
+//                                            .sourceApplicationIntegrationId("testSourceApplicationIntegrationId1")
+//                                            .sourceApplicationInstanceId("testSourceApplicationInstanceId1")
+//                                            .build()
+//                            )
+//                            .name(EventCategory.INSTANCE_STATUS_OVERRIDDEN_AS_TRANSFERRED.getEventName())
+//                            .timestamp(OffsetDateTime.of(2024, 1, 1, 12, 0, 1, 0, ZoneOffset.UTC))
+//                            .type(EventType.INFO)
+//                            .build()
+//
+//            ));
+//
+//            List<String> archiveInstanceIds = eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
+//                    1L,
+//                            "testSourceApplicationIntegrationId1",
+//                            "testSourceApplicationInstanceId1"
+//            );
+//
+//            assertThat(archiveInstanceIds).isEqualTo(List.of("testArchiveInstanceId1"));
+//        }
+//
+//        @Test
 //        public void givenEventsWithMatchingSourceApplicationAggregateInstanceId_whenCalled_thenReturnLatestStatusEvent() {
 //            eventRepository.saveAll(List.of(
 //                    EventEntity.builder()
@@ -319,8 +359,7 @@
 //                    eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
 //                            1L,
 //                            "testSourceApplicationIntegrationId2",
-//                            "testSourceApplicationInstanceId1",
-//                            eventCategorizationService.getEventNamesPerInstanceStatus()
+//                            "testSourceApplicationInstanceId1"
 //                    );
 //            assertThat(archiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc).containsExactly(
 //                    "testArchiveInstanceId5", "testArchiveInstanceId3", "testArchiveInstanceId4"
@@ -414,8 +453,7 @@
 //                    eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
 //                            1L,
 //                            null,
-//                            "testSourceApplicationInstanceId1",
-//                            eventCategorizationService.getEventNamesPerInstanceStatus()
+//                            "testSourceApplicationInstanceId1"
 //                    );
 //            assertThat(archiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc).containsExactly(
 //                    "testArchiveInstanceId5", "testArchiveInstanceId3", "testArchiveInstanceId1", "testArchiveInstanceId4"
@@ -509,8 +547,7 @@
 //                    eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
 //                            3L,
 //                            null,
-//                            "testSourceApplicationInstanceId1",
-//                            eventCategorizationService.getEventNamesPerInstanceStatus()
+//                            "testSourceApplicationInstanceId1"
 //                    );
 //            assertThat(archiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc).isEmpty();
 //        }

@@ -362,7 +362,7 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
     //  Requires adding of replyErrorChecker in replyingKafkaTemplate and cathing the produced error
     //      Wrap this as default behaviour of FINT Kafka RequestProducer?
     @Query(value = """
-            SELECT archive_instance_id
+            SELECT distinctArchiveInstanceIdAndTimestamp.archive_instance_id
             FROM (
                 SELECT DISTINCT (archive_instance_id), timestamp
                 FROM event
@@ -371,7 +371,7 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                 AND source_application_instance_id = :sourceApplicationInstanceId
                 AND archive_instance_id IS NOT NULL
             ) distinctArchiveInstanceIdAndTimestamp
-            ORDER BY timestamp DESC
+            ORDER BY distinctArchiveInstanceIdAndTimestamp.timestamp DESC
             """,
             nativeQuery = true)
     List<String> findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
