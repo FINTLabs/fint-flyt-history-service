@@ -68,7 +68,7 @@ public class Dataset {
                     .latestUpdate(OffsetDateTime.of(2024, 1, 1, 12, 30, 0, 0, ZoneOffset.UTC))
                     .latestStatusEventName(STATUS_EVENT_NAME_1)
                     .latestStorageStatusEventName(null)
-                    .latestDestinationId(null)
+                    .destinationInstanceIds(null)
                     .build()
     );
     public static final EventEntitiesAndExpectedSummary SA1_1_2 = new EventEntitiesAndExpectedSummary(
@@ -127,7 +127,7 @@ public class Dataset {
                     .latestUpdate(OffsetDateTime.of(2024, 1, 1, 13, 10, 0, 0, ZoneOffset.UTC))
                     .latestStatusEventName(STATUS_EVENT_NAME_2)
                     .latestStorageStatusEventName(STORAGE_STATUS_EVENT_NAME_1)
-                    .latestDestinationId(null)
+                    .destinationInstanceIds(null)
                     .build()
     );
     public static final EventEntitiesAndExpectedSummary SA2_2_1 = new EventEntitiesAndExpectedSummary(
@@ -171,7 +171,7 @@ public class Dataset {
                     .latestUpdate(OffsetDateTime.of(2024, 1, 1, 11, 15, 0, 0, ZoneOffset.UTC))
                     .latestStatusEventName(STATUS_EVENT_NAME_2)
                     .latestStorageStatusEventName(null)
-                    .latestDestinationId(null)
+                    .destinationInstanceIds(null)
                     .build()
     );
     public static final EventEntitiesAndExpectedSummary SA2_3_3 = new EventEntitiesAndExpectedSummary(
@@ -241,11 +241,10 @@ public class Dataset {
                     .sourceApplicationInstanceId(SA_INSTANCE_ID_3)
                     .integrationId(103L)
                     .latestInstanceId(1003L)
-                    .latestDestinationId(DESTINATION_INSTANCE_ID_1)
                     .latestUpdate(OffsetDateTime.of(2024, 1, 1, 11, 15, 20, 0, ZoneOffset.UTC))
                     .latestStatusEventName(STATUS_EVENT_NAME_3)
                     .latestStorageStatusEventName(STORAGE_STATUS_EVENT_NAME_2)
-                    .latestDestinationId(DESTINATION_INSTANCE_ID_1)
+                    .destinationInstanceIds(DESTINATION_INSTANCE_ID_1)
                     .build()
     );
     public static final EventEntitiesAndExpectedSummary SA3_4_4 = new EventEntitiesAndExpectedSummary(
@@ -261,7 +260,7 @@ public class Dataset {
                                     .instanceId(null)
                                     .build())
                             .name(STATUS_EVENT_NAME_1)
-                            .timestamp(OffsetDateTime.of(2024, 1, 1, 8, 0, 0, 0, ZoneOffset.UTC))
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 7, 50, 0, 0, ZoneOffset.UTC))
                             .type(EventType.INFO)
                             .build(),
                     EventEntity
@@ -275,7 +274,22 @@ public class Dataset {
                                     .instanceId(null)
                                     .build())
                             .name(STORAGE_STATUS_EVENT_NAME_2)
-                            .timestamp(OffsetDateTime.of(2024, 1, 1, 8, 0, 0, 0, ZoneOffset.UTC))
+                            .timestamp(OffsetDateTime.of(2024, 1, 1, 7, 55, 0, 0, ZoneOffset.UTC))
+                            .type(EventType.INFO)
+                            .build(),
+                    EventEntity
+                            .builder()
+                            .instanceFlowHeaders(InstanceFlowHeadersEmbeddable
+                                    .builder()
+                                    .sourceApplicationId(3L)
+                                    .sourceApplicationIntegrationId(SA_INTEGRATION_ID_4)
+                                    .sourceApplicationInstanceId(SA_INSTANCE_ID_4)
+                                    .integrationId(104L)
+                                    .instanceId(1004L)
+                                    .archiveInstanceId(DESTINATION_INSTANCE_ID_1)
+                                    .build())
+                            .name(STATUS_EVENT_NAME_5)
+                            .timestamp(OffsetDateTime.of(2024, 1, 2, 8, 0, 0, 0, ZoneOffset.UTC))
                             .type(EventType.INFO)
                             .build(),
                     EventEntity
@@ -292,6 +306,21 @@ public class Dataset {
                             .name(STATUS_EVENT_NAME_5)
                             .timestamp(OffsetDateTime.of(2024, 1, 2, 8, 0, 0, 1000, ZoneOffset.UTC))
                             .type(EventType.INFO)
+                            .build(),
+                    EventEntity
+                            .builder()
+                            .instanceFlowHeaders(InstanceFlowHeadersEmbeddable
+                                    .builder()
+                                    .sourceApplicationId(3L)
+                                    .sourceApplicationIntegrationId(SA_INTEGRATION_ID_4)
+                                    .sourceApplicationInstanceId(SA_INSTANCE_ID_4)
+                                    .integrationId(104L)
+                                    .instanceId(1004L)
+                                    .archiveInstanceId(DESTINATION_INSTANCE_ID_2)
+                                    .build())
+                            .name(STATUS_EVENT_NAME_5)
+                            .timestamp(OffsetDateTime.of(2024, 1, 2, 8, 0, 0, 2000, ZoneOffset.UTC))
+                            .type(EventType.INFO)
                             .build()
             ),
             InstanceFlowSummaryProjection
@@ -301,10 +330,10 @@ public class Dataset {
                     .sourceApplicationInstanceId(SA_INSTANCE_ID_4)
                     .integrationId(104L)
                     .latestInstanceId(1004L)
-                    .latestUpdate(OffsetDateTime.of(2024, 1, 2, 8, 0, 0, 1000, ZoneOffset.UTC))
+                    .latestUpdate(OffsetDateTime.of(2024, 1, 2, 8, 0, 0, 2000, ZoneOffset.UTC))
                     .latestStatusEventName(STATUS_EVENT_NAME_5)
                     .latestStorageStatusEventName(STORAGE_STATUS_EVENT_NAME_2)
-                    .latestDestinationId(DESTINATION_INSTANCE_ID_2)
+                    .destinationInstanceIds(DESTINATION_INSTANCE_ID_2 + ", " + DESTINATION_INSTANCE_ID_1)
                     .build()
     );
     public static final Set<EventEntitiesAndExpectedSummary> ALL_EVENTS_AND_EXPECTED_SUMMARIES = Set.of(

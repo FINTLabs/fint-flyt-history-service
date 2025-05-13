@@ -295,16 +295,11 @@
 //                                Set.of()
 //                        ),
 //                        new FilterPropertyTestCaseConfiguration<>(
-//                                List.of(DESTINATION_INSTANCE_ID_1),
-//                                Set.of(SA2_3_3)
-//                        )
-//                ),
-//                List.of(
-//                        new FilterPropertyTestCaseConfiguration<>(
 //                                List.of(DESTINATION_INSTANCE_ID_1, DESTINATION_INSTANCE_ID_2),
 //                                Set.of(SA2_3_3, SA3_4_4)
 //                        )
-//                )
+//                ),
+//                List.of()
 //        );
 //        List<InstanceFlowSummariesTestCase> instanceFlowSummariesTestCases =
 //                ParameterizedInstanceFlowTestCaseGenerator.combineFilterPropertyTestCases(List.of(

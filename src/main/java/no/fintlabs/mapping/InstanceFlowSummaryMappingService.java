@@ -39,7 +39,7 @@ public class InstanceFlowSummaryMappingService {
                                 .map(eventCategorizationService::getStorageStatusByEventName)
                                 .orElse(InstanceStorageStatus.NEVER_STORED)
                 )
-                .latestDestinationId(projection.getLatestDestinationId())
+                .destinationInstanceIds(projection.getDestinationInstanceIds())
                 .build();
     }
 }

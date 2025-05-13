@@ -4,6 +4,7 @@ import no.fintlabs.exceptions.LatestStatusEventNotOfTypeErrorException;
 import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
 import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
 import no.fintlabs.model.SourceApplicationAggregateInstanceId;
+import no.fintlabs.model.action.InstanceStatusTransferredOverrideAction;
 import no.fintlabs.model.action.ManuallyProcessedEventAction;
 import no.fintlabs.model.action.ManuallyRejectedEventAction;
 import no.fintlabs.model.event.Event;
@@ -48,6 +49,16 @@ public class ManualEventCreationService {
         return save(
                 manuallyRejectedEventAction,
                 EventCategory.INSTANCE_MANUALLY_REJECTED,
+                null
+        );
+    }
+
+    public Event addInstanceStatusOverriddenAsTransferredEvent(
+            InstanceStatusTransferredOverrideAction instanceStatusTransferredOverrideAction
+    ) {
+        return save(
+                instanceStatusTransferredOverrideAction,
+                EventCategory.INSTANCE_STATUS_OVERRIDDEN_AS_TRANSFERRED,
                 null
         );
     }
