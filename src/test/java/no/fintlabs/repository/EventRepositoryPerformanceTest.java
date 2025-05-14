@@ -424,8 +424,7 @@ public class EventRepositoryPerformanceTest {
                 eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
                         1L,
                         "testSourceApplicationId1",
-                        "testSourceApplicationInstanceId1",
-                        eventCategorizationService.getEventNamesPerInstanceStatus()
+                        "testSourceApplicationInstanceId1"
                 );
         Duration elapsedTime = timer.getElapsedTime();
         assertThat(archiveInstanceIdsOrderedByTimestamp).hasSize(3);
