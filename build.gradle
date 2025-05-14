@@ -22,9 +22,15 @@ test {
     useJUnitPlatform()
 }
 
-def excludePerformanceTest = tasks.register("excludePerformanceTest", Test) {
+def test = tasks.named("test") {
     useJUnitPlatform {
         excludeTags "performance"
+    }
+}
+
+def performanceTest = tasks.register("performanceTest", Test) {
+    useJUnitPlatform {
+        includeTags "performance"
     }
 }
 
