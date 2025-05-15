@@ -1,7 +1,7 @@
 name: Build and Deploy
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -152,5 +152,5 @@ jobs:
         with:
           action: deploy
           manifests: ${{ steps.bake.outputs.manifestsBundle }}
-          images: ${{ needs.build-and-push.outputs.tags }}
+          images: ${{ needs.build-and-publish.outputs.tags }}
           namespace: ${{ matrix.org }}
