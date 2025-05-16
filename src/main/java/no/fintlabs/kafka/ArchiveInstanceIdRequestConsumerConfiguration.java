@@ -23,7 +23,7 @@ public class ArchiveInstanceIdRequestConsumerConfiguration {
                 .parameterName("source-application-instance-id")
                 .build();
 
-        requestTopicService.ensureTopic(topicNameParameters, 0, TopicCleanupPolicyParameters.builder().build());
+        requestTopicService.ensureTopic(topicNameParameters, 345600000, TopicCleanupPolicyParameters.builder().build());
 
         // TODO 25/02/2025 eivindmorch: ACOS cannot send sourceApplicationIntegrationId, and it is not necessary.
         //  Make it an optional parameter, and revert to old topic name?
