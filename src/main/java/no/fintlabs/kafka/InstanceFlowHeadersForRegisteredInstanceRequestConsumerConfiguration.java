@@ -30,7 +30,7 @@ public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguratio
                 .parameterName("instance-id")
                 .build();
 
-        requestTopicService.ensureTopic(topicNameParameters, 0, TopicCleanupPolicyParameters.builder().build());
+        requestTopicService.ensureTopic(topicNameParameters, 345600000, TopicCleanupPolicyParameters.builder().build());
 
         return requestConsumerFactoryService.createRecordConsumerFactory(
                 Long.class,
