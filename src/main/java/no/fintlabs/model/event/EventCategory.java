@@ -118,6 +118,6 @@ public enum EventCategory {
     private final EventType type;
     private final InstanceStatus instanceStatus;
     private final InstanceStorageStatus instanceStorageStatus;
-    private final boolean createKafkaTopic;
+    private final boolean createKafkaListener;
 
 }

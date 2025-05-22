@@ -36,7 +36,7 @@ public class EventListenerConfiguration {
     @Bean
     public List<? extends ConcurrentMessageListenerContainer<String, ?>> eventListeners() {
         return Arrays.stream(EventCategory.values())
-                .filter(EventCategory::isCreateKafkaTopic)
+                .filter(EventCategory::isCreateKafkaListener)
                 .map(this::createEventListener)
                 .toList();
     }
