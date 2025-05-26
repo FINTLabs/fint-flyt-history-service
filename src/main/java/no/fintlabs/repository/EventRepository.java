@@ -169,7 +169,7 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                      statusEvent.timestamp                         AS latestUpdate,
                      statusEvent.name                              AS latestStatusEventName,
                      storageEvent.name                             AS latestStorageStatusEventName,
-                     array_to_string(nameAndArchiveInstanceIdAgg.archiveInstanceIds, '||')  AS destinationInstanceIds
+                     array_to_string(nameAndArchiveInstanceIdAgg.archiveInstanceIds, '||'), ''  AS destinationInstanceIds
              FROM event statusEvent
              LEFT OUTER JOIN event storageEvent
              ON statusEvent.source_application_id = storageEvent.source_application_id
