@@ -318,11 +318,14 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
                         )
                         .latestStatusEventName(nativeProjection.getLatestStatusEventName())
                         .latestStorageStatusEventName(nativeProjection.getLatestStorageStatusEventName())
-                        .destinationInstanceIds(nativeProjection.getDestinationInstanceIds().isBlank()
-                                ? null
-                                : Arrays.stream(nativeProjection.getDestinationInstanceIds().split("\\|\\|"))
-                                .distinct()
-                                .collect(Collectors.joining(", "))
+                        .destinationInstanceIds(
+                                Optional.ofNullable(nativeProjection.getDestinationInstanceIds())
+                                        .filter(s -> !s.isBlank())
+                                        .map(s -> Arrays.stream(s.split("\\|\\|"))
+                                                .distinct()
+                                                .collect(Collectors.joining(", "))
+                                        )
+                                        .orElse(null)
                         ).build()
                 ).toList();
     }
