@@ -12,7 +12,7 @@ public class InstanceReceivalErrorConfiguration {
 
     public InstanceReceivalErrorConfiguration(
             ErrorEventTopicService errorEventTopicService,
-            @Value("${fint.kafka.topic.instance-retention-ms}") long retentionMs
+            @Value("${fint.flyt.history-service.kafka.topic.instance-processing-events-retention-time-ms}") long retentionMs
     ) {
         ErrorEventTopicNameParameters instanceProcessingErrorTopicNameParameters = ErrorEventTopicNameParameters.builder()
                 .errorEventName(INSTANCE_RECEIVAL_ERROR.getEventName())

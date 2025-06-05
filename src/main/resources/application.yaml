@@ -1,5 +1,10 @@
 fint:
   application-id: fint-flyt-history-service
+  flyt:
+    history-service:
+      kafka:
+        topic:
+          instance-processing-events-retention-time-ms: 345600000
 server:
   max-http-header-size: 40KB
 spring:
