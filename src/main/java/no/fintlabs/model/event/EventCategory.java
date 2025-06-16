@@ -41,7 +41,7 @@ public enum EventCategory {
             EventType.INFO,
             InstanceStatus.IN_PROGRESS,
             null,
-            true
+            false
     ),
     INSTANCE_DISPATCHED(
             "instance-dispatched",
