@@ -31,7 +31,6 @@ import java.util.function.Function;
 
 import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
 
-// TODO 09/04/2025 eivindmorch: Test
 @RestController
 @RequestMapping(INTERNAL_API + "/instance-flow-tracking")
 public class HistoryController {
@@ -180,9 +179,6 @@ public class HistoryController {
         );
     }
 
-    // TODO 04/12/2024 eivindmorch: Ved dispatched/manual burde vi slette alle instanser som har samme SA, SAIntId, SAInstId
-    //  Aggregere alle instanceId og fileId som ligger i history med den kobinasjonen av SA, SAIntId, SAInstId
-    //  Da trenger vi ikke kopiere headers for manuelle eventer her
     @PostMapping("events/instance-manually-processed")
     public ResponseEntity<?> setManuallyProcessed(
             @AuthenticationPrincipal Authentication authentication,

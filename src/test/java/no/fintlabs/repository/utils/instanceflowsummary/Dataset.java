@@ -122,8 +122,7 @@ public class Dataset {
                     .sourceApplicationIntegrationId(SA_INTEGRATION_ID_1)
                     .sourceApplicationInstanceId(SA_INSTANCE_ID_2)
                     .integrationId(101L)
-                    .latestInstanceId(null) // TODO 02/04/2025 eivindmorch: Should this be set by storage event as well?
-                    // TODO 02/04/2025 eivindmorch: Endre repo query til å være: Finn storage og statusEvent, finn ut hvilken av de som er siste, velg headere fra den siste og status og storageStatus fra de to individuelt
+                    .latestInstanceId(null)
                     .latestUpdate(OffsetDateTime.of(2024, 1, 1, 13, 10, 0, 0, ZoneOffset.UTC))
                     .latestStatusEventName(STATUS_EVENT_NAME_2)
                     .latestStorageStatusEventName(STORAGE_STATUS_EVENT_NAME_1)
