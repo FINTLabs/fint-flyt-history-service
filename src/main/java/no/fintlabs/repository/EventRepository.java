@@ -360,10 +360,6 @@ public interface EventRepository extends JpaRepository<EventEntity, Long> {
 
     Optional<EventEntity> findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(Long instanceId, String name);
 
-    // TODO 12/12/2024 eivindmorch: Send error message when duplicates? Should me manually unlinked from destination
-    //      ids until only one remains. Unsafe to assume last is the valid one.
-    //  Requires adding of replyErrorChecker in replyingKafkaTemplate and cathing the produced error
-    //      Wrap this as default behaviour of FINT Kafka RequestProducer?
     @Query(value = """
             SELECT distinctArchiveInstanceIdAndTimestamp.archive_instance_id
             FROM (

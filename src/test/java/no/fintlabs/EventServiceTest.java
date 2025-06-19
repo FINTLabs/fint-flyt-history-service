@@ -572,7 +572,6 @@ class EventServiceTest {
         assertThat(latestStatusEventBySourceApplicationAggregateInstanceId.get()).isEqualTo(event);
     }
 
-    // TODO 08/04/2025 eivindmorch: Test names
     @Test
     void whenGetStatistics_thenInvoke() {
         List<Long> sourceApplicationIds = mock(List.class);
