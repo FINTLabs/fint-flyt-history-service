@@ -38,10 +38,8 @@ def performanceTest = tasks.register("performanceTest", Test) {
 
 repositories {
     mavenCentral()
-    repositories {
-        maven {
-            url "https://repo.fintlabs.no/releases"
-        }
+    maven {
+        url "https://repo.fintlabs.no/releases"
     }
     mavenLocal()
 }
@@ -54,7 +52,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'no.fintlabs:fint-flyt-resource-server:5.1.1'
 
-    implementation 'io.hypersistence:hypersistence-utils-hibernate-55:3.9.0'
+    implementation 'io.hypersistence:hypersistence-utils-hibernate-55:3.9.5'
 
     implementation 'javax.validation:validation-api'
     implementation 'org.hibernate.validator:hibernate-validator'
