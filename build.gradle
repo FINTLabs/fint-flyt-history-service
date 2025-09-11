@@ -49,10 +49,10 @@ repositories {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
-    implementation 'io.netty:netty-resolver-dns-native-macos:4.1.75.Final:osx-aarch_64'
+    implementation 'io.netty:netty-resolver-dns-native-macos:4.2.6.Final:osx-aarch_64'
 
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    implementation 'no.fintlabs:fint-flyt-resource-server:5.1.0'
+    implementation 'no.fintlabs:fint-flyt-resource-server:5.1.1'
 
     implementation 'io.hypersistence:hypersistence-utils-hibernate-55:3.9.0'
 
@@ -60,8 +60,8 @@ dependencies {
     implementation 'org.hibernate.validator:hibernate-validator'
 
     implementation 'org.springframework.kafka:spring-kafka'
-    implementation 'no.fintlabs:fint-kafka:4.0.1'
-    implementation 'no.fintlabs:fint-flyt-kafka:3.1.1'
+    implementation 'no.fintlabs:fint-kafka:4.0.3'
+    implementation 'no.fintlabs:fint-flyt-kafka:3.1.2'
 
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.flywaydb:flyway-core'
