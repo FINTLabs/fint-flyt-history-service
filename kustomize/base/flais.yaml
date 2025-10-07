@@ -61,6 +61,7 @@ spec:
   observability:
     metrics:
       enabled: true
+      port: "8080"
       path: /actuator/prometheus
   restartPolicy: Always
   replicas: 1
