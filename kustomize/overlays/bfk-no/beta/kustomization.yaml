@@ -37,6 +37,9 @@ patches:
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/beta/bfk-no/actuator/health"
+      - op: replace
+        path: "/spec/observability/metrics/path"
+        value: "/beta/bfk-no/actuator/prometheus"
 
     target:
       kind: Application
