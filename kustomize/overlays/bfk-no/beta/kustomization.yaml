@@ -31,8 +31,8 @@ patches:
             "bfk.no":["https://role-catalog.vigoiks.no/vigo/flyt/user"],
             "viken.no":["https://role-catalog.vigoiks.no/vigo/flyt/user"],
             "frid-iks.no":["https://role-catalog.vigoiks.no/vigo/flyt/user"],
-            "vigo.no":["https://role-catalog.vigoiks.no/vigo/flyt/developer"],
-            "novari.no":["https://role-catalog.vigoiks.no/vigo/flyt/developer"]
+            "vigo.no":["https://role-catalog.vigoiks.no/vigo/flyt/developer", "https://role-catalog.vigoiks.no/vigo/flyt/user"],
+            "novari.no":["https://role-catalog.vigoiks.no/vigo/flyt/developer", "https://role-catalog.vigoiks.no/vigo/flyt/user"]
           }
       - op: replace
         path: "/spec/probes/readiness/path"
