@@ -43,6 +43,8 @@ patches:
       - op: replace
         path: "/spec/observability/metrics/path"
         value: "/afk-no/actuator/prometheus"
+
     target:
       kind: Application
       name: fint-flyt-history-service
+
