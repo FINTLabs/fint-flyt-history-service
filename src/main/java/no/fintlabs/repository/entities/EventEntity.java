@@ -1,11 +1,11 @@
 package no.fintlabs.repository.entities;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.*;
 import lombok.*;
 import lombok.extern.jackson.Jacksonized;
 import no.fintlabs.model.event.EventType;
 
-import javax.persistence.*;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collection;

@@ -12,8 +12,8 @@ import no.fintlabs.repository.filters.TimeQueryFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import javax.validation.ConstraintViolation;
-import javax.validation.Validator;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;

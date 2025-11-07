@@ -1,8 +1,8 @@
 plugins {
-    id 'org.springframework.boot' version '2.7.18'
+    id 'org.springframework.boot' version '3.5.7'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'java'
-    id 'com.github.ben-manes.versions' version '0.52.0'
+    id 'com.github.ben-manes.versions' version '0.53.0'
 }
 
 group = 'no.fintlabs'
@@ -10,7 +10,7 @@ version = '0.0.1-SNAPSHOT'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
@@ -47,23 +47,23 @@ repositories {
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
-    implementation 'io.netty:netty-resolver-dns-native-macos:4.2.6.Final:osx-aarch_64'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
 
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    implementation 'no.fintlabs:fint-flyt-resource-server:5.1.1'
+    implementation 'no.fintlabs:novari-flyt-resource-server:6.0.0-rc-13'
 
-    implementation 'io.hypersistence:hypersistence-utils-hibernate-55:3.9.5'
+    implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.11.0'
 
-    implementation 'javax.validation:validation-api'
     implementation 'org.hibernate.validator:hibernate-validator'
 
     implementation 'org.springframework.kafka:spring-kafka'
-    implementation 'no.fintlabs:fint-kafka:4.0.3'
-    implementation 'no.fintlabs:fint-flyt-kafka:3.1.2'
+    implementation 'no.fintlabs:fint-kafka:5.0.0-rc-15'
+    implementation 'no.fintlabs:fint-flyt-kafka:4.0.0-rc-2'
 
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.flywaydb:flyway-core'
-    implementation 'org.postgresql:postgresql:42.7.7'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly 'org.postgresql:postgresql'
 
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
@@ -75,7 +75,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'cglib:cglib-nodep:3.3.0'
-    testImplementation(platform("org.testcontainers:testcontainers-bom:1.21.3"))
+    testImplementation(platform("org.testcontainers:testcontainers-bom:2.0.1"))
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
 }

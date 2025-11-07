@@ -1,6 +1,6 @@
 package no.fintlabs;
 
-import no.fintlabs.resourceserver.security.user.UserAuthorizationUtil;
+import no.novari.flyt.resourceserver.security.user.UserAuthorizationService;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 
@@ -12,12 +12,18 @@ import java.util.Set;
 @Service
 public class AuthorizationService {
 
+    private final UserAuthorizationService userAuthorizationService;
+
+    public AuthorizationService(UserAuthorizationService userAuthorizationService) {
+        this.userAuthorizationService = userAuthorizationService;
+    }
+
     public void validateUserIsAuthorizedForSourceApplication(Authentication authentication, Long sourceApplicationId) {
-        UserAuthorizationUtil.checkIfUserHasAccessToSourceApplication(authentication, sourceApplicationId);
+        userAuthorizationService.checkIfUserHasAccessToSourceApplication(authentication, sourceApplicationId);
     }
 
     public Set<Long> getUserAuthorizedSourceApplicationIds(Authentication authentication) {
-        return new HashSet<>(UserAuthorizationUtil.convertSourceApplicationIdsStringToList(authentication));
+        return new HashSet<>(userAuthorizationService.getUserAuthorizedSourceApplicationIds(authentication));
     }
 
     public Set<Long> getIntersectionWithAuthorizedSourceApplicationIds(

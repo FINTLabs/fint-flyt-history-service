@@ -1,6 +1,6 @@
 package no.fintlabs;
 
-import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
+import no.fintlabs.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.fintlabs.mapping.InstanceFlowHeadersMappingService;
 import no.fintlabs.repository.entities.InstanceFlowHeadersEmbeddable;
 import org.junit.jupiter.api.Test;

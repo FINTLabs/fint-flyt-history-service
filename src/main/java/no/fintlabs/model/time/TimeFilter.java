@@ -1,10 +1,9 @@
 package no.fintlabs.model.time;
 
+import jakarta.validation.Valid;
 import lombok.*;
 import no.fintlabs.model.instance.ActiveTimePeriod;
 import no.fintlabs.validation.OnlyOneTimeFilterType;
-
-import javax.validation.Valid;
 
 @Getter
 @Setter

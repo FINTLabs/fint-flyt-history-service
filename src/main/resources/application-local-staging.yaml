@@ -8,9 +8,11 @@ fint:
         api:
           internal:
             enabled: true
-            authorized-org-id-role-pairs-json: "{\"vigo.no\":[\"https://role-catalog.vigoiks.no/vigo/flyt/developer\"]}"
+            authorized-org-id-role-pairs-json: "{\"vigo.no\":[\"DEVELOPER\", \"USER\"]}"
   kafka:
     default-replicas: 1
+    topic:
+      org-id: fintlabs-no
 spring:
   kafka:
     bootstrap-servers: localhost:9092

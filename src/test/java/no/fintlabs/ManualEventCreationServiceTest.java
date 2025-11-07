@@ -2,7 +2,7 @@ package no.fintlabs;
 
 import no.fintlabs.exceptions.LatestStatusEventNotOfTypeErrorException;
 import no.fintlabs.exceptions.NoPreviousStatusEventsFoundException;
-import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
+import no.fintlabs.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.fintlabs.model.SourceApplicationAggregateInstanceId;
 import no.fintlabs.model.event.Event;
 import no.fintlabs.model.event.EventCategory;

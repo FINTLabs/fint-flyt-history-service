@@ -1,5 +1,6 @@
 package no.fintlabs;
 
+import no.novari.flyt.resourceserver.security.user.UserAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
@@ -17,10 +18,12 @@ import static org.mockito.Mockito.when;
 class AuthorizationServiceTest {
 
     AuthorizationService authorizationService;
+    UserAuthorizationService userAuthorizationService;
 
     @BeforeEach
     public void setup() {
-        authorizationService = new AuthorizationService();
+        userAuthorizationService = mock(UserAuthorizationService.class);
+        authorizationService = new AuthorizationService(userAuthorizationService);
     }
 
     @Test
@@ -71,6 +74,8 @@ class AuthorizationServiceTest {
         Jwt jwt = mock(Jwt.class);
         when(jwt.getClaimAsString("sourceApplicationIds")).thenReturn(sourceApplicationsClaimAsString);
         when(authentication.getPrincipal()).thenReturn(jwt);
+        when(userAuthorizationService.getUserAuthorizedSourceApplicationIds(authentication))
+                .thenReturn(Set.of(sourceApplicationIds));
         return authentication;
     }
 

@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.*;
 import lombok.extern.jackson.Jacksonized;
 
-import javax.persistence.*;
+import jakarta.persistence.*;
 import java.util.Map;
 
 @Getter

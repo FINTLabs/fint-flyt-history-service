@@ -2,8 +2,8 @@ package no.fintlabs.validation;
 
 import no.fintlabs.model.instance.InstanceFlowSummariesFilter;
 
-import javax.validation.ConstraintValidator;
-import javax.validation.ConstraintValidatorContext;
+import jakarta.validation.ConstraintValidator;
+import jakarta.validation.ConstraintValidatorContext;
 import java.util.Objects;
 
 public class OnlyOneStatusFilterValidator implements ConstraintValidator<OnlyOneStatusFilter, InstanceFlowSummariesFilter> {

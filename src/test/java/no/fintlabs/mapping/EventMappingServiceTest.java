@@ -1,6 +1,6 @@
 package no.fintlabs.mapping;
 
-import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
+import no.fintlabs.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.fintlabs.model.event.Event;
 import no.fintlabs.model.event.EventCategorizationService;
 import no.fintlabs.model.event.EventCategory;
@@ -122,7 +122,7 @@ class EventMappingServiceTest {
         );
         verifyNoMoreInteractions(instanceFlowHeadersMappingService, eventCategorizationService);
         assertThat(eventPage).hasSize(1);
-        Event event = eventPage.getContent().get(0);
+        Event event = eventPage.getContent().getFirst();
         assertThat(event).hasAllNullFieldsOrPropertiesExcept("errors");
         assertThat(event.getErrors()).isEmpty();
     }
@@ -166,7 +166,7 @@ class EventMappingServiceTest {
         verifyNoMoreInteractions(instanceFlowHeadersMappingService, eventCategorizationService);
 
         assertThat(eventPage).hasSize(1);
-        Event event = eventPage.getContent().get(0);
+        Event event = eventPage.getContent().getFirst();
         assertThat(event.getInstanceFlowHeaders()).isSameAs(instanceFlowHeaders);
         assertThat(event.getCategory()).isEqualTo(EventCategory.INSTANCE_DISPATCHED);
         assertThat(event.getTimestamp()).isEqualTo(offsetDateTime);

@@ -1,5 +1,7 @@
 package no.fintlabs.mapping;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import no.fintlabs.model.event.EventCategorizationService;
 import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.model.instance.InstanceFlowSummariesFilter;
@@ -8,8 +10,6 @@ import no.fintlabs.repository.filters.InstanceFlowSummariesQueryFilter;
 import no.fintlabs.repository.filters.InstanceStorageStatusQueryFilter;
 import org.springframework.stereotype.Service;
 
-import javax.validation.ConstraintViolation;
-import javax.validation.Validator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;

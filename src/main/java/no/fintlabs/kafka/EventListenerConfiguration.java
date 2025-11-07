@@ -1,11 +1,16 @@
 package no.fintlabs.kafka;
 
 import lombok.AllArgsConstructor;
-import no.fintlabs.flyt.kafka.event.InstanceFlowEventConsumerFactoryService;
-import no.fintlabs.flyt.kafka.event.error.InstanceFlowErrorEventConsumerFactoryService;
-import no.fintlabs.kafka.event.error.ErrorCollection;
-import no.fintlabs.kafka.event.error.topic.ErrorEventTopicNameParameters;
-import no.fintlabs.kafka.event.topic.EventTopicNameParameters;
+import no.fintlabs.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService;
+import no.fintlabs.kafka.consuming.ErrorHandlerConfiguration;
+import no.fintlabs.kafka.consuming.ErrorHandlerFactory;
+import no.fintlabs.kafka.consuming.ListenerConfiguration;
+import no.fintlabs.kafka.interceptors.OriginHeaderProducerInterceptor;
+import no.fintlabs.kafka.model.Error;
+import no.fintlabs.kafka.model.ErrorCollection;
+import no.fintlabs.kafka.topic.name.ErrorEventTopicNameParameters;
+import no.fintlabs.kafka.topic.name.EventTopicNameParameters;
+import no.fintlabs.kafka.topic.name.TopicNamePrefixParameters;
 import no.fintlabs.mapping.InstanceFlowHeadersMappingService;
 import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.model.event.EventType;
@@ -29,9 +34,9 @@ import java.util.stream.Collectors;
 public class EventListenerConfiguration {
 
     private final EventRepository eventRepository;
-    private final InstanceFlowErrorEventConsumerFactoryService instanceFlowErrorEventConsumerFactoryService;
-    private final InstanceFlowEventConsumerFactoryService instanceFlowEventConsumerFactoryService;
+    private final InstanceFlowListenerFactoryService instanceFlowListenerFactoryService;
     private final InstanceFlowHeadersMappingService instanceFlowHeadersMappingService;
+    private final ErrorHandlerFactory errorHandlerFactory;
 
     @Bean
     public List<? extends ConcurrentMessageListenerContainer<String, ?>> eventListeners() {
@@ -49,7 +54,7 @@ public class EventListenerConfiguration {
     }
 
     private ConcurrentMessageListenerContainer<String, Object> createInfoEventListener(EventCategory category) {
-        return instanceFlowEventConsumerFactoryService.createRecordFactory(
+        return instanceFlowListenerFactoryService.createRecordListenerContainerFactory(
                 Object.class,
                 instanceFlowConsumerRecord -> {
                     EventEntity eventEntity = new EventEntity();
@@ -70,16 +75,38 @@ public class EventListenerConfiguration {
                             StandardCharsets.UTF_8
                     ));
                     eventRepository.save(eventEntity);
-                }
+                },
+                ListenerConfiguration
+                        .stepBuilder()
+                        .groupIdApplicationDefault()
+                        .maxPollRecordsKafkaDefault()
+                        .maxPollIntervalKafkaDefault()
+                        .continueFromPreviousOffsetOnAssignment()
+                        .build(),
+                errorHandlerFactory.createErrorHandler(
+                        ErrorHandlerConfiguration
+                                .stepBuilder()
+                                .noRetries()
+                                .skipFailedRecords()
+                                .build()
+                )
         ).createContainer(
                 EventTopicNameParameters.builder()
                         .eventName(category.getEventName())
+                        .topicNamePrefixParameters(
+                                TopicNamePrefixParameters
+                                        .builder()
+                                        .orgIdApplicationDefault()
+                                        .domainContextApplicationDefault()
+                                        .build()
+                        )
                         .build()
         );
     }
 
     private ConcurrentMessageListenerContainer<String, ErrorCollection> createErrorEventListener(EventCategory eventCategory) {
-        return instanceFlowErrorEventConsumerFactoryService.createRecordFactory(
+        return instanceFlowListenerFactoryService.createRecordListenerContainerFactory(
+                ErrorCollection.class,
                 instanceFlowConsumerRecord -> {
                     EventEntity eventEntity = new EventEntity();
                     eventEntity.setInstanceFlowHeaders(
@@ -100,7 +127,21 @@ public class EventListenerConfiguration {
                             StandardCharsets.UTF_8
                     ));
                     eventRepository.save(eventEntity);
-                }
+                },
+                ListenerConfiguration
+                        .stepBuilder()
+                        .groupIdApplicationDefault()
+                        .maxPollRecordsKafkaDefault()
+                        .maxPollIntervalKafkaDefault()
+                        .continueFromPreviousOffsetOnAssignment()
+                        .build(),
+                errorHandlerFactory.createErrorHandler(
+                        ErrorHandlerConfiguration
+                                .stepBuilder()
+                                .noRetries()
+                                .skipFailedRecords()
+                                .build()
+                )
         ).createContainer(createErrorEventTopicNameParameters(eventCategory.getEventName()));
     }
 
@@ -108,7 +149,7 @@ public class EventListenerConfiguration {
         return errorCollection.getErrors().stream().map(this::mapToErrorEntity).collect(Collectors.toList());
     }
 
-    private ErrorEntity mapToErrorEntity(no.fintlabs.kafka.event.error.Error errorFromEvent) {
+    private ErrorEntity mapToErrorEntity(Error errorFromEvent) {
         ErrorEntity error = new ErrorEntity();
         error.setErrorCode(errorFromEvent.getErrorCode());
         error.setArgs(errorFromEvent.getArgs());
@@ -118,6 +159,13 @@ public class EventListenerConfiguration {
     private ErrorEventTopicNameParameters createErrorEventTopicNameParameters(String errorEventName) {
         return ErrorEventTopicNameParameters.builder()
                 .errorEventName(errorEventName)
+                .topicNamePrefixParameters(
+                        TopicNamePrefixParameters
+                                .builder()
+                                .orgIdApplicationDefault()
+                                .domainContextApplicationDefault()
+                                .build()
+                )
                 .build();
     }
 }

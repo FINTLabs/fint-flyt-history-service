@@ -1,13 +1,13 @@
 package no.fintlabs.model.instance;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 import no.fintlabs.model.event.EventCategory;
 import no.fintlabs.model.time.TimeFilter;
 import no.fintlabs.validation.OnlyOneStatusFilter;
 
-import javax.validation.Valid;
-import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
 import java.time.ZoneId;
 import java.util.Collection;
 

@@ -3,7 +3,7 @@ package no.fintlabs.validation;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.support.WebExchangeBindException;
 
-import javax.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolation;
 import java.util.Set;
 import java.util.stream.Collectors;
 

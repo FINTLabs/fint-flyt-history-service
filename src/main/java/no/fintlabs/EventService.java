@@ -1,6 +1,6 @@
 package no.fintlabs;
 
-import no.fintlabs.flyt.kafka.headers.InstanceFlowHeaders;
+import no.fintlabs.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.fintlabs.mapping.*;
 import no.fintlabs.model.SourceApplicationAggregateInstanceId;
 import no.fintlabs.model.event.Event;
@@ -126,7 +126,7 @@ public class EventService {
                 );
         return archiveInstanceIdsOrderedByTimestamp.isEmpty()
                 ? Optional.empty()
-                : Optional.of(archiveInstanceIdsOrderedByTimestamp.get(0));
+                : Optional.of(archiveInstanceIdsOrderedByTimestamp.getFirst());
     }
 
     public Optional<Event> findLatestStatusEventBySourceApplicationAggregateInstanceId(

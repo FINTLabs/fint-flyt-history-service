@@ -1,5 +1,7 @@
 package no.fintlabs.mapping;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import no.fintlabs.model.instance.ActiveTimePeriod;
 import no.fintlabs.model.time.ManualTimeFilter;
 import no.fintlabs.model.time.OffsetTimeFilter;
@@ -7,8 +9,6 @@ import no.fintlabs.model.time.TimeFilter;
 import no.fintlabs.repository.filters.TimeQueryFilter;
 import org.springframework.stereotype.Service;
 
-import javax.validation.ConstraintViolation;
-import javax.validation.Validator;
 import java.time.*;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Objects;

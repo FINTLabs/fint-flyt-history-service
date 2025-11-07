@@ -1,9 +1,8 @@
 package no.fintlabs.model.time;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.*;
-
-import javax.validation.constraints.PositiveOrZero;
 
 @Getter
 @Setter

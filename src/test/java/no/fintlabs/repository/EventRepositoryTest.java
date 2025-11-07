@@ -53,7 +53,7 @@ public class EventRepositoryTest {
     EventCategorizationService eventCategorizationService = new EventCategorizationService();
 
     @Container
-    static PostgreSQLContainer<?> postgreSQLContainer = new PostgreSQLContainer<>("postgres:16")
+    static PostgreSQLContainer<?> postgreSQLContainer = new PostgreSQLContainer<>("postgres:17")
             .withUrlParam("reWriteBatchedInserts", "true")
             .withCreateContainerCmdModifier(createContainerCmd ->
                     Objects.requireNonNull(createContainerCmd.getHostConfig())
@@ -933,7 +933,7 @@ public class EventRepositoryTest {
             );
 
             assertThat(integrationStatistics).hasSize(1);
-            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().getFirst();
             assertThat(integrationStatistic.getIntegrationId()).isEqualTo(1);
             assertThat(integrationStatistic.getTotal()).isEqualTo(1);
             assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
@@ -971,7 +971,7 @@ public class EventRepositoryTest {
             );
 
             assertThat(integrationStatistics).hasSize(1);
-            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().getFirst();
             assertThat(integrationStatistic.getIntegrationId()).isEqualTo(1);
             assertThat(integrationStatistic.getTotal()).isEqualTo(1);
             assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
@@ -1009,7 +1009,7 @@ public class EventRepositoryTest {
             );
 
             assertThat(integrationStatistics).hasSize(1);
-            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().getFirst();
             assertThat(integrationStatistic.getIntegrationId()).isEqualTo(1);
             assertThat(integrationStatistic.getTotal()).isEqualTo(1);
             assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
@@ -1058,7 +1058,7 @@ public class EventRepositoryTest {
             );
 
             assertThat(integrationStatistics).hasSize(1);
-            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().getFirst();
             assertThat(integrationStatistic.getIntegrationId()).isEqualTo(2);
             assertThat(integrationStatistic.getTotal()).isEqualTo(1);
             assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
@@ -1107,7 +1107,7 @@ public class EventRepositoryTest {
             );
 
             assertThat(integrationStatistics).hasSize(1);
-            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().getFirst();
             assertThat(integrationStatistic.getIntegrationId()).isEqualTo(2);
             assertThat(integrationStatistic.getTotal()).isEqualTo(1);
             assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
@@ -1156,7 +1156,7 @@ public class EventRepositoryTest {
             );
 
             assertThat(integrationStatistics).hasSize(1);
-            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().get(0);
+            IntegrationStatisticsProjection integrationStatistic = integrationStatistics.getContent().getFirst();
             assertThat(integrationStatistic.getIntegrationId()).isEqualTo(2);
             assertThat(integrationStatistic.getTotal()).isEqualTo(1);
             assertThat(integrationStatistic.getInProgress()).isEqualTo(1);
@@ -1284,7 +1284,7 @@ public class EventRepositoryTest {
                     .sorted(Comparator.comparing(IntegrationStatisticsProjection::getIntegrationId))
                     .toList();
 
-            IntegrationStatisticsProjection integrationStatistics0 = integrationStatisticsSorted.get(0);
+            IntegrationStatisticsProjection integrationStatistics0 = integrationStatisticsSorted.getFirst();
             assertThat(integrationStatistics0.getIntegrationId()).isEqualTo(1);
             assertThat(integrationStatistics0.getTotal()).isEqualTo(1);
             assertThat(integrationStatistics0.getInProgress()).isEqualTo(1);

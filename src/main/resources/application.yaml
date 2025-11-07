@@ -4,9 +4,12 @@ fint:
     history-service:
       kafka:
         topic:
-          instance-processing-events-retention-time-ms: 345600000
+          instance-processing-events-retention-time: "4d"
+  cache:
+    defaultCacheEntryTimeToLiveMillis: 600000
+    defaultCacheHeapSize: 1000000
 server:
-  max-http-header-size: 40KB
+  max-http-request-header-size: 40KB
 spring:
   jackson:
     time-zone: UTC

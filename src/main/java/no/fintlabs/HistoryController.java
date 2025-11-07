@@ -22,14 +22,14 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.support.WebExchangeBindException;
 
-import javax.validation.ConstraintViolation;
-import javax.validation.Validator;
-import javax.validation.ValidatorFactory;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
 
-import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
+import static no.novari.flyt.resourceserver.UrlPaths.INTERNAL_API;
 
 @RestController
 @RequestMapping(INTERNAL_API + "/instance-flow-tracking")

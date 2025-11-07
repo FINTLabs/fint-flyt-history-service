@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static no.fintlabs.resourceserver.UrlPaths.INTERNAL_API;
+import static no.novari.flyt.resourceserver.UrlPaths.INTERNAL_API;
 
 @RestController
 @RequestMapping(INTERNAL_API + "/instance-flow-tracking/value-space")
