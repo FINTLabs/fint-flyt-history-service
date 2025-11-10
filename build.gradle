@@ -50,7 +50,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    implementation 'no.fintlabs:novari-flyt-resource-server:6.0.0-rc-14'
+    implementation 'no.fintlabs:novari-flyt-resource-server:6.0.0-rc-15'
 
     implementation 'io.hypersistence:hypersistence-utils-hibernate-63:3.11.0'
 
