@@ -29,7 +29,7 @@ render_authorized_role_pairs() {
     entries+=("\"${extra_org}\":[\"${USER_ROLE_URL}\"]")
   done
   entries+=("\"vigo.no\":[\"${DEVELOPER_ROLE_URL}\",\"${USER_ROLE_URL}\"]")
-  entries+=("\"novari.no\":[\"${DEVELOPER_ROLE_URL}\"\"${USER_ROLE_URL}\"]")
+  entries+=("\"novari.no\":[\"${DEVELOPER_ROLE_URL}\",\"${USER_ROLE_URL}\"]")
 
   local total="${#entries[@]}"
   printf '          {\n'

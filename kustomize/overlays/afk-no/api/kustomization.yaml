@@ -32,7 +32,7 @@ patches:
             "viken.no":["USER"],
             "frid-iks.no":["USER"],
             "vigo.no":["DEVELOPER","USER"],
-            "novari.no":["DEVELOPER""USER"]
+            "novari.no":["DEVELOPER","USER"]
           }
       - op: replace
         path: "/spec/env/4/value"
@@ -43,8 +43,6 @@ patches:
       - op: replace
         path: "/spec/observability/metrics/path"
         value: "/afk-no/actuator/prometheus"
-
     target:
       kind: Application
       name: fint-flyt-history-service
-

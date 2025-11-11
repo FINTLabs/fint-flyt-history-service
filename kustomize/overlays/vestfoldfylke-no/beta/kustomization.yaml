@@ -30,7 +30,7 @@ patches:
           {
             "vestfoldfylke.no":["USER"],
             "vigo.no":["DEVELOPER","USER"],
-            "novari.no":["DEVELOPER""USER"]
+            "novari.no":["DEVELOPER","USER"]
           }
       - op: replace
         path: "/spec/env/4/value"
