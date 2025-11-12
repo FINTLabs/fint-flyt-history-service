@@ -28,7 +28,7 @@ public class ManualEventCreationService {
     public ManualEventCreationService(
             Clock clock,
             UuidService uuidService,
-            @Value("${novari.application-id}") String applicationId,
+            @Value("${fint.application-id}") String applicationId,
             EventService eventService
     ) {
         this.clock = clock;

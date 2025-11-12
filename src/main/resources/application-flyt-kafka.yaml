@@ -2,8 +2,8 @@ novari:
   kafka:
     topic:
       domain-context: flyt
-    application-id: ${novari.application-id}
+    application-id: ${fint.application-id}
 spring:
   kafka:
     consumer:
-      group-id: ${novari.application-id}
+      group-id: ${fint.application-id}
