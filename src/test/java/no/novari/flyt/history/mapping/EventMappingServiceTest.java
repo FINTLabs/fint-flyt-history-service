@@ -1,6 +1,6 @@
 package no.novari.flyt.history.mapping;
 
-import no.fintlabs.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.novari.flyt.history.model.event.Event;
 import no.novari.flyt.history.model.event.EventCategorizationService;
 import no.novari.flyt.history.model.event.EventCategory;

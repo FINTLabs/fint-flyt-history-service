@@ -2,7 +2,7 @@ package no.novari.flyt.history;
 
 import no.novari.flyt.history.exceptions.LatestStatusEventNotOfTypeErrorException;
 import no.novari.flyt.history.exceptions.NoPreviousStatusEventsFoundException;
-import no.fintlabs.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.novari.flyt.history.model.SourceApplicationAggregateInstanceId;
 import no.novari.flyt.history.model.action.InstanceStatusTransferredOverrideAction;
 import no.novari.flyt.history.model.action.ManuallyProcessedEventAction;
@@ -28,7 +28,7 @@ public class ManualEventCreationService {
     public ManualEventCreationService(
             Clock clock,
             UuidService uuidService,
-            @Value("${fint.application-id}") String applicationId,
+            @Value("${novari.application-id}") String applicationId,
             EventService eventService
     ) {
         this.clock = clock;

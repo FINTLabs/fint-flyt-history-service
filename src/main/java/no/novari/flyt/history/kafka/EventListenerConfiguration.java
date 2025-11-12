@@ -1,16 +1,16 @@
 package no.novari.flyt.history.kafka;
 
 import lombok.AllArgsConstructor;
-import no.fintlabs.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService;
-import no.fintlabs.kafka.consuming.ErrorHandlerConfiguration;
-import no.fintlabs.kafka.consuming.ErrorHandlerFactory;
-import no.fintlabs.kafka.consuming.ListenerConfiguration;
-import no.fintlabs.kafka.interceptors.OriginHeaderProducerInterceptor;
-import no.fintlabs.kafka.model.Error;
-import no.fintlabs.kafka.model.ErrorCollection;
-import no.fintlabs.kafka.topic.name.ErrorEventTopicNameParameters;
-import no.fintlabs.kafka.topic.name.EventTopicNameParameters;
-import no.fintlabs.kafka.topic.name.TopicNamePrefixParameters;
+import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService;
+import no.novari.kafka.consuming.ErrorHandlerConfiguration;
+import no.novari.kafka.consuming.ErrorHandlerFactory;
+import no.novari.kafka.consuming.ListenerConfiguration;
+import no.novari.kafka.interceptors.OriginHeaderProducerInterceptor;
+import no.novari.kafka.model.Error;
+import no.novari.kafka.model.ErrorCollection;
+import no.novari.kafka.topic.name.ErrorEventTopicNameParameters;
+import no.novari.kafka.topic.name.EventTopicNameParameters;
+import no.novari.kafka.topic.name.TopicNamePrefixParameters;
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService;
 import no.novari.flyt.history.model.event.EventCategory;
 import no.novari.flyt.history.model.event.EventType;

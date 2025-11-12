@@ -1,10 +1,10 @@
 package no.novari.flyt.history.kafka;
 
-import no.fintlabs.kafka.topic.ErrorEventTopicService;
-import no.fintlabs.kafka.topic.configuration.EventCleanupFrequency;
-import no.fintlabs.kafka.topic.configuration.EventTopicConfiguration;
-import no.fintlabs.kafka.topic.name.ErrorEventTopicNameParameters;
-import no.fintlabs.kafka.topic.name.TopicNamePrefixParameters;
+import no.novari.kafka.topic.ErrorEventTopicService;
+import no.novari.kafka.topic.configuration.EventCleanupFrequency;
+import no.novari.kafka.topic.configuration.EventTopicConfiguration;
+import no.novari.kafka.topic.name.ErrorEventTopicNameParameters;
+import no.novari.kafka.topic.name.TopicNamePrefixParameters;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 

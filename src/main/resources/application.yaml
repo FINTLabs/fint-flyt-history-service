@@ -1,10 +1,8 @@
-fint:
+novari:
   application-id: fint-flyt-history-service
   cache:
     defaultCacheEntryTimeToLiveMillis: 600000
     defaultCacheHeapSize: 1000000
-
-novari:
   flyt:
     history-service:
       kafka:

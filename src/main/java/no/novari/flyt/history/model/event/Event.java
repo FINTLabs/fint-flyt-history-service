@@ -1,7 +1,7 @@
 package no.novari.flyt.history.model.event;
 
 import lombok.*;
-import no.fintlabs.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.novari.flyt.history.repository.entities.ErrorEntity;
 
 import java.time.OffsetDateTime;

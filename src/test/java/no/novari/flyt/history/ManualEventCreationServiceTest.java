@@ -2,7 +2,7 @@ package no.novari.flyt.history;
 
 import no.novari.flyt.history.exceptions.LatestStatusEventNotOfTypeErrorException;
 import no.novari.flyt.history.exceptions.NoPreviousStatusEventsFoundException;
-import no.fintlabs.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.novari.flyt.history.model.SourceApplicationAggregateInstanceId;
 import no.novari.flyt.history.model.event.Event;
 import no.novari.flyt.history.model.event.EventCategory;
