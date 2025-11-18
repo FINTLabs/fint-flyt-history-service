@@ -33,7 +33,7 @@ public class ArchiveInstanceIdRequestConsumerConfiguration {
                 .resourceName("archive-instance-id")
                 .topicNamePrefixParameters(
                         TopicNamePrefixParameters
-                                .builder()
+                                .stepBuilder()
                                 .orgIdApplicationDefault()
                                 .domainContextApplicationDefault()
                                 .build()

@@ -35,7 +35,7 @@ public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguratio
                 .resourceName("instance-flow-headers-for-registered-instance")
                 .topicNamePrefixParameters(
                         TopicNamePrefixParameters
-                                .builder()
+                                .stepBuilder()
                                 .orgIdApplicationDefault()
                                 .domainContextApplicationDefault()
                                 .build()

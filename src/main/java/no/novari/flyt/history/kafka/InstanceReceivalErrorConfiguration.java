@@ -23,7 +23,7 @@ public class InstanceReceivalErrorConfiguration {
                 .errorEventName(INSTANCE_RECEIVAL_ERROR.getEventName())
                 .topicNamePrefixParameters(
                         TopicNamePrefixParameters
-                                .builder()
+                                .stepBuilder()
                                 .orgIdApplicationDefault()
                                 .domainContextApplicationDefault()
                                 .build()
@@ -33,7 +33,8 @@ public class InstanceReceivalErrorConfiguration {
         errorEventTopicService.createOrModifyTopic(
                 instanceProcessingErrorTopicNameParameters,
                 EventTopicConfiguration
-                        .builder().partitions(1)
+                        .stepBuilder()
+                        .partitions(1)
                         .retentionTime(retentionTime)
                         .cleanupFrequency(EventCleanupFrequency.NORMAL)
                         .build()

@@ -1,5 +1,6 @@
+fint:
+  org-id: novari.no
 novari:
-  org-id: fintlabs.no
   flyt:
     resource-server:
       user-permissions-consumer:
@@ -7,7 +8,6 @@ novari:
       security:
         api:
           internal:
-            enabled: true
             authorized-org-id-role-pairs-json: "{\"vigo.no\":[\"DEVELOPER\", \"USER\"]}"
   kafka:
     default-replicas: 1

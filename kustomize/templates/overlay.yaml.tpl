@@ -28,9 +28,11 @@ patches:
         path: "/spec/env/1/value"
         value: |
 $AUTHORIZED_ORG_ROLE_PAIRS
-      - op: replace
-        path: "/spec/env/4/value"
-        value: "$FINT_KAFKA_TOPIC_ORG_ID"
+      - op: add
+        path: "/spec/env/-"
+        value:
+         name: "novari.kafka.topic.orgId"
+         value: "$FINT_KAFKA_TOPIC_ORG_ID"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "$READINESS_PATH"

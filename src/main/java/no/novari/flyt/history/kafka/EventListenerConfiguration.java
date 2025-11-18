@@ -95,7 +95,7 @@ public class EventListenerConfiguration {
                         .eventName(category.getEventName())
                         .topicNamePrefixParameters(
                                 TopicNamePrefixParameters
-                                        .builder()
+                                        .stepBuilder()
                                         .orgIdApplicationDefault()
                                         .domainContextApplicationDefault()
                                         .build()
@@ -161,7 +161,7 @@ public class EventListenerConfiguration {
                 .errorEventName(errorEventName)
                 .topicNamePrefixParameters(
                         TopicNamePrefixParameters
-                                .builder()
+                                .stepBuilder()
                                 .orgIdApplicationDefault()
                                 .domainContextApplicationDefault()
                                 .build()

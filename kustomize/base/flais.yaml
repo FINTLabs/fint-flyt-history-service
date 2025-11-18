@@ -39,12 +39,6 @@ spec:
         {
           "fintlabs.no":["DEVELOPER"]
         }
-    - name: novari.flyt.resource-server.security.api.internal.enabled
-      value: "true"
-    - name: novari.flyt.resource-server.user-permissions-consumer.enabled
-      value: "true"
-    - name: novari.kafka.topic.orgId
-      value: fintlabs-no
   resources:
     limits:
       memory: "1024Mi"
