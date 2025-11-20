@@ -34,11 +34,6 @@ spec:
   env:
     - name: JAVA_TOOL_OPTIONS
       value: '-XX:+ExitOnOutOfMemoryError -Xmx850M -Xms700M'
-    - name: novari.flyt.resource-server.security.api.internal.authorized-org-id-role-pairs-json
-      value: |
-        {
-          "fintlabs.no":["DEVELOPER"]
-        }
   resources:
     limits:
       memory: "1024Mi"

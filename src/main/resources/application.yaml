@@ -1,5 +1,6 @@
 fint:
   application-id: fint-flyt-history-service
+
 novari:
   flyt:
     history-service:
@@ -19,3 +20,7 @@ spring:
       - flyt-logging
       - flyt-resource-server
       - flyt-postgres
+
+  output:
+    ansi:
+      enabled: always

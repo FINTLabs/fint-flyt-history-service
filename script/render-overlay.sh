@@ -32,15 +32,15 @@ render_authorized_role_pairs() {
   entries+=("\"novari.no\":[\"${DEVELOPER_ROLE_URL}\",\"${USER_ROLE_URL}\"]")
 
   local total="${#entries[@]}"
-  printf '          {\n'
+  printf '            {\n'
   for idx in "${!entries[@]}"; do
     local comma=","
     if [[ "$idx" == "$((total - 1))" ]]; then
       comma=""
     fi
-    printf '            %s%s\n' "${entries[$idx]}" "$comma"
+    printf '              %s%s\n' "${entries[$idx]}" "$comma"
   done
-  printf '          }\n'
+  printf '            }\n'
 }
 
 choose_template() {

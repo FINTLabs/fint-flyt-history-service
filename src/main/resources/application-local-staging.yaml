@@ -1,5 +1,6 @@
 fint:
   org-id: novari.no
+
 novari:
   flyt:
     resource-server:
@@ -9,10 +10,12 @@ novari:
         api:
           internal:
             authorized-org-id-role-pairs-json: "{\"vigo.no\":[\"DEVELOPER\", \"USER\"]}"
+
   kafka:
     default-replicas: 1
     topic:
       org-id: fintlabs-no
+
 spring:
   kafka:
     bootstrap-servers: localhost:9092
