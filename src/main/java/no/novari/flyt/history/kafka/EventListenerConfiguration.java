@@ -2,12 +2,12 @@ package no.novari.flyt.history.kafka;
 
 import lombok.AllArgsConstructor;
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService;
+import no.novari.flyt.kafka.model.ErrorCollection;
+import no.novari.flyt.kafka.model.Error;
+import no.novari.kafka.OriginHeaderProducerInterceptor;
 import no.novari.kafka.consuming.ErrorHandlerConfiguration;
 import no.novari.kafka.consuming.ErrorHandlerFactory;
 import no.novari.kafka.consuming.ListenerConfiguration;
-import no.novari.kafka.interceptors.OriginHeaderProducerInterceptor;
-import no.novari.kafka.model.Error;
-import no.novari.kafka.model.ErrorCollection;
 import no.novari.kafka.topic.name.ErrorEventTopicNameParameters;
 import no.novari.kafka.topic.name.EventTopicNameParameters;
 import no.novari.kafka.topic.name.TopicNamePrefixParameters;
