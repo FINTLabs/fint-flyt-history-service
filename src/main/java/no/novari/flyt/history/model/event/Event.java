@@ -1,8 +1,13 @@
 package no.novari.flyt.history.model.event;
 
-import lombok.*;
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import no.novari.flyt.history.repository.entities.ErrorEntity;
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;

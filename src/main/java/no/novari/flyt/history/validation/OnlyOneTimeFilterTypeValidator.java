@@ -1,9 +1,9 @@
 package no.novari.flyt.history.validation;
 
-import no.novari.flyt.history.model.time.TimeFilter;
-
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
+import no.novari.flyt.history.model.time.TimeFilter;
+
 import java.util.Optional;
 import java.util.stream.Stream;
 

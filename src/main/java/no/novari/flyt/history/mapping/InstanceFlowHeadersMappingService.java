@@ -1,7 +1,7 @@
 package no.novari.flyt.history.mapping;
 
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.novari.flyt.history.repository.entities.InstanceFlowHeadersEmbeddable;
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import org.springframework.stereotype.Service;
 
 @Service

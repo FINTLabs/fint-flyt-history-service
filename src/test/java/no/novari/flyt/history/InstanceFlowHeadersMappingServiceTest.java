@@ -1,8 +1,8 @@
 package no.novari.flyt.history;
 
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService;
 import no.novari.flyt.history.repository.entities.InstanceFlowHeadersEmbeddable;
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

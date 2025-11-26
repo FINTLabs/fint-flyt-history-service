@@ -1,6 +1,5 @@
 package no.novari.flyt.history;
 
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.novari.flyt.history.mapping.EventMappingService;
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService;
 import no.novari.flyt.history.mapping.InstanceFlowSummariesFilterMappingService;
@@ -18,6 +17,7 @@ import no.novari.flyt.history.repository.entities.EventEntity;
 import no.novari.flyt.history.repository.filters.InstanceFlowSummariesQueryFilter;
 import no.novari.flyt.history.repository.projections.InstanceStatisticsProjection;
 import no.novari.flyt.history.repository.projections.IntegrationStatisticsProjection;
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;

@@ -1,9 +1,9 @@
 package no.novari.flyt.history.validation;
 
-import no.novari.flyt.history.model.instance.InstanceFlowSummariesFilter;
-
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
+import no.novari.flyt.history.model.instance.InstanceFlowSummariesFilter;
+
 import java.util.Objects;
 
 public class OnlyOneStatusFilterValidator implements ConstraintValidator<OnlyOneStatusFilter, InstanceFlowSummariesFilter> {

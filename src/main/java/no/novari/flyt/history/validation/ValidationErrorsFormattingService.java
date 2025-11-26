@@ -1,9 +1,9 @@
 package no.novari.flyt.history.validation;
 
+import jakarta.validation.ConstraintViolation;
 import org.springframework.stereotype.Service;
 import org.springframework.web.bind.support.WebExchangeBindException;
 
-import jakarta.validation.ConstraintViolation;
 import java.util.Set;
 import java.util.stream.Collectors;
 

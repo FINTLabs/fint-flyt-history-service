@@ -2,7 +2,6 @@ package no.novari.flyt.history;
 
 import no.novari.flyt.history.exceptions.LatestStatusEventNotOfTypeErrorException;
 import no.novari.flyt.history.exceptions.NoPreviousStatusEventsFoundException;
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.novari.flyt.history.model.SourceApplicationAggregateInstanceId;
 import no.novari.flyt.history.model.action.InstanceStatusTransferredOverrideAction;
 import no.novari.flyt.history.model.action.ManuallyProcessedEventAction;
@@ -10,6 +9,7 @@ import no.novari.flyt.history.model.action.ManuallyRejectedEventAction;
 import no.novari.flyt.history.model.event.Event;
 import no.novari.flyt.history.model.event.EventCategory;
 import no.novari.flyt.history.model.event.EventType;
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 

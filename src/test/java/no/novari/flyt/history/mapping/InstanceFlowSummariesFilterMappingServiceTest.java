@@ -1,5 +1,7 @@
 package no.novari.flyt.history.mapping;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import no.novari.flyt.history.model.event.EventCategorizationService;
 import no.novari.flyt.history.model.event.EventCategory;
 import no.novari.flyt.history.model.instance.InstanceFlowSummariesFilter;
@@ -12,15 +14,17 @@ import no.novari.flyt.history.repository.filters.TimeQueryFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Validator;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 class InstanceFlowSummariesFilterMappingServiceTest {
 

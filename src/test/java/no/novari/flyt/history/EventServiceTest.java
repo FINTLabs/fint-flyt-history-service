@@ -1,6 +1,5 @@
 package no.novari.flyt.history;
 
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import no.novari.flyt.history.mapping.EventMappingService;
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService;
 import no.novari.flyt.history.mapping.InstanceFlowSummariesFilterMappingService;
@@ -22,6 +21,7 @@ import no.novari.flyt.history.repository.filters.IntegrationStatisticsQueryFilte
 import no.novari.flyt.history.repository.projections.InstanceFlowSummaryProjection;
 import no.novari.flyt.history.repository.projections.InstanceStatisticsProjection;
 import no.novari.flyt.history.repository.projections.IntegrationStatisticsProjection;
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
