@@ -23,8 +23,9 @@ import java.time.Duration;
 public class InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguration {
 
     private final EventService eventService;
-    private static final Duration RETENTION_DURATION = Duration.ofMinutes(5);
     private final ErrorHandlerFactory errorHandlerFactory;
+
+    private static final Duration RETENTION_DURATION = Duration.ofMinutes(10);
 
     @Bean
     ConcurrentMessageListenerContainer<String, Long> instanceFlowHeadersForRegisteredInstanceRequestConsumer(
