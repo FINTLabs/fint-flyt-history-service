@@ -4,8 +4,6 @@ fint:
 novari:
   flyt:
     resource-server:
-      user-permissions-consumer:
-        enabled: true
       security:
         api:
           internal:
