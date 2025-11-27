@@ -1,5 +1,7 @@
 package no.novari.flyt.history.mapping;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import no.novari.flyt.history.model.instance.ActiveTimePeriod;
 import no.novari.flyt.history.model.time.ManualTimeFilter;
 import no.novari.flyt.history.model.time.OffsetTimeFilter;
@@ -8,8 +10,6 @@ import no.novari.flyt.history.repository.filters.TimeQueryFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import jakarta.validation.ConstraintViolation;
-import jakarta.validation.Validator;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;

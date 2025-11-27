@@ -1,9 +1,9 @@
 package no.novari.flyt.history.validation;
 
-import no.novari.flyt.history.model.time.ManualTimeFilter;
-
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
+import no.novari.flyt.history.model.time.ManualTimeFilter;
+
 import java.util.Optional;
 
 public class MinTimestampBeforeMaxTimestampValidator implements ConstraintValidator<MinTimestampBeforeMaxTimestamp, ManualTimeFilter> {

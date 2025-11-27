@@ -21,8 +21,9 @@ import java.time.Duration;
 @AllArgsConstructor
 public class ArchiveInstanceIdRequestConsumerConfiguration {
 
-    private static final Duration RETENTION_DURATION = Duration.ofMinutes(5);
     private final ErrorHandlerFactory errorHandlerFactory;
+
+    private static final Duration RETENTION_DURATION = Duration.ofMinutes(10);
 
     @Bean
     ConcurrentMessageListenerContainer<String, ArchiveInstanceIdRequestParams> archiveInstanceIdRequestConsumer(

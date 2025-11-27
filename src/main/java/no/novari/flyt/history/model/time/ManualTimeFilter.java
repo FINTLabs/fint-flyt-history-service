@@ -1,6 +1,10 @@
 package no.novari.flyt.history.model.time;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import no.novari.flyt.history.validation.MinTimestampBeforeMaxTimestamp;
 import org.springframework.format.annotation.DateTimeFormat;
 
