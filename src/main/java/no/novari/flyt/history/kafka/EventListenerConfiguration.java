@@ -17,6 +17,7 @@ import no.novari.kafka.consuming.ListenerConfiguration;
 import no.novari.kafka.topic.name.ErrorEventTopicNameParameters;
 import no.novari.kafka.topic.name.EventTopicNameParameters;
 import no.novari.kafka.topic.name.TopicNamePrefixParameters;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer;
@@ -26,7 +27,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Configuration
@@ -37,13 +38,22 @@ public class EventListenerConfiguration {
     private final InstanceFlowListenerFactoryService instanceFlowListenerFactoryService;
     private final InstanceFlowHeadersMappingService instanceFlowHeadersMappingService;
     private final ErrorHandlerFactory errorHandlerFactory;
+    private final ConfigurableListableBeanFactory beanFactory;
 
     @Bean
-    public List<? extends ConcurrentMessageListenerContainer<String, ?>> eventListeners() {
+    public Map<String, ConcurrentMessageListenerContainer<String, ?>> eventListenerContainers() {
         return Arrays.stream(EventCategory.values())
                 .filter(EventCategory::isCreateKafkaListener)
-                .map(this::createEventListener)
-                .toList();
+                .collect(Collectors.toMap(
+                        EventCategory::getEventName,
+                        this::registerListenerBean
+                ));
+    }
+
+    private ConcurrentMessageListenerContainer<String, ?> registerListenerBean(EventCategory category) {
+        ConcurrentMessageListenerContainer<String, ?> container = createEventListener(category);
+        beanFactory.registerSingleton("eventListener-" + category.getEventName(), container);
+        return container;
     }
 
     private ConcurrentMessageListenerContainer<String, ?> createEventListener(EventCategory eventCategory) {
