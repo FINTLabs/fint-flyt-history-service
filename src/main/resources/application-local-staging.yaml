@@ -1,16 +1,19 @@
 fint:
   org-id: fintlabs.no
+
+novari:
   flyt:
     resource-server:
-      user-permissions-consumer:
-        enabled: true
       security:
         api:
           internal:
-            enabled: true
-            authorized-org-id-role-pairs-json: "{\"vigo.no\":[\"https://role-catalog.vigoiks.no/vigo/flyt/developer\"]}"
+            authorized-org-id-role-pairs-json: "{\"vigo.no\":[\"DEVELOPER\", \"USER\"]}"
+
   kafka:
     default-replicas: 1
+    topic:
+      org-id: fintlabs-no
+
 spring:
   kafka:
     bootstrap-servers: localhost:9092
@@ -20,5 +23,6 @@ spring:
     url: jdbc:postgresql://localhost:5436/fint-flyt-history-service
     username: postgres
     password: password
+
 server:
   port: 8083

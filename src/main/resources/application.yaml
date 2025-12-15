@@ -1,12 +1,16 @@
 fint:
   application-id: fint-flyt-history-service
+
+novari:
   flyt:
     history-service:
       kafka:
         topic:
-          instance-processing-events-retention-time-ms: 345600000
+          instance-processing-events-retention-time: "4d"
+
 server:
-  max-http-header-size: 40KB
+  max-http-request-header-size: 40KB
+
 spring:
   jackson:
     time-zone: UTC
@@ -16,3 +20,7 @@ spring:
       - flyt-logging
       - flyt-resource-server
       - flyt-postgres
+
+  output:
+    ansi:
+      enabled: always

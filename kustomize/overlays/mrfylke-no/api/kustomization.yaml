@@ -24,22 +24,27 @@ patches:
       - op: replace
         path: "/spec/ingress/basePath"
         value: "/mrfylke-no/api/intern/instance-flow-tracking"
-      - op: replace
-        path: "/spec/env/1/value"
-        value: |
-          {
-            "mrfylke.no":["https://role-catalog.vigoiks.no/vigo/flyt/user"],
-            "vigo.no":["https://role-catalog.vigoiks.no/vigo/flyt/developer"],
-            "novari.no":["https://role-catalog.vigoiks.no/vigo/flyt/developer"]
-          }
+      - op: add
+        path: "/spec/env/-"
+        value:
+          name: "novari.flyt.resource-server.security.api.internal.authorized-org-id-role-pairs-json"
+          value: |
+            {
+              "mrfylke.no":["USER"],
+              "vigo.no":["DEVELOPER","USER"],
+              "novari.no":["DEVELOPER","USER"]
+            }
+      - op: add
+        path: "/spec/env/-"
+        value:
+         name: "novari.kafka.topic.orgId"
+         value: "mrfylke-no"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/mrfylke-no/actuator/health"
       - op: replace
         path: "/spec/observability/metrics/path"
         value: "/mrfylke-no/actuator/prometheus"
-
     target:
       kind: Application
       name: fint-flyt-history-service
-
