@@ -33,6 +33,7 @@ public class StatisticsMetricsPublisher {
     private static final String STATUS_TRANSFERRED = "transferred";
     private static final String STATUS_ABORTED = "aborted";
     private static final String STATUS_FAILED = "failed";
+    private static final String INTEGRATION_ID_NO_DATA = "__none__";
 
     private static final int DEFAULT_PAGE_SIZE = 500;
 
@@ -102,6 +103,16 @@ public class StatisticsMetricsPublisher {
             rows.add(MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_TRANSFERRED), safeValue(integration.getTransferred())));
             rows.add(MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_ABORTED), safeValue(integration.getAborted())));
             rows.add(MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_FAILED), safeValue(integration.getFailed())));
+        }
+        if (rows.isEmpty()) {
+            Tags baseTags = Tags.of(TAG_INTEGRATION_ID, INTEGRATION_ID_NO_DATA);
+            rows = List.of(
+                    MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_TOTAL), 0),
+                    MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_IN_PROGRESS), 0),
+                    MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_TRANSFERRED), 0),
+                    MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_ABORTED), 0),
+                    MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_FAILED), 0)
+            );
         }
 
         integrationGauge.register(rows, true);

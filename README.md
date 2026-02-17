@@ -148,6 +148,8 @@ Metrics:
 - `flyt_history_integration_count` — counts by integration and status (tags: `integration_id`, `status`)
 
 Status tag values: `total`, `in_progress`, `transferred`, `aborted`, `failed`.
+When no integration data exists yet, `flyt_history_integration_count` is published with
+`integration_id="__none__"` and zero values so dashboards can discover the metric immediately.
 
 Scrape endpoint: `/actuator/prometheus`
 
