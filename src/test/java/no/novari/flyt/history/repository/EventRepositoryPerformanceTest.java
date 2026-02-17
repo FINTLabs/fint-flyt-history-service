@@ -62,7 +62,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("performance")
 @Slf4j
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DataJpaTest(
         showSql = false,
