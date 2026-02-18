@@ -62,7 +62,7 @@ import static no.novari.flyt.history.repository.utils.instanceflowsummary.Parame
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
-@Testcontainers(disabledWithoutDocker = true)
+@Testcontainers
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
