@@ -62,12 +62,14 @@ Manual action payloads:
 
 ```json
 {
-"sourceApplicationId": 123,
-"sourceApplicationIntegrationId": "integration-42",
-"sourceApplicationInstanceId": "instance-007",
-"archiveInstanceId": "ark-abc-123" // only required for manually processed events
+  "sourceApplicationId": 123,
+  "sourceApplicationIntegrationId": "integration-42",
+  "sourceApplicationInstanceId": "instance-007",
+  "archiveInstanceId": "ark-abc-123"
 }
 ```
+
+`archiveInstanceId` is only required for manually processed events.
 
 Validation failures respond with 422 Unprocessable Entity using the shared formatting service.
 
@@ -80,7 +82,8 @@ Validation failures respond with 422 Unprocessable Entity using the shared forma
 
 ## Scheduled Tasks
 
-No scheduled jobs run in this service; it relies entirely on Kafka streams and request/reply invocations for freshness.
+`StatisticsMetricsPublisher` refreshes Prometheus statistics metrics on a fixed delay
+(`novari.flyt.history-service.metrics.refresh-ms`, default `60000` ms).
 
 ## Configuration
 
@@ -131,8 +134,26 @@ Flyway migrations run at startup; ensure the configured schema exists (local pro
 ## Observability & Operations
 
 - Actuator readiness at /actuator/health and Prometheus metrics at /actuator/prometheus (Micrometer Prometheus registry enabled).
+- Custom statistics metrics are published for Grafana dashboards (see Metrics section below).
 - Logs follow Spring defaults with Reactor context for correlation IDs; Kafka consumers attach origin app IDs for traceability.
 - Event table indexes (timestamp, composite source application keys) keep summary queries fast; Flyway migrations (src/main/resources/db/migration) manage schema evolution.
+
+## Metrics
+
+The service publishes the same statistics data from the HTTP API as Prometheus gauges for Grafana dashboards.
+
+Metrics:
+
+- `flyt_history_instance_count` — total counts by status (tags: `status`)
+- `flyt_history_integration_count` — counts by integration and status (tags: `integration_id`, `status`)
+
+Status tag values: `total`, `in_progress`, `transferred`, `aborted`, `failed`.
+When no integration data exists yet, `flyt_history_integration_count` is published with
+`integration_id="__none__"` and zero values so dashboards can discover the metric immediately.
+
+Scrape endpoint: `/actuator/prometheus`
+
+Refresh interval: `novari.flyt.history-service.metrics.refresh-ms` (default `60000`).
 
 ## Development Tips
 

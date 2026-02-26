@@ -74,7 +74,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-@ComponentScan(basePackages = {"no.fintlabs.repository.utils", "org.hibernate", "javax.persistence"})
+@ComponentScan(basePackages = {"no.novari.flyt.history.repository.utils", "org.hibernate", "javax.persistence"})
 public class EventRepositoryPerformanceTest {
 
     @Container

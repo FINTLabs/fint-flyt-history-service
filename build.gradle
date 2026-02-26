@@ -72,3 +72,8 @@ dependencies {
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
 }
+
+// Workaround for bug: https://github.com/testcontainers/testcontainers-java/issues/11212
+tasks.named('test') {
+    systemProperty("api.version", "1.44")
+}
