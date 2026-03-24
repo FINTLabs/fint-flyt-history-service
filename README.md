@@ -171,4 +171,3 @@ Refresh interval: `novari.flyt.history-service.metrics.refresh-ms` (default `600
 4. Describe any new filters, Kafka topics, or manual actions in this README to keep operators aligned.
 
 FINT Flyt History Service is maintained by the FINT Flyt team. Reach out via the internal Slack channel or open an issue in this repository with questions or enhancement ideas.
-
