@@ -78,15 +78,23 @@ class EventRepositoryInstanceFlowSummaryTest {
         filter: InstanceFlowSummariesQueryFilter,
         expectedInstanceFlowSummaries: List<InstanceFlowSummaryProjection>,
     ) {
-        val instanceFlowSummaries =
-            eventRepository.getInstanceFlowSummaries(
-                filter,
-                ALL_STATUS_EVENT_NAMES,
-                ALL_STORAGE_STATUS_EVENT_NAMES,
-                null,
-            )
+        try {
+            val instanceFlowSummaries =
+                eventRepository.getInstanceFlowSummaries(
+                    filter,
+                    ALL_STATUS_EVENT_NAMES,
+                    ALL_STORAGE_STATUS_EVENT_NAMES,
+                    null,
+                )
 
-        assertThat(instanceFlowSummaries).isEqualTo(expectedInstanceFlowSummaries)
+            assertThat(instanceFlowSummaries).isEqualTo(expectedInstanceFlowSummaries)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            generateSequence<Throwable>(e) { it.cause }.forEachIndexed { index, throwable ->
+                println("CAUSE[$index]: ${throwable::class.qualifiedName}: ${throwable.message}")
+            }
+            throw e
+        }
     }
 
     @ParameterizedTest
@@ -95,14 +103,22 @@ class EventRepositoryInstanceFlowSummaryTest {
         filter: InstanceFlowSummariesQueryFilter,
         expectedInstanceFlowSummaries: List<InstanceFlowSummaryProjection>,
     ) {
-        val instanceFlowSummariesTotalCount =
-            eventRepository.getInstanceFlowSummariesTotalCount(
-                filter,
-                ALL_STATUS_EVENT_NAMES,
-                ALL_STORAGE_STATUS_EVENT_NAMES,
-            )
+        try {
+            val instanceFlowSummariesTotalCount =
+                eventRepository.getInstanceFlowSummariesTotalCount(
+                    filter,
+                    ALL_STATUS_EVENT_NAMES,
+                    ALL_STORAGE_STATUS_EVENT_NAMES,
+                )
 
-        assertThat(instanceFlowSummariesTotalCount).isEqualTo(expectedInstanceFlowSummaries.size.toLong())
+            assertThat(instanceFlowSummariesTotalCount).isEqualTo(expectedInstanceFlowSummaries.size.toLong())
+        } catch (e: Exception) {
+            e.printStackTrace()
+            generateSequence<Throwable>(e) { it.cause }.forEachIndexed { index, throwable ->
+                println("CAUSE[$index]: ${throwable::class.qualifiedName}: ${throwable.message}")
+            }
+            throw e
+        }
     }
 
     companion object {
@@ -133,8 +149,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val sourceApplicationIdTestCases =
                 createFilterPropertyTestCases(
                     {
-                        builder: InstanceFlowSummariesQueryFilterBuilder,
-                        value: List<Long>,
+                            builder: InstanceFlowSummariesQueryFilterBuilder,
+                            value: List<Long>,
                         ->
                         builder.sourceApplicationIds(value)
                     },
@@ -150,8 +166,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val sourceApplicationIntegrationIdTestCases =
                 createFilterPropertyTestCases(
                     {
-                        builder: InstanceFlowSummariesQueryFilterBuilder,
-                        value: List<String>,
+                            builder: InstanceFlowSummariesQueryFilterBuilder,
+                            value: List<String>,
                         ->
                         builder.sourceApplicationIntegrationIds(value)
                     },
@@ -171,8 +187,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val sourceApplicationInstanceIdTestCases =
                 createFilterPropertyTestCases(
                     {
-                        builder: InstanceFlowSummariesQueryFilterBuilder,
-                        value: List<String>,
+                            builder: InstanceFlowSummariesQueryFilterBuilder,
+                            value: List<String>,
                         ->
                         builder.sourceApplicationInstanceIds(value)
                     },
@@ -192,8 +208,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val integrationIdTestCases =
                 createFilterPropertyTestCases(
                     {
-                        builder: InstanceFlowSummariesQueryFilterBuilder,
-                        value: List<Long>,
+                            builder: InstanceFlowSummariesQueryFilterBuilder,
+                            value: List<Long>,
                         ->
                         builder.integrationIds(value)
                     },
@@ -210,8 +226,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val timestampTestCases =
                 createFilterPropertyTestCases(
                     {
-                        builder: InstanceFlowSummariesQueryFilterBuilder,
-                        value: TimeQueryFilter,
+                            builder: InstanceFlowSummariesQueryFilterBuilder,
+                            value: TimeQueryFilter,
                         ->
                         builder.timeQueryFilter(value)
                     },
@@ -264,8 +280,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val statusEventNamesTestCases =
                 createFilterPropertyTestCases(
                     {
-                        builder: InstanceFlowSummariesQueryFilterBuilder,
-                        value: List<String>,
+                            builder: InstanceFlowSummariesQueryFilterBuilder,
+                            value: List<String>,
                         ->
                         builder.statusEventNames(value)
                     },
@@ -284,8 +300,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val storageStatusTestCases =
                 createFilterPropertyTestCases(
                     {
-                        builder: InstanceFlowSummariesQueryFilterBuilder,
-                        value: InstanceStorageStatusQueryFilter,
+                            builder: InstanceFlowSummariesQueryFilterBuilder,
+                            value: InstanceStorageStatusQueryFilter,
                         ->
                         builder.instanceStorageStatusQueryFilter(value)
                     },
@@ -325,8 +341,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val destinationIdTestCases =
                 createFilterPropertyTestCases(
                     {
-                        builder: InstanceFlowSummariesQueryFilterBuilder,
-                        value: List<String>,
+                            builder: InstanceFlowSummariesQueryFilterBuilder,
+                            value: List<String>,
                         ->
                         builder.destinationIds(value)
                     },

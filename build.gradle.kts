@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
+import org.gradle.api.tasks.testing.logging.TestLogEvent
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -88,6 +90,25 @@ dependencies {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+
+    testLogging {
+        events =
+            setOf(
+                TestLogEvent.FAILED,
+                TestLogEvent.STANDARD_OUT,
+                TestLogEvent.STANDARD_ERROR,
+            )
+        exceptionFormat = TestExceptionFormat.FULL
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
+    }
+
+    systemProperty("spring.jpa.show-sql", "true")
+    systemProperty("spring.jpa.properties.hibernate.format_sql", "true")
+    systemProperty("logging.level.org.hibernate.SQL", "DEBUG")
+    systemProperty("logging.level.org.hibernate.orm.jdbc.bind", "TRACE")
+    systemProperty("logging.level.org.springframework.jdbc.core", "TRACE")
 }
 
 tasks.test {
@@ -102,6 +123,25 @@ tasks.register<Test>("performanceTest") {
     useJUnitPlatform {
         includeTags("performance")
     }
+
+    testLogging {
+        events =
+            setOf(
+                TestLogEvent.FAILED,
+                TestLogEvent.STANDARD_OUT,
+                TestLogEvent.STANDARD_ERROR,
+            )
+        exceptionFormat = TestExceptionFormat.FULL
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
+    }
+
+    systemProperty("spring.jpa.show-sql", "true")
+    systemProperty("spring.jpa.properties.hibernate.format_sql", "true")
+    systemProperty("logging.level.org.hibernate.SQL", "DEBUG")
+    systemProperty("logging.level.org.hibernate.orm.jdbc.bind", "TRACE")
+    systemProperty("logging.level.org.springframework.jdbc.core", "TRACE")
 }
 
 ktlint {
