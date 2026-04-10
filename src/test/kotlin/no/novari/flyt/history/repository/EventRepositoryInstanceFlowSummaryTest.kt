@@ -149,8 +149,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val sourceApplicationIdTestCases =
                 createFilterPropertyTestCases(
                     {
-                            builder: InstanceFlowSummariesQueryFilterBuilder,
-                            value: List<Long>,
+                        builder: InstanceFlowSummariesQueryFilterBuilder,
+                        value: List<Long>,
                         ->
                         builder.sourceApplicationIds(value)
                     },
@@ -166,8 +166,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val sourceApplicationIntegrationIdTestCases =
                 createFilterPropertyTestCases(
                     {
-                            builder: InstanceFlowSummariesQueryFilterBuilder,
-                            value: List<String>,
+                        builder: InstanceFlowSummariesQueryFilterBuilder,
+                        value: List<String>,
                         ->
                         builder.sourceApplicationIntegrationIds(value)
                     },
@@ -187,8 +187,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val sourceApplicationInstanceIdTestCases =
                 createFilterPropertyTestCases(
                     {
-                            builder: InstanceFlowSummariesQueryFilterBuilder,
-                            value: List<String>,
+                        builder: InstanceFlowSummariesQueryFilterBuilder,
+                        value: List<String>,
                         ->
                         builder.sourceApplicationInstanceIds(value)
                     },
@@ -208,8 +208,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val integrationIdTestCases =
                 createFilterPropertyTestCases(
                     {
-                            builder: InstanceFlowSummariesQueryFilterBuilder,
-                            value: List<Long>,
+                        builder: InstanceFlowSummariesQueryFilterBuilder,
+                        value: List<Long>,
                         ->
                         builder.integrationIds(value)
                     },
@@ -226,8 +226,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val timestampTestCases =
                 createFilterPropertyTestCases(
                     {
-                            builder: InstanceFlowSummariesQueryFilterBuilder,
-                            value: TimeQueryFilter,
+                        builder: InstanceFlowSummariesQueryFilterBuilder,
+                        value: TimeQueryFilter,
                         ->
                         builder.timeQueryFilter(value)
                     },
@@ -280,8 +280,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val statusEventNamesTestCases =
                 createFilterPropertyTestCases(
                     {
-                            builder: InstanceFlowSummariesQueryFilterBuilder,
-                            value: List<String>,
+                        builder: InstanceFlowSummariesQueryFilterBuilder,
+                        value: List<String>,
                         ->
                         builder.statusEventNames(value)
                     },
@@ -300,8 +300,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val storageStatusTestCases =
                 createFilterPropertyTestCases(
                     {
-                            builder: InstanceFlowSummariesQueryFilterBuilder,
-                            value: InstanceStorageStatusQueryFilter,
+                        builder: InstanceFlowSummariesQueryFilterBuilder,
+                        value: InstanceStorageStatusQueryFilter,
                         ->
                         builder.instanceStorageStatusQueryFilter(value)
                     },
@@ -341,8 +341,8 @@ class EventRepositoryInstanceFlowSummaryTest {
             val destinationIdTestCases =
                 createFilterPropertyTestCases(
                     {
-                            builder: InstanceFlowSummariesQueryFilterBuilder,
-                            value: List<String>,
+                        builder: InstanceFlowSummariesQueryFilterBuilder,
+                        value: List<String>,
                         ->
                         builder.destinationIds(value)
                     },

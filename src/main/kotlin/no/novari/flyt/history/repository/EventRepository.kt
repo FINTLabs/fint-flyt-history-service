@@ -154,8 +154,14 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             integrationIds = filter.integrationIds.orDummyLongs(),
             useStatusEventNames = !filter.statusEventNames.isNullOrEmpty(),
             statusEventNames = filter.statusEventNames.orDummyStrings(),
-            useInstanceStorageStatusNames = !instanceStorageStatusQueryFilter?.instanceStorageStatusNames.isNullOrEmpty(),
-            instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.orDummyStrings(),
+            useInstanceStorageStatusNames =
+                !instanceStorageStatusQueryFilter
+                    ?.instanceStorageStatusNames
+                    .isNullOrEmpty(),
+            instanceStorageStatusNames =
+                instanceStorageStatusQueryFilter
+                    ?.instanceStorageStatusNames
+                    .orDummyStrings(),
             useInstanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored != null,
             instanceStorageStatusNeverStoredValue = instanceStorageStatusQueryFilter?.neverStored ?: false,
             useAssociatedEventNames = !filter.associatedEventNames.isNullOrEmpty(),
@@ -313,8 +319,14 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             integrationIds = filter.integrationIds.orDummyLongs(),
             useStatusEventNames = !filter.statusEventNames.isNullOrEmpty(),
             statusEventNames = filter.statusEventNames.orDummyStrings(),
-            useInstanceStorageStatusNames = !instanceStorageStatusQueryFilter?.instanceStorageStatusNames.isNullOrEmpty(),
-            instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.orDummyStrings(),
+            useInstanceStorageStatusNames =
+                !instanceStorageStatusQueryFilter
+                    ?.instanceStorageStatusNames
+                    .isNullOrEmpty(),
+            instanceStorageStatusNames =
+                instanceStorageStatusQueryFilter
+                    ?.instanceStorageStatusNames
+                    .orDummyStrings(),
             useInstanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored != null,
             instanceStorageStatusNeverStoredValue = instanceStorageStatusQueryFilter?.neverStored ?: false,
             useAssociatedEventNames = !filter.associatedEventNames.isNullOrEmpty(),
