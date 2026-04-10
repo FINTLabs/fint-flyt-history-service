@@ -81,17 +81,21 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                 OR statusEvent.integration_id IN (:integrationIds)
             )
             AND (
-                :latestStatusTimestampMin IS NULL
+                :useLatestStatusTimestampMin = FALSE
                 OR statusEvent.timestamp >= :latestStatusTimestampMin
             )
             AND (
-                :latestStatusTimestampMax IS NULL
+                :useLatestStatusTimestampMax = FALSE
                 OR statusEvent.timestamp <= :latestStatusTimestampMax
             )
             AND (
-                (:useInstanceStorageStatusNames = FALSE AND :instanceStorageStatusNeverStored IS NULL)
+                (:useInstanceStorageStatusNames = FALSE AND :useInstanceStorageStatusNeverStored = FALSE)
                 OR (:useInstanceStorageStatusNames = TRUE AND storageEvent.name IN (:instanceStorageStatusNames))
-                OR (storageEvent.source_application_id IS NULL AND :instanceStorageStatusNeverStored = TRUE)
+                OR (
+                    storageEvent.source_application_id IS NULL
+                    AND :useInstanceStorageStatusNeverStored = TRUE
+                    AND :instanceStorageStatusNeverStoredValue = TRUE
+                )
             )
             AND (
                 :useAssociatedEventNames = FALSE
@@ -117,13 +121,16 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         @Param("statusEventNames") statusEventNames: Collection<String>,
         @Param("useInstanceStorageStatusNames") useInstanceStorageStatusNames: Boolean,
         @Param("instanceStorageStatusNames") instanceStorageStatusNames: Collection<String>,
-        @Param("instanceStorageStatusNeverStored") instanceStorageStatusNeverStored: Boolean?,
+        @Param("useInstanceStorageStatusNeverStored") useInstanceStorageStatusNeverStored: Boolean,
+        @Param("instanceStorageStatusNeverStoredValue") instanceStorageStatusNeverStoredValue: Boolean,
         @Param("useAssociatedEventNames") useAssociatedEventNames: Boolean,
         @Param("associatedEventNamesAsSqlArrayString") associatedEventNamesAsSqlArrayString: String,
         @Param("useDestinationInstanceIds") useDestinationInstanceIds: Boolean,
         @Param("destinationInstanceIdsAsSqlArrayString") destinationInstanceIdsAsSqlArrayString: String,
-        @Param("latestStatusTimestampMin") latestStatusTimestampMin: OffsetDateTime?,
-        @Param("latestStatusTimestampMax") latestStatusTimestampMax: OffsetDateTime?,
+        @Param("useLatestStatusTimestampMin") useLatestStatusTimestampMin: Boolean,
+        @Param("latestStatusTimestampMin") latestStatusTimestampMin: OffsetDateTime,
+        @Param("useLatestStatusTimestampMax") useLatestStatusTimestampMax: Boolean,
+        @Param("latestStatusTimestampMax") latestStatusTimestampMax: OffsetDateTime,
         @Param("allInstanceStatusEventNames") allInstanceStatusEventNames: Collection<String>,
         @Param("allInstanceStorageStatusEventNames") allInstanceStorageStatusEventNames: Collection<String>,
     ): Long
@@ -149,13 +156,16 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             statusEventNames = filter.statusEventNames.orDummyStrings(),
             useInstanceStorageStatusNames = !instanceStorageStatusQueryFilter?.instanceStorageStatusNames.isNullOrEmpty(),
             instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.orDummyStrings(),
-            instanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored,
+            useInstanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored != null,
+            instanceStorageStatusNeverStoredValue = instanceStorageStatusQueryFilter?.neverStored ?: false,
             useAssociatedEventNames = !filter.associatedEventNames.isNullOrEmpty(),
             associatedEventNamesAsSqlArrayString = filter.associatedEventNames.toSqlArrayStringOrDummy(),
             useDestinationInstanceIds = !filter.destinationIds.isNullOrEmpty(),
             destinationInstanceIdsAsSqlArrayString = filter.destinationIds.toSqlArrayStringOrDummy(),
-            latestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin,
-            latestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax,
+            useLatestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin != null,
+            latestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin ?: DEFAULT_MIN_TIMESTAMP,
+            useLatestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax != null,
+            latestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax ?: DEFAULT_MAX_TIMESTAMP,
             allInstanceStatusEventNames = allInstanceStatusEventNames,
             allInstanceStorageStatusEventNames = allInstanceStorageStatusEventNames,
         )
@@ -228,17 +238,21 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                  OR statusEvent.integration_id IN (:integrationIds)
              )
              AND (
-                 :latestStatusTimestampMin IS NULL
+                 :useLatestStatusTimestampMin = FALSE
                  OR statusEvent.timestamp >= :latestStatusTimestampMin
              )
              AND (
-                 :latestStatusTimestampMax IS NULL
+                 :useLatestStatusTimestampMax = FALSE
                  OR statusEvent.timestamp <= :latestStatusTimestampMax
              )
              AND (
-                 (:useInstanceStorageStatusNames = FALSE AND :instanceStorageStatusNeverStored IS NULL)
+                 (:useInstanceStorageStatusNames = FALSE AND :useInstanceStorageStatusNeverStored = FALSE)
                  OR (:useInstanceStorageStatusNames = TRUE AND storageEvent.name IN (:instanceStorageStatusNames))
-                 OR (storageEvent.source_application_id IS NULL AND :instanceStorageStatusNeverStored = TRUE)
+                 OR (
+                     storageEvent.source_application_id IS NULL
+                     AND :useInstanceStorageStatusNeverStored = TRUE
+                     AND :instanceStorageStatusNeverStoredValue = TRUE
+                 )
              )
              AND (
                  :useAssociatedEventNames = FALSE
@@ -265,13 +279,16 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         @Param("statusEventNames") statusEventNames: Collection<String>,
         @Param("useInstanceStorageStatusNames") useInstanceStorageStatusNames: Boolean,
         @Param("instanceStorageStatusNames") instanceStorageStatusNames: Collection<String>,
-        @Param("instanceStorageStatusNeverStored") instanceStorageStatusNeverStored: Boolean?,
+        @Param("useInstanceStorageStatusNeverStored") useInstanceStorageStatusNeverStored: Boolean,
+        @Param("instanceStorageStatusNeverStoredValue") instanceStorageStatusNeverStoredValue: Boolean,
         @Param("useAssociatedEventNames") useAssociatedEventNames: Boolean,
         @Param("associatedEventNamesAsSqlArrayString") associatedEventNamesAsSqlArrayString: String,
         @Param("useDestinationInstanceIds") useDestinationInstanceIds: Boolean,
         @Param("destinationInstanceIdsAsSqlArrayString") destinationInstanceIdsAsSqlArrayString: String,
-        @Param("latestStatusTimestampMin") latestStatusTimestampMin: OffsetDateTime?,
-        @Param("latestStatusTimestampMax") latestStatusTimestampMax: OffsetDateTime?,
+        @Param("useLatestStatusTimestampMin") useLatestStatusTimestampMin: Boolean,
+        @Param("latestStatusTimestampMin") latestStatusTimestampMin: OffsetDateTime,
+        @Param("useLatestStatusTimestampMax") useLatestStatusTimestampMax: Boolean,
+        @Param("latestStatusTimestampMax") latestStatusTimestampMax: OffsetDateTime,
         @Param("allInstanceStatusEventNames") allInstanceStatusEventNames: Collection<String>,
         @Param("allInstanceStorageStatusEventNames") allInstanceStorageStatusEventNames: Collection<String>,
     ): List<InstanceFlowSummaryNativeProjection>
@@ -298,13 +315,16 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             statusEventNames = filter.statusEventNames.orDummyStrings(),
             useInstanceStorageStatusNames = !instanceStorageStatusQueryFilter?.instanceStorageStatusNames.isNullOrEmpty(),
             instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.orDummyStrings(),
-            instanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored,
+            useInstanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored != null,
+            instanceStorageStatusNeverStoredValue = instanceStorageStatusQueryFilter?.neverStored ?: false,
             useAssociatedEventNames = !filter.associatedEventNames.isNullOrEmpty(),
             associatedEventNamesAsSqlArrayString = filter.associatedEventNames.toSqlArrayStringOrDummy(),
             useDestinationInstanceIds = !filter.destinationIds.isNullOrEmpty(),
             destinationInstanceIdsAsSqlArrayString = filter.destinationIds.toSqlArrayStringOrDummy(),
-            latestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin,
-            latestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax,
+            useLatestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin != null,
+            latestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin ?: DEFAULT_MIN_TIMESTAMP,
+            useLatestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax != null,
+            latestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax ?: DEFAULT_MAX_TIMESTAMP,
             allInstanceStatusEventNames = allInstanceStatusEventNames,
             allInstanceStorageStatusEventNames = allInstanceStorageStatusEventNames,
         ).let { rows ->
@@ -498,4 +518,9 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
 
     private fun Collection<String>?.toSqlArrayStringOrDummy(): String =
         this?.takeUnless { it.isEmpty() }?.joinToString(prefix = "{", postfix = "}") ?: "{__NO_MATCH__}"
+
+    companion object {
+        val DEFAULT_MIN_TIMESTAMP: OffsetDateTime = OffsetDateTime.parse("1970-01-01T00:00:00Z")
+        val DEFAULT_MAX_TIMESTAMP: OffsetDateTime = OffsetDateTime.parse("9999-12-31T23:59:59Z")
+    }
 }
