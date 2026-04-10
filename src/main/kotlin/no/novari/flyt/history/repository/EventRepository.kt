@@ -91,7 +91,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             AND (
                 (:useInstanceStorageStatusNames = FALSE AND :instanceStorageStatusNeverStored IS NULL)
                 OR (:useInstanceStorageStatusNames = TRUE AND storageEvent.name IN (:instanceStorageStatusNames))
-                OR (storageEvent.id IS NULL AND :instanceStorageStatusNeverStored = TRUE)
+                OR (storageEvent.source_application_id IS NULL AND :instanceStorageStatusNeverStored = TRUE)
             )
             AND (
                 :associatedEventNamesAsSqlArrayString IS NULL
@@ -234,7 +234,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
              AND (
                  (:useInstanceStorageStatusNames = FALSE AND :instanceStorageStatusNeverStored IS NULL)
                  OR (:useInstanceStorageStatusNames = TRUE AND storageEvent.name IN (:instanceStorageStatusNames))
-                 OR (storageEvent.id IS NULL AND :instanceStorageStatusNeverStored = TRUE)
+                 OR (storageEvent.source_application_id IS NULL AND :instanceStorageStatusNeverStored = TRUE)
              )
              AND (
                  :associatedEventNamesAsSqlArrayString IS NULL
@@ -245,7 +245,6 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                  OR nameAndArchiveInstanceIdAgg.archiveInstanceIds && CAST(:destinationInstanceIdsAsSqlArrayString AS CHARACTER VARYING[])
              )
              ORDER BY latestUpdate DESC
-             LIMIT :limit
              """,
         nativeQuery = true,
     )
@@ -269,7 +268,6 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         @Param("latestStatusTimestampMax") latestStatusTimestampMax: OffsetDateTime?,
         @Param("allInstanceStatusEventNames") allInstanceStatusEventNames: Collection<String>,
         @Param("allInstanceStorageStatusEventNames") allInstanceStorageStatusEventNames: Collection<String>,
-        @Param("limit") limit: Int,
     ): List<InstanceFlowSummaryNativeProjection>
 
     fun getInstanceFlowSummaries(
@@ -301,26 +299,34 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             latestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax,
             allInstanceStatusEventNames = allInstanceStatusEventNames,
             allInstanceStorageStatusEventNames = allInstanceStorageStatusEventNames,
-            limit = limit ?: Int.MAX_VALUE,
-        ).map { nativeProjection ->
-            InstanceFlowSummaryProjection
-                .builder()
-                .sourceApplicationId(nativeProjection.getSourceApplicationId())
-                .sourceApplicationIntegrationId(nativeProjection.getSourceApplicationIntegrationId())
-                .sourceApplicationInstanceId(nativeProjection.getSourceApplicationInstanceId())
-                .integrationId(nativeProjection.getIntegrationId())
-                .latestInstanceId(nativeProjection.getLatestInstanceId())
-                .latestUpdate(nativeProjection.getLatestUpdate()?.atOffset(ZoneOffset.UTC))
-                .latestStatusEventName(nativeProjection.getLatestStatusEventName())
-                .latestStorageStatusEventName(nativeProjection.getLatestStorageStatusEventName())
-                .destinationInstanceIds(
-                    nativeProjection
-                        .getDestinationInstanceIds()
-                        ?.takeUnless(String::isBlank)
-                        ?.split("||")
-                        ?.distinct()
-                        ?.joinToString(", "),
-                ).build()
+        ).let { rows ->
+            val limitedRows =
+                if (limit == null) {
+                    rows
+                } else {
+                    rows.take(limit)
+                }
+
+            limitedRows.map { nativeProjection ->
+                InstanceFlowSummaryProjection
+                    .builder()
+                    .sourceApplicationId(nativeProjection.getSourceApplicationId())
+                    .sourceApplicationIntegrationId(nativeProjection.getSourceApplicationIntegrationId())
+                    .sourceApplicationInstanceId(nativeProjection.getSourceApplicationInstanceId())
+                    .integrationId(nativeProjection.getIntegrationId())
+                    .latestInstanceId(nativeProjection.getLatestInstanceId())
+                    .latestUpdate(nativeProjection.getLatestUpdate()?.atOffset(ZoneOffset.UTC))
+                    .latestStatusEventName(nativeProjection.getLatestStatusEventName())
+                    .latestStorageStatusEventName(nativeProjection.getLatestStorageStatusEventName())
+                    .destinationInstanceIds(
+                        nativeProjection
+                            .getDestinationInstanceIds()
+                            ?.takeUnless(String::isBlank)
+                            ?.split("||")
+                            ?.distinct()
+                            ?.joinToString(", "),
+                    ).build()
+            }
         }
     }
 
