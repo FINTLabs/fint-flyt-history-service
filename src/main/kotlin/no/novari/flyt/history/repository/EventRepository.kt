@@ -429,8 +429,8 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                 COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END), 0)
                     AS failed
          FROM EventEntity e
-         WHERE (:#{#sourceApplicationIds == null || #sourceApplicationIds.empty} IS TRUE
-             OR e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds})
+         WHERE :#{#sourceApplicationIds != null && !#sourceApplicationIds.empty} IS TRUE
+         AND e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds}
          AND e.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
          AND e.timestamp >= ALL(
             SELECT e1.timestamp
