@@ -31,21 +31,21 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             ON statusEvent.source_application_id = storageEvent.source_application_id
             AND statusEvent.source_application_integration_id = storageEvent.source_application_integration_id
             AND statusEvent.source_application_instance_id = storageEvent.source_application_instance_id
-            AND storageEvent.name IN :allInstanceStorageStatusEventNames
+            AND storageEvent.name IN (:allInstanceStorageStatusEventNames)
             AND storageEvent.timestamp >= ALL (
                 SELECT e.timestamp
                 FROM event e
                 WHERE e.source_application_id = storageEvent.source_application_id
                 AND e.source_application_integration_id = storageEvent.source_application_integration_id
                 AND e.source_application_instance_id = storageEvent.source_application_instance_id
-                AND e.name IN :allInstanceStorageStatusEventNames
+                AND e.name IN (:allInstanceStorageStatusEventNames)
             )
             LEFT OUTER JOIN (
                 SELECT  source_application_id,
                         source_application_integration_id,
                         source_application_instance_id,
                         array_agg(name) AS names,
-                        array_agg(archive_instance_id) as archiveInstanceIds
+                        array_agg(archive_instance_id) AS archiveInstanceIds
                 FROM event
                 GROUP BY source_application_id, source_application_integration_id, source_application_instance_id
             ) nameAndArchiveInstanceIdAgg
@@ -53,8 +53,8 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             AND statusEvent.source_application_integration_id = nameAndArchiveInstanceIdAgg.source_application_integration_id
             AND statusEvent.source_application_instance_id = nameAndArchiveInstanceIdAgg.source_application_instance_id
             WHERE (
-                (:statusEventNames IS NULL AND statusEvent.name IN :allInstanceStatusEventNames)
-                OR (statusEvent.name IS NOT NULL AND statusEvent.name IN :statusEventNames)
+                (:useStatusEventNames = FALSE AND statusEvent.name IN (:allInstanceStatusEventNames))
+                OR (:useStatusEventNames = TRUE AND statusEvent.name IN (:statusEventNames))
             )
             AND statusEvent.timestamp >= ALL (
                 SELECT e.timestamp
@@ -62,36 +62,36 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                 WHERE e.source_application_id = statusEvent.source_application_id
                 AND e.source_application_integration_id = statusEvent.source_application_integration_id
                 AND e.source_application_instance_id = statusEvent.source_application_instance_id
-                AND e.name IN :allInstanceStatusEventNames
+                AND e.name IN (:allInstanceStatusEventNames)
             )
             AND (
-                :sourceApplicationIds IS NULL
-                OR statusEvent.source_application_id IN :sourceApplicationIds
+                :useSourceApplicationIds = FALSE
+                OR statusEvent.source_application_id IN (:sourceApplicationIds)
             )
             AND (
-                :sourceApplicationIntegrationIds IS NULL
-                OR statusEvent.source_application_integration_id IN :sourceApplicationIntegrationIds
+                :useSourceApplicationIntegrationIds = FALSE
+                OR statusEvent.source_application_integration_id IN (:sourceApplicationIntegrationIds)
             )
             AND (
-                :sourceApplicationInstanceIds IS NULL
-                OR statusEvent.source_application_instance_id IN :sourceApplicationInstanceIds
+                :useSourceApplicationInstanceIds = FALSE
+                OR statusEvent.source_application_instance_id IN (:sourceApplicationInstanceIds)
             )
             AND (
-                :integrationIds IS NULL
-                OR statusEvent.integration_id IN :integrationIds
+                :useIntegrationIds = FALSE
+                OR statusEvent.integration_id IN (:integrationIds)
             )
             AND (
-                CAST(:latestStatusTimestampMin AS TIMESTAMP) IS NULL
-                OR statusEvent.timestamp >= CAST(:latestStatusTimestampMin AS TIMESTAMP WITH TIME ZONE)
+                :latestStatusTimestampMin IS NULL
+                OR statusEvent.timestamp >= :latestStatusTimestampMin
             )
             AND (
-                CAST(:latestStatusTimestampMax AS TIMESTAMP) IS NULL
-                OR statusEvent.timestamp <= CAST(:latestStatusTimestampMax AS TIMESTAMP WITH TIME ZONE)
+                :latestStatusTimestampMax IS NULL
+                OR statusEvent.timestamp <= :latestStatusTimestampMax
             )
             AND (
-                (:instanceStorageStatusNames IS NULL AND :instanceStorageStatusNeverStored IS NULL)
-                OR storageEvent.name IN :instanceStorageStatusNames
-                OR (storageEvent IS NULL AND :instanceStorageStatusNeverStored IS TRUE)
+                (:useInstanceStorageStatusNames = FALSE AND :instanceStorageStatusNeverStored IS NULL)
+                OR (:useInstanceStorageStatusNames = TRUE AND storageEvent.name IN (:instanceStorageStatusNames))
+                OR (storageEvent.id IS NULL AND :instanceStorageStatusNeverStored = TRUE)
             )
             AND (
                 :associatedEventNamesAsSqlArrayString IS NULL
@@ -100,16 +100,23 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             AND (
                 :destinationInstanceIdsAsSqlArrayString IS NULL
                 OR nameAndArchiveInstanceIdAgg.archiveInstanceIds && CAST(:destinationInstanceIdsAsSqlArrayString AS CHARACTER VARYING[])
-            )""",
+            )
+            """,
         nativeQuery = true,
     )
     fun getInstanceFlowSummariesTotalCount(
-        @Param("sourceApplicationIds") sourceApplicationIds: Collection<Long>?,
-        @Param("sourceApplicationIntegrationIds") sourceApplicationIntegrationIds: Collection<String>?,
-        @Param("sourceApplicationInstanceIds") sourceApplicationInstanceIds: Collection<String>?,
-        @Param("integrationIds") integrationIds: Collection<Long>?,
-        @Param("statusEventNames") statusEventNames: Collection<String>?,
-        @Param("instanceStorageStatusNames") instanceStorageStatusNames: Collection<String>?,
+        @Param("useSourceApplicationIds") useSourceApplicationIds: Boolean,
+        @Param("sourceApplicationIds") sourceApplicationIds: Collection<Long>,
+        @Param("useSourceApplicationIntegrationIds") useSourceApplicationIntegrationIds: Boolean,
+        @Param("sourceApplicationIntegrationIds") sourceApplicationIntegrationIds: Collection<String>,
+        @Param("useSourceApplicationInstanceIds") useSourceApplicationInstanceIds: Boolean,
+        @Param("sourceApplicationInstanceIds") sourceApplicationInstanceIds: Collection<String>,
+        @Param("useIntegrationIds") useIntegrationIds: Boolean,
+        @Param("integrationIds") integrationIds: Collection<Long>,
+        @Param("useStatusEventNames") useStatusEventNames: Boolean,
+        @Param("statusEventNames") statusEventNames: Collection<String>,
+        @Param("useInstanceStorageStatusNames") useInstanceStorageStatusNames: Boolean,
+        @Param("instanceStorageStatusNames") instanceStorageStatusNames: Collection<String>,
         @Param("instanceStorageStatusNeverStored") instanceStorageStatusNeverStored: Boolean?,
         @Param("associatedEventNamesAsSqlArrayString") associatedEventNamesAsSqlArrayString: String?,
         @Param("destinationInstanceIdsAsSqlArrayString") destinationInstanceIdsAsSqlArrayString: String?,
@@ -128,12 +135,18 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         val timeQueryFilter = filter.timeQueryFilter
 
         return getInstanceFlowSummariesTotalCount(
-            sourceApplicationIds = filter.sourceApplicationIds.nullIfEmpty(),
-            sourceApplicationIntegrationIds = filter.sourceApplicationIntegrationIds.nullIfEmpty(),
-            sourceApplicationInstanceIds = filter.sourceApplicationInstanceIds.nullIfEmpty(),
-            integrationIds = filter.integrationIds.nullIfEmpty(),
-            statusEventNames = filter.statusEventNames.nullIfEmpty(),
-            instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.nullIfEmpty(),
+            useSourceApplicationIds = !filter.sourceApplicationIds.isNullOrEmpty(),
+            sourceApplicationIds = filter.sourceApplicationIds.orDummyLongs(),
+            useSourceApplicationIntegrationIds = !filter.sourceApplicationIntegrationIds.isNullOrEmpty(),
+            sourceApplicationIntegrationIds = filter.sourceApplicationIntegrationIds.orDummyStrings(),
+            useSourceApplicationInstanceIds = !filter.sourceApplicationInstanceIds.isNullOrEmpty(),
+            sourceApplicationInstanceIds = filter.sourceApplicationInstanceIds.orDummyStrings(),
+            useIntegrationIds = !filter.integrationIds.isNullOrEmpty(),
+            integrationIds = filter.integrationIds.orDummyLongs(),
+            useStatusEventNames = !filter.statusEventNames.isNullOrEmpty(),
+            statusEventNames = filter.statusEventNames.orDummyStrings(),
+            useInstanceStorageStatusNames = !instanceStorageStatusQueryFilter?.instanceStorageStatusNames.isNullOrEmpty(),
+            instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.orDummyStrings(),
             instanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored,
             associatedEventNamesAsSqlArrayString = filter.associatedEventNames.toSqlArrayString(),
             destinationInstanceIdsAsSqlArrayString = filter.destinationIds.toSqlArrayString(),
@@ -155,27 +168,27 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                      statusEvent.timestamp                         AS latestUpdate,
                      statusEvent.name                              AS latestStatusEventName,
                      storageEvent.name                             AS latestStorageStatusEventName,
-                     array_to_string(nameAndArchiveInstanceIdAgg.archiveInstanceIds, '||')  AS destinationInstanceIds
+                     array_to_string(nameAndArchiveInstanceIdAgg.archiveInstanceIds, '||') AS destinationInstanceIds
              FROM event statusEvent
              LEFT OUTER JOIN event storageEvent
              ON statusEvent.source_application_id = storageEvent.source_application_id
              AND statusEvent.source_application_integration_id = storageEvent.source_application_integration_id
              AND statusEvent.source_application_instance_id = storageEvent.source_application_instance_id
-             AND storageEvent.name IN :allInstanceStorageStatusEventNames
+             AND storageEvent.name IN (:allInstanceStorageStatusEventNames)
              AND storageEvent.timestamp >= ALL (
                  SELECT e.timestamp
                  FROM event e
                  WHERE e.source_application_id = storageEvent.source_application_id
                  AND e.source_application_integration_id = storageEvent.source_application_integration_id
                  AND e.source_application_instance_id = storageEvent.source_application_instance_id
-                 AND e.name IN :allInstanceStorageStatusEventNames
+                 AND e.name IN (:allInstanceStorageStatusEventNames)
              )
              LEFT OUTER JOIN (
                  SELECT  source_application_id,
                          source_application_integration_id,
                          source_application_instance_id,
                          array_agg(name) AS names,
-                         array_agg(archive_instance_id ORDER BY timestamp DESC) as archiveInstanceIds
+                         array_agg(archive_instance_id ORDER BY timestamp DESC) AS archiveInstanceIds
                  FROM event
                  GROUP BY source_application_id, source_application_integration_id, source_application_instance_id
              ) nameAndArchiveInstanceIdAgg
@@ -183,8 +196,8 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
              AND statusEvent.source_application_integration_id = nameAndArchiveInstanceIdAgg.source_application_integration_id
              AND statusEvent.source_application_instance_id = nameAndArchiveInstanceIdAgg.source_application_instance_id
              WHERE (
-                 (:statusEventNames IS NULL AND statusEvent.name IN :allInstanceStatusEventNames)
-                 OR (statusEvent.name IS NOT NULL AND statusEvent.name IN :statusEventNames)
+                 (:useStatusEventNames = FALSE AND statusEvent.name IN (:allInstanceStatusEventNames))
+                 OR (:useStatusEventNames = TRUE AND statusEvent.name IN (:statusEventNames))
              )
              AND statusEvent.timestamp >= ALL (
                  SELECT e.timestamp
@@ -192,38 +205,38 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                  WHERE e.source_application_id = statusEvent.source_application_id
                  AND e.source_application_integration_id = statusEvent.source_application_integration_id
                  AND e.source_application_instance_id = statusEvent.source_application_instance_id
-                 AND e.name IN :allInstanceStatusEventNames
+                 AND e.name IN (:allInstanceStatusEventNames)
              )
              AND (
-                 :sourceApplicationIds IS NULL
-                 OR statusEvent.source_application_id IN :sourceApplicationIds
+                 :useSourceApplicationIds = FALSE
+                 OR statusEvent.source_application_id IN (:sourceApplicationIds)
              )
              AND (
-                 :sourceApplicationIntegrationIds IS NULL
-                 OR statusEvent.source_application_integration_id IN :sourceApplicationIntegrationIds
+                 :useSourceApplicationIntegrationIds = FALSE
+                 OR statusEvent.source_application_integration_id IN (:sourceApplicationIntegrationIds)
              )
              AND (
-                 :sourceApplicationInstanceIds IS NULL
-                 OR statusEvent.source_application_instance_id IN :sourceApplicationInstanceIds
+                 :useSourceApplicationInstanceIds = FALSE
+                 OR statusEvent.source_application_instance_id IN (:sourceApplicationInstanceIds)
              )
              AND (
-                 :integrationIds IS NULL
-                 OR statusEvent.integration_id IN :integrationIds
+                 :useIntegrationIds = FALSE
+                 OR statusEvent.integration_id IN (:integrationIds)
              )
              AND (
-                 CAST(:latestStatusTimestampMin AS TIMESTAMP) IS NULL
-                 OR statusEvent.timestamp >= CAST(:latestStatusTimestampMin AS TIMESTAMP WITH TIME ZONE)
+                 :latestStatusTimestampMin IS NULL
+                 OR statusEvent.timestamp >= :latestStatusTimestampMin
              )
              AND (
-                 CAST(:latestStatusTimestampMax AS TIMESTAMP) IS NULL
-                 OR statusEvent.timestamp <= CAST(:latestStatusTimestampMax AS TIMESTAMP WITH TIME ZONE)
+                 :latestStatusTimestampMax IS NULL
+                 OR statusEvent.timestamp <= :latestStatusTimestampMax
              )
              AND (
-                 (:instanceStorageStatusNames IS NULL AND :instanceStorageStatusNeverStored IS NULL)
-                 OR storageEvent.name IN :instanceStorageStatusNames
-                 OR (storageEvent IS NULL AND :instanceStorageStatusNeverStored IS TRUE)
+                 (:useInstanceStorageStatusNames = FALSE AND :instanceStorageStatusNeverStored IS NULL)
+                 OR (:useInstanceStorageStatusNames = TRUE AND storageEvent.name IN (:instanceStorageStatusNames))
+                 OR (storageEvent.id IS NULL AND :instanceStorageStatusNeverStored = TRUE)
              )
-            AND (
+             AND (
                  :associatedEventNamesAsSqlArrayString IS NULL
                  OR nameAndArchiveInstanceIdAgg.names @> CAST(:associatedEventNamesAsSqlArrayString AS CHARACTER VARYING[])
              )
@@ -232,16 +245,23 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                  OR nameAndArchiveInstanceIdAgg.archiveInstanceIds && CAST(:destinationInstanceIdsAsSqlArrayString AS CHARACTER VARYING[])
              )
              ORDER BY latestUpdate DESC
-             LIMIT :limit""",
+             LIMIT :limit
+             """,
         nativeQuery = true,
     )
     fun getInstanceFlowSummaries(
-        @Param("sourceApplicationIds") sourceApplicationIds: Collection<Long>?,
-        @Param("sourceApplicationIntegrationIds") sourceApplicationIntegrationIds: Collection<String>?,
-        @Param("sourceApplicationInstanceIds") sourceApplicationInstanceIds: Collection<String>?,
-        @Param("integrationIds") integrationIds: Collection<Long>?,
-        @Param("statusEventNames") statusEventNames: Collection<String>?,
-        @Param("instanceStorageStatusNames") instanceStorageStatusNames: Collection<String>?,
+        @Param("useSourceApplicationIds") useSourceApplicationIds: Boolean,
+        @Param("sourceApplicationIds") sourceApplicationIds: Collection<Long>,
+        @Param("useSourceApplicationIntegrationIds") useSourceApplicationIntegrationIds: Boolean,
+        @Param("sourceApplicationIntegrationIds") sourceApplicationIntegrationIds: Collection<String>,
+        @Param("useSourceApplicationInstanceIds") useSourceApplicationInstanceIds: Boolean,
+        @Param("sourceApplicationInstanceIds") sourceApplicationInstanceIds: Collection<String>,
+        @Param("useIntegrationIds") useIntegrationIds: Boolean,
+        @Param("integrationIds") integrationIds: Collection<Long>,
+        @Param("useStatusEventNames") useStatusEventNames: Boolean,
+        @Param("statusEventNames") statusEventNames: Collection<String>,
+        @Param("useInstanceStorageStatusNames") useInstanceStorageStatusNames: Boolean,
+        @Param("instanceStorageStatusNames") instanceStorageStatusNames: Collection<String>,
         @Param("instanceStorageStatusNeverStored") instanceStorageStatusNeverStored: Boolean?,
         @Param("associatedEventNamesAsSqlArrayString") associatedEventNamesAsSqlArrayString: String?,
         @Param("destinationInstanceIdsAsSqlArrayString") destinationInstanceIdsAsSqlArrayString: String?,
@@ -249,7 +269,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         @Param("latestStatusTimestampMax") latestStatusTimestampMax: OffsetDateTime?,
         @Param("allInstanceStatusEventNames") allInstanceStatusEventNames: Collection<String>,
         @Param("allInstanceStorageStatusEventNames") allInstanceStorageStatusEventNames: Collection<String>,
-        @Param("limit") limit: Int?,
+        @Param("limit") limit: Int,
     ): List<InstanceFlowSummaryNativeProjection>
 
     fun getInstanceFlowSummaries(
@@ -262,12 +282,18 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         val timeQueryFilter = filter.timeQueryFilter
 
         return getInstanceFlowSummaries(
-            sourceApplicationIds = filter.sourceApplicationIds.nullIfEmpty(),
-            sourceApplicationIntegrationIds = filter.sourceApplicationIntegrationIds.nullIfEmpty(),
-            sourceApplicationInstanceIds = filter.sourceApplicationInstanceIds.nullIfEmpty(),
-            integrationIds = filter.integrationIds.nullIfEmpty(),
-            statusEventNames = filter.statusEventNames.nullIfEmpty(),
-            instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.nullIfEmpty(),
+            useSourceApplicationIds = !filter.sourceApplicationIds.isNullOrEmpty(),
+            sourceApplicationIds = filter.sourceApplicationIds.orDummyLongs(),
+            useSourceApplicationIntegrationIds = !filter.sourceApplicationIntegrationIds.isNullOrEmpty(),
+            sourceApplicationIntegrationIds = filter.sourceApplicationIntegrationIds.orDummyStrings(),
+            useSourceApplicationInstanceIds = !filter.sourceApplicationInstanceIds.isNullOrEmpty(),
+            sourceApplicationInstanceIds = filter.sourceApplicationInstanceIds.orDummyStrings(),
+            useIntegrationIds = !filter.integrationIds.isNullOrEmpty(),
+            integrationIds = filter.integrationIds.orDummyLongs(),
+            useStatusEventNames = !filter.statusEventNames.isNullOrEmpty(),
+            statusEventNames = filter.statusEventNames.orDummyStrings(),
+            useInstanceStorageStatusNames = !instanceStorageStatusQueryFilter?.instanceStorageStatusNames.isNullOrEmpty(),
+            instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.orDummyStrings(),
             instanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored,
             associatedEventNamesAsSqlArrayString = filter.associatedEventNames.toSqlArrayString(),
             destinationInstanceIdsAsSqlArrayString = filter.destinationIds.toSqlArrayString(),
@@ -275,7 +301,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             latestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax,
             allInstanceStatusEventNames = allInstanceStatusEventNames,
             allInstanceStorageStatusEventNames = allInstanceStorageStatusEventNames,
-            limit = limit,
+            limit = limit ?: Int.MAX_VALUE,
         ).map { nativeProjection ->
             InstanceFlowSummaryProjection
                 .builder()
@@ -450,7 +476,12 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         )
     }
 
-    private fun <T> Collection<T>?.nullIfEmpty(): Collection<T>? = this?.takeUnless { it.isEmpty() }
+    private fun Collection<Long>?.orDummyLongs(): Collection<Long> =
+        this?.takeUnless { it.isEmpty() } ?: listOf(Long.MIN_VALUE)
 
-    private fun Collection<String>?.toSqlArrayString(): String? = this?.joinToString(prefix = "{", postfix = "}")
+    private fun Collection<String>?.orDummyStrings(): Collection<String> =
+        this?.takeUnless { it.isEmpty() } ?: listOf("__NO_MATCH__")
+
+    private fun Collection<String>?.toSqlArrayString(): String? =
+        this?.takeUnless { it.isEmpty() }?.joinToString(prefix = "{", postfix = "}")
 }
