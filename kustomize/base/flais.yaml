@@ -25,10 +25,10 @@ spec:
     database: fint-flyt
   url:
     hostname: flyt.vigoiks.no
-    basePath: path
+    basePath: ""
   ingress:
     enabled: true
-    basePath: path
+    basePath: /api/intern/instance-flow-tracking
     middlewares:
       - fint-flyt-auth-forward-sso
   env:

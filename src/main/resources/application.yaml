@@ -10,15 +10,23 @@ novari:
 
 server:
   max-http-request-header-size: 40KB
+  error:
+    include-message: always
 
 spring:
+  data:
+    web:
+      pageable:
+        max-page-size: 1000
   jackson:
     time-zone: UTC
+  jpa:
+    open-in-view: false
   profiles:
     include:
       - flyt-kafka
       - flyt-logging
-      - flyt-resource-server
+      - flyt-web-resource-server
       - flyt-postgres
 
   output:

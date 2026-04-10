@@ -1,13 +1,13 @@
 # FINT Flyt History Service
 
-Reactive Spring Boot service that ingests instance-flow events from Kafka, persists them in PostgreSQL, and exposes a
-reactive HTTP API for querying history, statistics, and manual remediation workflows. It also answers request/reply
-lookups so other Flyt services can fetch the latest metadata for specific instances.
+Spring Boot service that ingests instance-flow events from Kafka, persists them in PostgreSQL, and exposes an internal
+HTTP API for querying history, statistics, and manual remediation workflows. It also answers request/reply lookups so
+other Flyt services can fetch the latest metadata for specific instances.
 
 ## Highlights
 
-- **Instance-flow timeline API** — non-blocking Spring WebFlux controller that serves summaries, paged timelines, and
-aggregate statistics for integrations.
+- **Instance-flow timeline API** — Spring MVC controller that serves summaries, paged timelines, and aggregate
+statistics for integrations.
 - **Kafka ingestion & request/reply bridges** — consumes every `EventCategory` topic plus request/reply topics for
 archive-instance and instance-header lookups.
 - **PostgreSQL persistence & Flyway migrations** — writes events through Spring Data JPA with native SQL projections
@@ -87,7 +87,7 @@ Validation failures respond with 422 Unprocessable Entity using the shared forma
 
 ## Configuration
 
-The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-resource-server, flyt-postgres) and exposes these key properties:
+The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-web-resource-server, flyt-postgres) and exposes these key properties:
 
 | Property | Description |
 | --- | --- |
@@ -96,7 +96,7 @@ The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-resource-serv
 | fint.database.url, fint.database.username, fint.database.password | PostgreSQL JDBC connection supplied via secrets/environment. |
 | spring.kafka.bootstrap-servers | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092. |
 | spring.security.oauth2.resourceserver.jwt.issuer-uri | Authority used for JWT validation. |
-| no.novari.flyt.resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API. |
+| no.novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API. |
 | server.max-http-request-header-size | Raised to 40KB to handle large JWTs. |
 | spring.jackson.time-zone | Forces JSON serialization to UTC. |
 
@@ -104,7 +104,7 @@ Secrets referenced in the base Kustomize manifests must include DB credentials a
 
 ## Running Locally
 
-Prerequisites: Java 21+, Gradle wrapper (bundled), Docker (for Postgres), and access to a Kafka broker (local or shared).
+Prerequisites: Java 25+, Gradle wrapper (bundled), Docker (for Postgres), and access to a Kafka broker (local or shared).
 
 1. Start Postgres (detached container): ./start-postgres
 2. Provide a Kafka broker on localhost:9092 (e.g., via the Flyt dev cluster or a local stack).
@@ -113,7 +113,7 @@ Prerequisites: Java 21+, Gradle wrapper (bundled), Docker (for Postgres), and ac
 Useful commands:
 
 ./gradlew clean build                  # compile + unit tests
-./gradlew bootRun                      # run WebFlux app with local profiles
+./gradlew bootRun                      # run Spring MVC app with local profiles
 ./gradlew test                         # run default test suite
 ./gradlew performanceTest              # run tests tagged @Tag("performance")
 
@@ -127,7 +127,7 @@ Flyway migrations run at startup; ensure the configured schema exists (local pro
 
 ## Security
 
-- Runs as an OAuth2 resource server (JWT) and only exposes internal APIs guarded by novari.flyt.resource-server.security.api.internal.
+- Runs as an OAuth2 resource server (JWT) and only exposes internal APIs guarded by novari.flyt.web-resource-server.security.api.internal.
 - AuthorizationService relies on UserAuthorizationService to intersect requested source applications with caller entitlements before returning data or executing manual actions.
 - Manual event endpoints validate payloads, re-check authorization, ensure the latest status is ERROR, and return 404/400 for inconsistent histories.
 
@@ -135,7 +135,7 @@ Flyway migrations run at startup; ensure the configured schema exists (local pro
 
 - Actuator readiness at /actuator/health and Prometheus metrics at /actuator/prometheus (Micrometer Prometheus registry enabled).
 - Custom statistics metrics are published for Grafana dashboards (see Metrics section below).
-- Logs follow Spring defaults with Reactor context for correlation IDs; Kafka consumers attach origin app IDs for traceability.
+- Logs follow Spring defaults; Kafka consumers attach origin app IDs for traceability.
 - Event table indexes (timestamp, composite source application keys) keep summary queries fast; Flyway migrations (src/main/resources/db/migration) manage schema evolution.
 
 ## Metrics
