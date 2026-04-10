@@ -94,11 +94,11 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                 OR (storageEvent.source_application_id IS NULL AND :instanceStorageStatusNeverStored = TRUE)
             )
             AND (
-                :associatedEventNamesAsSqlArrayString IS NULL
+                :useAssociatedEventNames = FALSE
                 OR nameAndArchiveInstanceIdAgg.names @> CAST(:associatedEventNamesAsSqlArrayString AS CHARACTER VARYING[])
             )
             AND (
-                :destinationInstanceIdsAsSqlArrayString IS NULL
+                :useDestinationInstanceIds = FALSE
                 OR nameAndArchiveInstanceIdAgg.archiveInstanceIds && CAST(:destinationInstanceIdsAsSqlArrayString AS CHARACTER VARYING[])
             )
             """,
@@ -118,8 +118,10 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         @Param("useInstanceStorageStatusNames") useInstanceStorageStatusNames: Boolean,
         @Param("instanceStorageStatusNames") instanceStorageStatusNames: Collection<String>,
         @Param("instanceStorageStatusNeverStored") instanceStorageStatusNeverStored: Boolean?,
-        @Param("associatedEventNamesAsSqlArrayString") associatedEventNamesAsSqlArrayString: String?,
-        @Param("destinationInstanceIdsAsSqlArrayString") destinationInstanceIdsAsSqlArrayString: String?,
+        @Param("useAssociatedEventNames") useAssociatedEventNames: Boolean,
+        @Param("associatedEventNamesAsSqlArrayString") associatedEventNamesAsSqlArrayString: String,
+        @Param("useDestinationInstanceIds") useDestinationInstanceIds: Boolean,
+        @Param("destinationInstanceIdsAsSqlArrayString") destinationInstanceIdsAsSqlArrayString: String,
         @Param("latestStatusTimestampMin") latestStatusTimestampMin: OffsetDateTime?,
         @Param("latestStatusTimestampMax") latestStatusTimestampMax: OffsetDateTime?,
         @Param("allInstanceStatusEventNames") allInstanceStatusEventNames: Collection<String>,
@@ -148,8 +150,10 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             useInstanceStorageStatusNames = !instanceStorageStatusQueryFilter?.instanceStorageStatusNames.isNullOrEmpty(),
             instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.orDummyStrings(),
             instanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored,
-            associatedEventNamesAsSqlArrayString = filter.associatedEventNames.toSqlArrayString(),
-            destinationInstanceIdsAsSqlArrayString = filter.destinationIds.toSqlArrayString(),
+            useAssociatedEventNames = !filter.associatedEventNames.isNullOrEmpty(),
+            associatedEventNamesAsSqlArrayString = filter.associatedEventNames.toSqlArrayStringOrDummy(),
+            useDestinationInstanceIds = !filter.destinationIds.isNullOrEmpty(),
+            destinationInstanceIdsAsSqlArrayString = filter.destinationIds.toSqlArrayStringOrDummy(),
             latestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin,
             latestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax,
             allInstanceStatusEventNames = allInstanceStatusEventNames,
@@ -237,11 +241,11 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                  OR (storageEvent.source_application_id IS NULL AND :instanceStorageStatusNeverStored = TRUE)
              )
              AND (
-                 :associatedEventNamesAsSqlArrayString IS NULL
+                 :useAssociatedEventNames = FALSE
                  OR nameAndArchiveInstanceIdAgg.names @> CAST(:associatedEventNamesAsSqlArrayString AS CHARACTER VARYING[])
              )
              AND (
-                 :destinationInstanceIdsAsSqlArrayString IS NULL
+                 :useDestinationInstanceIds = FALSE
                  OR nameAndArchiveInstanceIdAgg.archiveInstanceIds && CAST(:destinationInstanceIdsAsSqlArrayString AS CHARACTER VARYING[])
              )
              ORDER BY latestUpdate DESC
@@ -262,8 +266,10 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         @Param("useInstanceStorageStatusNames") useInstanceStorageStatusNames: Boolean,
         @Param("instanceStorageStatusNames") instanceStorageStatusNames: Collection<String>,
         @Param("instanceStorageStatusNeverStored") instanceStorageStatusNeverStored: Boolean?,
-        @Param("associatedEventNamesAsSqlArrayString") associatedEventNamesAsSqlArrayString: String?,
-        @Param("destinationInstanceIdsAsSqlArrayString") destinationInstanceIdsAsSqlArrayString: String?,
+        @Param("useAssociatedEventNames") useAssociatedEventNames: Boolean,
+        @Param("associatedEventNamesAsSqlArrayString") associatedEventNamesAsSqlArrayString: String,
+        @Param("useDestinationInstanceIds") useDestinationInstanceIds: Boolean,
+        @Param("destinationInstanceIdsAsSqlArrayString") destinationInstanceIdsAsSqlArrayString: String,
         @Param("latestStatusTimestampMin") latestStatusTimestampMin: OffsetDateTime?,
         @Param("latestStatusTimestampMax") latestStatusTimestampMax: OffsetDateTime?,
         @Param("allInstanceStatusEventNames") allInstanceStatusEventNames: Collection<String>,
@@ -293,8 +299,10 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             useInstanceStorageStatusNames = !instanceStorageStatusQueryFilter?.instanceStorageStatusNames.isNullOrEmpty(),
             instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.orDummyStrings(),
             instanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored,
-            associatedEventNamesAsSqlArrayString = filter.associatedEventNames.toSqlArrayString(),
-            destinationInstanceIdsAsSqlArrayString = filter.destinationIds.toSqlArrayString(),
+            useAssociatedEventNames = !filter.associatedEventNames.isNullOrEmpty(),
+            associatedEventNamesAsSqlArrayString = filter.associatedEventNames.toSqlArrayStringOrDummy(),
+            useDestinationInstanceIds = !filter.destinationIds.isNullOrEmpty(),
+            destinationInstanceIdsAsSqlArrayString = filter.destinationIds.toSqlArrayStringOrDummy(),
             latestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin,
             latestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax,
             allInstanceStatusEventNames = allInstanceStatusEventNames,
@@ -488,6 +496,6 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
     private fun Collection<String>?.orDummyStrings(): Collection<String> =
         this?.takeUnless { it.isEmpty() } ?: listOf("__NO_MATCH__")
 
-    private fun Collection<String>?.toSqlArrayString(): String? =
-        this?.takeUnless { it.isEmpty() }?.joinToString(prefix = "{", postfix = "}")
+    private fun Collection<String>?.toSqlArrayStringOrDummy(): String =
+        this?.takeUnless { it.isEmpty() }?.joinToString(prefix = "{", postfix = "}") ?: "{__NO_MATCH__}"
 }
