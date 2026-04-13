@@ -2,9 +2,6 @@ spring:
     jpa:
         properties:
             hibernate:
-                format_sql: true
-                generate_statistics: true
-                session.events.log.LOG_QUERIES_SLOWER_THAN_MS: 100
                 jdbc:
                     time_zone: UTC
                     lob:
@@ -23,7 +20,3 @@ spring:
         locations: classpath:db/migration/
         lock-retry-count: 300
 
-logging:
-    level:
-        org.hibernate.SQL: debug
-        org.hibernate.orm.jdbc.bind: trace
