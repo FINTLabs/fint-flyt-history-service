@@ -33,7 +33,7 @@ spec:
       - fint-flyt-auth-forward-sso
   env:
     - name: JAVA_TOOL_OPTIONS
-      value: '-XX:+ExitOnOutOfMemoryError -Xmx850M -Xms700M'
+      value: '-XX:+ExitOnOutOfMemoryError -Xmx768M -Xms700M'
   resources:
     limits:
       memory: "1024Mi"
