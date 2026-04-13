@@ -269,10 +269,134 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                  OR nameAndArchiveInstanceIdAgg.archiveInstanceIds && CAST(:destinationInstanceIdsAsSqlArrayString AS CHARACTER VARYING[])
              )
              ORDER BY latestUpdate DESC
+             LIMIT :limit
              """,
         nativeQuery = true,
     )
-    fun getInstanceFlowSummaries(
+    fun getInstanceFlowSummariesWithLimit(
+        @Param("useSourceApplicationIds") useSourceApplicationIds: Boolean,
+        @Param("sourceApplicationIds") sourceApplicationIds: Collection<Long>,
+        @Param("useSourceApplicationIntegrationIds") useSourceApplicationIntegrationIds: Boolean,
+        @Param("sourceApplicationIntegrationIds") sourceApplicationIntegrationIds: Collection<String>,
+        @Param("useSourceApplicationInstanceIds") useSourceApplicationInstanceIds: Boolean,
+        @Param("sourceApplicationInstanceIds") sourceApplicationInstanceIds: Collection<String>,
+        @Param("useIntegrationIds") useIntegrationIds: Boolean,
+        @Param("integrationIds") integrationIds: Collection<Long>,
+        @Param("useStatusEventNames") useStatusEventNames: Boolean,
+        @Param("statusEventNames") statusEventNames: Collection<String>,
+        @Param("useInstanceStorageStatusNames") useInstanceStorageStatusNames: Boolean,
+        @Param("instanceStorageStatusNames") instanceStorageStatusNames: Collection<String>,
+        @Param("useInstanceStorageStatusNeverStored") useInstanceStorageStatusNeverStored: Boolean,
+        @Param("instanceStorageStatusNeverStoredValue") instanceStorageStatusNeverStoredValue: Boolean,
+        @Param("useAssociatedEventNames") useAssociatedEventNames: Boolean,
+        @Param("associatedEventNamesAsSqlArrayString") associatedEventNamesAsSqlArrayString: String,
+        @Param("useDestinationInstanceIds") useDestinationInstanceIds: Boolean,
+        @Param("destinationInstanceIdsAsSqlArrayString") destinationInstanceIdsAsSqlArrayString: String,
+        @Param("useLatestStatusTimestampMin") useLatestStatusTimestampMin: Boolean,
+        @Param("latestStatusTimestampMin") latestStatusTimestampMin: OffsetDateTime,
+        @Param("useLatestStatusTimestampMax") useLatestStatusTimestampMax: Boolean,
+        @Param("latestStatusTimestampMax") latestStatusTimestampMax: OffsetDateTime,
+        @Param("allInstanceStatusEventNames") allInstanceStatusEventNames: Collection<String>,
+        @Param("allInstanceStorageStatusEventNames") allInstanceStorageStatusEventNames: Collection<String>,
+        @Param("limit") limit: Int,
+    ): List<InstanceFlowSummaryNativeProjection>
+
+    @Query(
+        value =
+            """
+             SELECT  statusEvent.source_application_id             AS sourceApplicationId,
+                     statusEvent.source_application_integration_id AS sourceApplicationIntegrationId,
+                     statusEvent.source_application_instance_id    AS sourceApplicationInstanceId,
+                     statusEvent.integration_id                    AS integrationId,
+                     statusEvent.instance_id                       AS latestInstanceId,
+                     statusEvent.timestamp                         AS latestUpdate,
+                     statusEvent.name                              AS latestStatusEventName,
+                     storageEvent.name                             AS latestStorageStatusEventName,
+                     array_to_string(nameAndArchiveInstanceIdAgg.archiveInstanceIds, '||') AS destinationInstanceIds
+             FROM event statusEvent
+             LEFT OUTER JOIN event storageEvent
+             ON statusEvent.source_application_id = storageEvent.source_application_id
+             AND statusEvent.source_application_integration_id = storageEvent.source_application_integration_id
+             AND statusEvent.source_application_instance_id = storageEvent.source_application_instance_id
+             AND storageEvent.name IN (:allInstanceStorageStatusEventNames)
+             AND storageEvent.timestamp >= ALL (
+                 SELECT e.timestamp
+                 FROM event e
+                 WHERE e.source_application_id = storageEvent.source_application_id
+                 AND e.source_application_integration_id = storageEvent.source_application_integration_id
+                 AND e.source_application_instance_id = storageEvent.source_application_instance_id
+                 AND e.name IN (:allInstanceStorageStatusEventNames)
+             )
+             LEFT OUTER JOIN (
+                 SELECT  source_application_id,
+                         source_application_integration_id,
+                         source_application_instance_id,
+                         array_agg(name) AS names,
+                         array_agg(archive_instance_id ORDER BY timestamp DESC) AS archiveInstanceIds
+                 FROM event
+                 GROUP BY source_application_id, source_application_integration_id, source_application_instance_id
+             ) nameAndArchiveInstanceIdAgg
+             ON statusEvent.source_application_id = nameAndArchiveInstanceIdAgg.source_application_id
+             AND statusEvent.source_application_integration_id = nameAndArchiveInstanceIdAgg.source_application_integration_id
+             AND statusEvent.source_application_instance_id = nameAndArchiveInstanceIdAgg.source_application_instance_id
+             WHERE (
+                 (:useStatusEventNames = FALSE AND statusEvent.name IN (:allInstanceStatusEventNames))
+                 OR (:useStatusEventNames = TRUE AND statusEvent.name IN (:statusEventNames))
+             )
+             AND statusEvent.timestamp >= ALL (
+                 SELECT e.timestamp
+                 FROM event e
+                 WHERE e.source_application_id = statusEvent.source_application_id
+                 AND e.source_application_integration_id = statusEvent.source_application_integration_id
+                 AND e.source_application_instance_id = statusEvent.source_application_instance_id
+                 AND e.name IN (:allInstanceStatusEventNames)
+             )
+             AND (
+                 :useSourceApplicationIds = FALSE
+                 OR statusEvent.source_application_id IN (:sourceApplicationIds)
+             )
+             AND (
+                 :useSourceApplicationIntegrationIds = FALSE
+                 OR statusEvent.source_application_integration_id IN (:sourceApplicationIntegrationIds)
+             )
+             AND (
+                 :useSourceApplicationInstanceIds = FALSE
+                 OR statusEvent.source_application_instance_id IN (:sourceApplicationInstanceIds)
+             )
+             AND (
+                 :useIntegrationIds = FALSE
+                 OR statusEvent.integration_id IN (:integrationIds)
+             )
+             AND (
+                 :useLatestStatusTimestampMin = FALSE
+                 OR statusEvent.timestamp >= :latestStatusTimestampMin
+             )
+             AND (
+                 :useLatestStatusTimestampMax = FALSE
+                 OR statusEvent.timestamp <= :latestStatusTimestampMax
+             )
+             AND (
+                 (:useInstanceStorageStatusNames = FALSE AND :useInstanceStorageStatusNeverStored = FALSE)
+                 OR (:useInstanceStorageStatusNames = TRUE AND storageEvent.name IN (:instanceStorageStatusNames))
+                 OR (
+                     storageEvent.source_application_id IS NULL
+                     AND :useInstanceStorageStatusNeverStored = TRUE
+                     AND :instanceStorageStatusNeverStoredValue = TRUE
+                 )
+             )
+             AND (
+                 :useAssociatedEventNames = FALSE
+                 OR nameAndArchiveInstanceIdAgg.names @> CAST(:associatedEventNamesAsSqlArrayString AS CHARACTER VARYING[])
+             )
+             AND (
+                 :useDestinationInstanceIds = FALSE
+                 OR nameAndArchiveInstanceIdAgg.archiveInstanceIds && CAST(:destinationInstanceIdsAsSqlArrayString AS CHARACTER VARYING[])
+             )
+             ORDER BY latestUpdate DESC
+             """,
+        nativeQuery = true,
+    )
+    fun getInstanceFlowSummariesWithoutLimit(
         @Param("useSourceApplicationIds") useSourceApplicationIds: Boolean,
         @Param("sourceApplicationIds") sourceApplicationIds: Collection<Long>,
         @Param("useSourceApplicationIntegrationIds") useSourceApplicationIntegrationIds: Boolean,
@@ -308,65 +432,112 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         val instanceStorageStatusQueryFilter = filter.instanceStorageStatusQueryFilter
         val timeQueryFilter = filter.timeQueryFilter
 
-        return getInstanceFlowSummaries(
-            useSourceApplicationIds = !filter.sourceApplicationIds.isNullOrEmpty(),
-            sourceApplicationIds = filter.sourceApplicationIds.orDummyLongs(),
-            useSourceApplicationIntegrationIds = !filter.sourceApplicationIntegrationIds.isNullOrEmpty(),
-            sourceApplicationIntegrationIds = filter.sourceApplicationIntegrationIds.orDummyStrings(),
-            useSourceApplicationInstanceIds = !filter.sourceApplicationInstanceIds.isNullOrEmpty(),
-            sourceApplicationInstanceIds = filter.sourceApplicationInstanceIds.orDummyStrings(),
-            useIntegrationIds = !filter.integrationIds.isNullOrEmpty(),
-            integrationIds = filter.integrationIds.orDummyLongs(),
-            useStatusEventNames = !filter.statusEventNames.isNullOrEmpty(),
-            statusEventNames = filter.statusEventNames.orDummyStrings(),
-            useInstanceStorageStatusNames =
-                !instanceStorageStatusQueryFilter
-                    ?.instanceStorageStatusNames
-                    .isNullOrEmpty(),
-            instanceStorageStatusNames =
-                instanceStorageStatusQueryFilter
-                    ?.instanceStorageStatusNames
-                    .orDummyStrings(),
-            useInstanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored != null,
-            instanceStorageStatusNeverStoredValue = instanceStorageStatusQueryFilter?.neverStored ?: false,
-            useAssociatedEventNames = !filter.associatedEventNames.isNullOrEmpty(),
-            associatedEventNamesAsSqlArrayString = filter.associatedEventNames.toSqlArrayStringOrDummy(),
-            useDestinationInstanceIds = !filter.destinationIds.isNullOrEmpty(),
-            destinationInstanceIdsAsSqlArrayString = filter.destinationIds.toSqlArrayStringOrDummy(),
-            useLatestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin != null,
-            latestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin ?: DEFAULT_MIN_TIMESTAMP,
-            useLatestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax != null,
-            latestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax ?: DEFAULT_MAX_TIMESTAMP,
-            allInstanceStatusEventNames = allInstanceStatusEventNames,
-            allInstanceStorageStatusEventNames = allInstanceStorageStatusEventNames,
-        ).let { rows ->
-            val limitedRows =
-                if (limit == null) {
-                    rows
-                } else {
-                    rows.take(limit)
-                }
+        val useSourceApplicationIds = !filter.sourceApplicationIds.isNullOrEmpty()
+        val sourceApplicationIds = filter.sourceApplicationIds.orDummyLongs()
+        val useSourceApplicationIntegrationIds = !filter.sourceApplicationIntegrationIds.isNullOrEmpty()
+        val sourceApplicationIntegrationIds = filter.sourceApplicationIntegrationIds.orDummyStrings()
+        val useSourceApplicationInstanceIds = !filter.sourceApplicationInstanceIds.isNullOrEmpty()
+        val sourceApplicationInstanceIds = filter.sourceApplicationInstanceIds.orDummyStrings()
+        val useIntegrationIds = !filter.integrationIds.isNullOrEmpty()
+        val integrationIds = filter.integrationIds.orDummyLongs()
+        val useStatusEventNames = !filter.statusEventNames.isNullOrEmpty()
+        val statusEventNames = filter.statusEventNames.orDummyStrings()
+        val useInstanceStorageStatusNames =
+            !instanceStorageStatusQueryFilter
+                ?.instanceStorageStatusNames
+                .isNullOrEmpty()
+        val instanceStorageStatusNames = instanceStorageStatusQueryFilter?.instanceStorageStatusNames.orDummyStrings()
+        val useInstanceStorageStatusNeverStored = instanceStorageStatusQueryFilter?.neverStored != null
+        val instanceStorageStatusNeverStoredValue = instanceStorageStatusQueryFilter?.neverStored ?: false
+        val useAssociatedEventNames = !filter.associatedEventNames.isNullOrEmpty()
+        val associatedEventNamesAsSqlArrayString = filter.associatedEventNames.toSqlArrayStringOrDummy()
+        val useDestinationInstanceIds = !filter.destinationIds.isNullOrEmpty()
+        val destinationInstanceIdsAsSqlArrayString = filter.destinationIds.toSqlArrayStringOrDummy()
+        val useLatestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin != null
+        val latestStatusTimestampMin = timeQueryFilter?.latestStatusTimestampMin ?: DEFAULT_MIN_TIMESTAMP
+        val useLatestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax != null
+        val latestStatusTimestampMax = timeQueryFilter?.latestStatusTimestampMax ?: DEFAULT_MAX_TIMESTAMP
 
-            limitedRows.map { nativeProjection ->
-                InstanceFlowSummaryProjection
-                    .builder()
-                    .sourceApplicationId(nativeProjection.getSourceApplicationId())
-                    .sourceApplicationIntegrationId(nativeProjection.getSourceApplicationIntegrationId())
-                    .sourceApplicationInstanceId(nativeProjection.getSourceApplicationInstanceId())
-                    .integrationId(nativeProjection.getIntegrationId())
-                    .latestInstanceId(nativeProjection.getLatestInstanceId())
-                    .latestUpdate(nativeProjection.getLatestUpdate()?.atOffset(ZoneOffset.UTC))
-                    .latestStatusEventName(nativeProjection.getLatestStatusEventName())
-                    .latestStorageStatusEventName(nativeProjection.getLatestStorageStatusEventName())
-                    .destinationInstanceIds(
-                        nativeProjection
-                            .getDestinationInstanceIds()
-                            ?.takeUnless(String::isBlank)
-                            ?.split("||")
-                            ?.distinct()
-                            ?.joinToString(", "),
-                    ).build()
+        val rows =
+            if (limit != null) {
+                getInstanceFlowSummariesWithLimit(
+                    useSourceApplicationIds = useSourceApplicationIds,
+                    sourceApplicationIds = sourceApplicationIds,
+                    useSourceApplicationIntegrationIds = useSourceApplicationIntegrationIds,
+                    sourceApplicationIntegrationIds = sourceApplicationIntegrationIds,
+                    useSourceApplicationInstanceIds = useSourceApplicationInstanceIds,
+                    sourceApplicationInstanceIds = sourceApplicationInstanceIds,
+                    useIntegrationIds = useIntegrationIds,
+                    integrationIds = integrationIds,
+                    useStatusEventNames = useStatusEventNames,
+                    statusEventNames = statusEventNames,
+                    useInstanceStorageStatusNames = useInstanceStorageStatusNames,
+                    instanceStorageStatusNames = instanceStorageStatusNames,
+                    useInstanceStorageStatusNeverStored = useInstanceStorageStatusNeverStored,
+                    instanceStorageStatusNeverStoredValue = instanceStorageStatusNeverStoredValue,
+                    useAssociatedEventNames = useAssociatedEventNames,
+                    associatedEventNamesAsSqlArrayString = associatedEventNamesAsSqlArrayString,
+                    useDestinationInstanceIds = useDestinationInstanceIds,
+                    destinationInstanceIdsAsSqlArrayString = destinationInstanceIdsAsSqlArrayString,
+                    useLatestStatusTimestampMin = useLatestStatusTimestampMin,
+                    latestStatusTimestampMin = latestStatusTimestampMin,
+                    useLatestStatusTimestampMax = useLatestStatusTimestampMax,
+                    latestStatusTimestampMax = latestStatusTimestampMax,
+                    allInstanceStatusEventNames = allInstanceStatusEventNames,
+                    allInstanceStorageStatusEventNames = allInstanceStorageStatusEventNames,
+                    limit = limit,
+                )
+            } else {
+                getInstanceFlowSummariesWithoutLimit(
+                    useSourceApplicationIds = useSourceApplicationIds,
+                    sourceApplicationIds = sourceApplicationIds,
+                    useSourceApplicationIntegrationIds = useSourceApplicationIntegrationIds,
+                    sourceApplicationIntegrationIds = sourceApplicationIntegrationIds,
+                    useSourceApplicationInstanceIds = useSourceApplicationInstanceIds,
+                    sourceApplicationInstanceIds = sourceApplicationInstanceIds,
+                    useIntegrationIds = useIntegrationIds,
+                    integrationIds = integrationIds,
+                    useStatusEventNames = useStatusEventNames,
+                    statusEventNames = statusEventNames,
+                    useInstanceStorageStatusNames = useInstanceStorageStatusNames,
+                    instanceStorageStatusNames = instanceStorageStatusNames,
+                    useInstanceStorageStatusNeverStored = useInstanceStorageStatusNeverStored,
+                    instanceStorageStatusNeverStoredValue = instanceStorageStatusNeverStoredValue,
+                    useAssociatedEventNames = useAssociatedEventNames,
+                    associatedEventNamesAsSqlArrayString = associatedEventNamesAsSqlArrayString,
+                    useDestinationInstanceIds = useDestinationInstanceIds,
+                    destinationInstanceIdsAsSqlArrayString = destinationInstanceIdsAsSqlArrayString,
+                    useLatestStatusTimestampMin = useLatestStatusTimestampMin,
+                    latestStatusTimestampMin = latestStatusTimestampMin,
+                    useLatestStatusTimestampMax = useLatestStatusTimestampMax,
+                    latestStatusTimestampMax = latestStatusTimestampMax,
+                    allInstanceStatusEventNames = allInstanceStatusEventNames,
+                    allInstanceStorageStatusEventNames = allInstanceStorageStatusEventNames,
+                )
             }
+
+        return rows.map { nativeProjection ->
+            InstanceFlowSummaryProjection
+                .builder()
+                .sourceApplicationId(nativeProjection.getSourceApplicationId())
+                .sourceApplicationIntegrationId(nativeProjection.getSourceApplicationIntegrationId())
+                .sourceApplicationInstanceId(nativeProjection.getSourceApplicationInstanceId())
+                .integrationId(nativeProjection.getIntegrationId())
+                .latestInstanceId(nativeProjection.getLatestInstanceId())
+                .latestUpdate(
+                    requireNotNull(nativeProjection.getLatestUpdate()) {
+                        "latestUpdate was null for sourceApplicationInstanceId=${nativeProjection.getSourceApplicationInstanceId()}"
+                    }.atOffset(ZoneOffset.UTC),
+                ).latestStatusEventName(nativeProjection.getLatestStatusEventName())
+                .latestStorageStatusEventName(nativeProjection.getLatestStorageStatusEventName())
+                .destinationInstanceIds(
+                    nativeProjection
+                        .getDestinationInstanceIds()
+                        ?.takeUnless(String::isBlank)
+                        ?.split(Regex("\\|\\|"))
+                        ?.distinct()
+                        ?.joinToString(", "),
+                ).build()
         }
     }
 
@@ -431,37 +602,6 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
     @Query(
         value =
             """
-         SELECT COUNT(e) AS total,
-                COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END), 0)
-                    AS inProgress,
-                COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END), 0)
-                    AS transferred,
-                COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END), 0)
-                    AS aborted,
-                COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END), 0)
-                    AS failed
-         FROM EventEntity e
-         WHERE :#{#sourceApplicationIds != null && !#sourceApplicationIds.empty} IS TRUE
-         AND e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds}
-         AND e.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
-         AND e.timestamp >= ALL(
-            SELECT e1.timestamp
-            FROM EventEntity e1
-            WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
-              AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
-              AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
-              AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
-        )
-        """,
-    )
-    fun getTotalStatistics(
-        sourceApplicationIds: Collection<Long>?,
-        eventNamesPerInstanceStatus: EventNamesPerInstanceStatus,
-    ): InstanceStatisticsProjection
-
-    @Query(
-        value =
-            """
              SELECT e.instanceFlowHeaders.integrationId AS integrationId,
                     COUNT(e) AS total,
                     COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END), 0)
@@ -498,6 +638,37 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         eventNamesPerInstanceStatus: EventNamesPerInstanceStatus,
         pageable: Pageable,
     ): Slice<IntegrationStatisticsProjection>
+
+    @Query(
+        value =
+            """
+        SELECT COUNT(e) AS total,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS inProgress,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS transferred,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS aborted,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS failed
+        FROM EventEntity e
+        WHERE :#{#sourceApplicationIds != null && !#sourceApplicationIds.empty} IS TRUE
+        AND e.instanceFlowHeaders.sourceApplicationId IN :#{#sourceApplicationIds}
+        AND e.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
+        AND e.timestamp >= ALL(
+           SELECT e1.timestamp
+           FROM EventEntity e1
+           WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
+             AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
+             AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
+             AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
+       )
+       """,
+    )
+    fun getTotalStatistics(
+        sourceApplicationIds: Collection<Long>?,
+        eventNamesPerInstanceStatus: EventNamesPerInstanceStatus,
+    ): InstanceStatisticsProjection
 
     fun getIntegrationStatistics(
         integrationStatisticsQueryFilter: IntegrationStatisticsQueryFilter?,
