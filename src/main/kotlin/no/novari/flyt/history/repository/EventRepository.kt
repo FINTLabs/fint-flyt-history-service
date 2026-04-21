@@ -602,7 +602,8 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
     @Query(
         value =
             """
-             SELECT e.instanceFlowHeaders.integrationId AS integrationId,
+             SELECT e.instanceFlowHeaders.sourceApplicationId AS sourceApplicationId,
+                    e.instanceFlowHeaders.integrationId AS integrationId,
                     COUNT(e) AS total,
                     COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END), 0)
                         AS inProgress,
@@ -628,7 +629,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                   AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
                   AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
              )
-             GROUP BY e.instanceFlowHeaders.integrationId
+             GROUP BY e.instanceFlowHeaders.sourceApplicationId, e.instanceFlowHeaders.integrationId
             """,
     )
     fun getIntegrationStatistics(

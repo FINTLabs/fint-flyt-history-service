@@ -51,6 +51,7 @@ class StatisticsMetricsPublisherTest {
         val integrationNoDataGauge: Gauge? =
             meterRegistry
                 .find("flyt.history.integration.count")
+                .tag("sourceapplication_id", "__none__")
                 .tag("integration_id", "__none__")
                 .tag("status", "total")
                 .gauge()

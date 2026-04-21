@@ -145,7 +145,7 @@ The service publishes the same statistics data from the HTTP API as Prometheus g
 Metrics:
 
 - `flyt_history_instance_count` — total counts by status (tags: `status`)
-- `flyt_history_integration_count` — counts by integration and status (tags: `integration_id`, `status`)
+- `flyt_history_integration_count` — counts by source application, integration, and status (tags: `sourceapplication_id`, `integration_id`, `status`)
 
 Status tag values: `total`, `in_progress`, `transferred`, `aborted`, `failed`.
 When no integration data exists yet, `flyt_history_integration_count` is published with
