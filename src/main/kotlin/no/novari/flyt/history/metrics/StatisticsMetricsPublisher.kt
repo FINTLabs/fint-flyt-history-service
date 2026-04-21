@@ -72,7 +72,13 @@ class StatisticsMetricsPublisher(
             allIntegrations.flatMap { integration ->
                 val integrationId = integration.getIntegrationId()?.toString() ?: "unknown"
                 val sourceApplicationId = integration.getSourceApplicationId()?.toString() ?: "unknown"
-                val baseTags = Tags.of(TAG_SOURCE_APPLICATION_ID, sourceApplicationId, TAG_INTEGRATION_ID, integrationId)
+                val baseTags =
+                    Tags.of(
+                        TAG_SOURCE_APPLICATION_ID,
+                        sourceApplicationId,
+                        TAG_INTEGRATION_ID,
+                        integrationId,
+                    )
                 listOf(
                     MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_TOTAL), safeValue(integration.getTotal())),
                     MultiGauge.Row.of(
