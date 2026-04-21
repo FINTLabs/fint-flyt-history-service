@@ -425,6 +425,38 @@ class EventRepositoryTest {
         }
 
         @Test
+        fun givenNoSourceApplicationFilterShouldReturnStatisticsForAllSourceApplications() {
+            save(
+                event(
+                    1L,
+                    "testSourceApplicationIntegrationId1",
+                    "testSourceApplicationInstanceId1",
+                    EventCategory.INSTANCE_RECEIVED.eventName,
+                    odt(2024, 1, 1, 12, 0),
+                ),
+                event(
+                    2L,
+                    "testSourceApplicationIntegrationId2",
+                    "testSourceApplicationInstanceId2",
+                    EventCategory.INSTANCE_DISPATCHED.eventName,
+                    odt(2024, 1, 1, 13, 0),
+                    archiveInstanceId = "testArchiveInstanceId2",
+                ),
+            )
+
+            assertStatistics(
+                eventRepository.getTotalStatisticsForAllSourceApplications(
+                    eventCategorizationService.eventNamesPerInstanceStatus,
+                ),
+                2,
+                1,
+                1,
+                0,
+                0,
+            )
+        }
+
+        @Test
         fun givenNoEventsWithMatchingSourceApplicationIdShouldReturnZeroes() {
             save(
                 event(
@@ -651,7 +683,7 @@ class EventRepositoryTest {
                     Pageable.unpaged(),
                 )
 
-            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(1, 1, 1, 0, 0, 0)))
+            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(1, 1, 1, 1, 0, 0, 0)))
         }
 
         @Test
@@ -680,7 +712,7 @@ class EventRepositoryTest {
                     Pageable.unpaged(),
                 )
 
-            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(1, 1, 1, 0, 0, 0)))
+            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(1, 1, 1, 1, 0, 0, 0)))
         }
 
         @Test
@@ -709,7 +741,7 @@ class EventRepositoryTest {
                     Pageable.unpaged(),
                 )
 
-            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(1, 1, 1, 0, 0, 0)))
+            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(1, 1, 1, 1, 0, 0, 0)))
         }
 
         @Test
@@ -740,7 +772,7 @@ class EventRepositoryTest {
                     Pageable.unpaged(),
                 )
 
-            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(2, 1, 1, 0, 0, 0)))
+            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(2, 2, 1, 1, 0, 0, 0)))
         }
 
         @Test
@@ -775,7 +807,7 @@ class EventRepositoryTest {
                     Pageable.unpaged(),
                 )
 
-            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(2, 1, 1, 0, 0, 0)))
+            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(2, 2, 1, 1, 0, 0, 0)))
         }
 
         @Test
@@ -806,7 +838,44 @@ class EventRepositoryTest {
                     Pageable.unpaged(),
                 )
 
-            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(2, 1, 1, 0, 0, 0)))
+            assertIntegrationStatistics(integrationStatistics, listOf(StatsExpectation(2, 2, 1, 1, 0, 0, 0)))
+        }
+
+        @Test
+        fun givenSameIntegrationIdAcrossMultipleSourceApplicationsShouldReturnSeparateStatisticsRows() {
+            save(
+                event(
+                    1L,
+                    "testSourceApplicationIntegrationId1",
+                    "testSourceApplicationInstanceId1",
+                    EventCategory.INSTANCE_RECEIVED.eventName,
+                    odt(2024, 1, 1, 12, 0),
+                    integrationId = 10L,
+                ),
+                event(
+                    2L,
+                    "testSourceApplicationIntegrationId2",
+                    "testSourceApplicationInstanceId1",
+                    EventCategory.INSTANCE_DISPATCHED.eventName,
+                    odt(2024, 1, 1, 12, 0),
+                    integrationId = 10L,
+                ),
+            )
+
+            val integrationStatistics =
+                eventRepository.getIntegrationStatistics(
+                    null,
+                    eventCategorizationService.eventNamesPerInstanceStatus,
+                    Pageable.unpaged(),
+                )
+
+            assertIntegrationStatistics(
+                integrationStatistics,
+                listOf(
+                    StatsExpectation(1, 10, 1, 1, 0, 0, 0),
+                    StatsExpectation(2, 10, 1, 0, 1, 0, 0),
+                ),
+            )
         }
 
         @Test
@@ -897,9 +966,9 @@ class EventRepositoryTest {
             assertIntegrationStatistics(
                 integrationStatistics,
                 listOf(
-                    StatsExpectation(1, 1, 1, 0, 0, 0),
-                    StatsExpectation(2, 2, 0, 1, 0, 1),
-                    StatsExpectation(3, 1, 0, 0, 1, 0),
+                    StatsExpectation(1, 1, 1, 1, 0, 0, 0),
+                    StatsExpectation(2, 2, 2, 0, 1, 0, 1),
+                    StatsExpectation(2, 3, 1, 0, 0, 1, 0),
                 ),
             )
         }
@@ -1000,10 +1069,15 @@ class EventRepositoryTest {
         expected: List<StatsExpectation>,
     ) {
         assertThat(integrationStatistics).hasSize(expected.size)
-        val sorted = integrationStatistics.content.sortedBy { it.getIntegrationId() }
+        val sorted =
+            integrationStatistics.content.sortedWith(
+                compareBy<IntegrationStatisticsProjection> { it.getSourceApplicationId() }
+                    .thenBy { it.getIntegrationId() },
+            )
 
         expected.forEachIndexed { index, expectation ->
             val actual = sorted[index]
+            assertThat(actual.getSourceApplicationId()).isEqualTo(expectation.sourceApplicationId.toLong())
             assertThat(actual.getIntegrationId()).isEqualTo(expectation.integrationId.toLong())
             assertThat(actual.getTotal()).isEqualTo(expectation.total.toLong())
             assertThat(actual.getInProgress()).isEqualTo(expectation.inProgress.toLong())
@@ -1014,6 +1088,7 @@ class EventRepositoryTest {
     }
 
     private data class StatsExpectation(
+        val sourceApplicationId: Int,
         val integrationId: Int,
         val total: Int,
         val inProgress: Int,

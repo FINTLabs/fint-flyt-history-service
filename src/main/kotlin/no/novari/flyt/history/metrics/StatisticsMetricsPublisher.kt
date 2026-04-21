@@ -41,7 +41,7 @@ class StatisticsMetricsPublisher(
     }
 
     private fun publishInstanceTotals() {
-        val totals = eventService.getStatistics(emptyList())
+        val totals = eventService.getStatisticsForAllSourceApplications()
         val rows =
             listOf(
                 MultiGauge.Row.of(Tags.of(TAG_STATUS, STATUS_TOTAL), safeValue(totals.getTotal())),
@@ -58,7 +58,7 @@ class StatisticsMetricsPublisher(
         val allIntegrations = mutableListOf<IntegrationStatisticsProjection>()
         val filter = IntegrationStatisticsFilter.builder().build()
 
-        var pageable: Pageable = PageRequest.of(0, DEFAULT_PAGE_SIZE, Sort.by("integrationId"))
+        var pageable: Pageable = PageRequest.of(0, DEFAULT_PAGE_SIZE, Sort.by("integrationId", "sourceApplicationId"))
         while (true) {
             val slice = eventService.getIntegrationStatistics(filter, pageable)
             allIntegrations += slice.content
@@ -71,7 +71,14 @@ class StatisticsMetricsPublisher(
         var rows =
             allIntegrations.flatMap { integration ->
                 val integrationId = integration.getIntegrationId()?.toString() ?: "unknown"
-                val baseTags = Tags.of(TAG_INTEGRATION_ID, integrationId)
+                val sourceApplicationId = integration.getSourceApplicationId()?.toString() ?: "unknown"
+                val baseTags =
+                    Tags.of(
+                        TAG_SOURCE_APPLICATION_ID,
+                        sourceApplicationId,
+                        TAG_INTEGRATION_ID,
+                        integrationId,
+                    )
                 listOf(
                     MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_TOTAL), safeValue(integration.getTotal())),
                     MultiGauge.Row.of(
@@ -88,7 +95,13 @@ class StatisticsMetricsPublisher(
             }
 
         if (rows.isEmpty()) {
-            val baseTags = Tags.of(TAG_INTEGRATION_ID, INTEGRATION_ID_NO_DATA)
+            val baseTags =
+                Tags.of(
+                    TAG_SOURCE_APPLICATION_ID,
+                    SOURCE_APPLICATION_ID_NO_DATA,
+                    TAG_INTEGRATION_ID,
+                    INTEGRATION_ID_NO_DATA,
+                )
             rows =
                 listOf(
                     MultiGauge.Row.of(baseTags.and(TAG_STATUS, STATUS_TOTAL), 0),
@@ -110,12 +123,14 @@ class StatisticsMetricsPublisher(
         private const val INSTANCE_METRIC = "flyt.history.instance.count"
         private const val INTEGRATION_METRIC = "flyt.history.integration.count"
         private const val TAG_STATUS = "status"
+        private const val TAG_SOURCE_APPLICATION_ID = "sourceapplication_id"
         private const val TAG_INTEGRATION_ID = "integration_id"
         private const val STATUS_TOTAL = "total"
         private const val STATUS_IN_PROGRESS = "in_progress"
         private const val STATUS_TRANSFERRED = "transferred"
         private const val STATUS_ABORTED = "aborted"
         private const val STATUS_FAILED = "failed"
+        private const val SOURCE_APPLICATION_ID_NO_DATA = "__none__"
         private const val INTEGRATION_ID_NO_DATA = "__none__"
         private const val DEFAULT_PAGE_SIZE = 500
     }

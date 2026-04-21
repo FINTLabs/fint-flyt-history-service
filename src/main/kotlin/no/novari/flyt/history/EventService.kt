@@ -140,6 +140,12 @@ class EventService(
         )
     }
 
+    fun getStatisticsForAllSourceApplications(): InstanceStatisticsProjection {
+        return eventRepository.getTotalStatisticsForAllSourceApplications(
+            eventCategorizationService.eventNamesPerInstanceStatus,
+        )
+    }
+
     fun getIntegrationStatistics(
         integrationStatisticsFilter: IntegrationStatisticsFilter,
         pageable: Pageable,

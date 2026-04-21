@@ -602,7 +602,8 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
     @Query(
         value =
             """
-             SELECT e.instanceFlowHeaders.integrationId AS integrationId,
+             SELECT e.instanceFlowHeaders.sourceApplicationId AS sourceApplicationId,
+                    e.instanceFlowHeaders.integrationId AS integrationId,
                     COUNT(e) AS total,
                     COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END), 0)
                         AS inProgress,
@@ -628,7 +629,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                   AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
                   AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
              )
-             GROUP BY e.instanceFlowHeaders.integrationId
+             GROUP BY e.instanceFlowHeaders.sourceApplicationId, e.instanceFlowHeaders.integrationId
             """,
     )
     fun getIntegrationStatistics(
@@ -667,6 +668,34 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
     )
     fun getTotalStatistics(
         sourceApplicationIds: Collection<Long>?,
+        eventNamesPerInstanceStatus: EventNamesPerInstanceStatus,
+    ): InstanceStatisticsProjection
+
+    @Query(
+        value =
+            """
+        SELECT COUNT(e) AS total,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS inProgress,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS transferred,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS aborted,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS failed
+        FROM EventEntity e
+        WHERE e.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
+        AND e.timestamp >= ALL(
+           SELECT e1.timestamp
+           FROM EventEntity e1
+           WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
+             AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
+             AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
+             AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
+       )
+       """,
+    )
+    fun getTotalStatisticsForAllSourceApplications(
         eventNamesPerInstanceStatus: EventNamesPerInstanceStatus,
     ): InstanceStatisticsProjection
 

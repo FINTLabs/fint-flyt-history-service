@@ -9,9 +9,13 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Slice
 import org.springframework.data.domain.SliceImpl
 
@@ -35,7 +39,7 @@ class StatisticsMetricsPublisherTest {
         whenever(totals.getTransferred()).thenReturn(0L)
         whenever(totals.getAborted()).thenReturn(0L)
         whenever(totals.getFailed()).thenReturn(0L)
-        whenever(eventService.getStatistics(listOf())).thenReturn(totals)
+        whenever(eventService.getStatisticsForAllSourceApplications()).thenReturn(totals)
 
         val emptySlice: Slice<IntegrationStatisticsProjection> =
             SliceImpl(listOf(), PageRequest.of(0, 500), false)
@@ -51,6 +55,7 @@ class StatisticsMetricsPublisherTest {
         val integrationNoDataGauge: Gauge? =
             meterRegistry
                 .find("flyt.history.integration.count")
+                .tag("sourceapplication_id", "__none__")
                 .tag("integration_id", "__none__")
                 .tag("status", "total")
                 .gauge()
@@ -58,5 +63,31 @@ class StatisticsMetricsPublisherTest {
         assertThat(instanceTotalGauge).isNotNull()
         assertThat(integrationNoDataGauge).isNotNull()
         assertThat(integrationNoDataGauge!!.value()).isEqualTo(0.0)
+    }
+
+    @Test
+    fun `when refresh metrics then page integration statistics with stable sort`() {
+        val totals: InstanceStatisticsProjection = mock()
+        whenever(totals.getTotal()).thenReturn(0L)
+        whenever(totals.getInProgress()).thenReturn(0L)
+        whenever(totals.getTransferred()).thenReturn(0L)
+        whenever(totals.getAborted()).thenReturn(0L)
+        whenever(totals.getFailed()).thenReturn(0L)
+        whenever(eventService.getStatisticsForAllSourceApplications()).thenReturn(totals)
+
+        val emptySlice: Slice<IntegrationStatisticsProjection> =
+            SliceImpl(listOf(), PageRequest.of(0, 500), false)
+        whenever(eventService.getIntegrationStatistics(any(), any())).thenReturn(emptySlice)
+
+        statisticsMetricsPublisher.refreshMetrics()
+
+        val pageableCaptor = argumentCaptor<Pageable>()
+        verify(eventService, times(1)).getIntegrationStatistics(any(), pageableCaptor.capture())
+
+        assertThat(
+            pageableCaptor.firstValue.sort
+                .toList()
+                .map { it.property },
+        ).containsExactly("integrationId", "sourceApplicationId")
     }
 }

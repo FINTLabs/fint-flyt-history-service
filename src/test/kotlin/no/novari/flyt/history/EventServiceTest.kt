@@ -482,6 +482,31 @@ class EventServiceTest {
     }
 
     @Test
+    fun `when get statistics for all source applications then invoke`() {
+        val eventNamesPerInstanceStatus: EventNamesPerInstanceStatus = mock()
+        whenever(eventCategorizationService.eventNamesPerInstanceStatus).thenReturn(eventNamesPerInstanceStatus)
+
+        val instanceStatisticsProjection: InstanceStatisticsProjection = mock()
+        whenever(eventRepository.getTotalStatisticsForAllSourceApplications(eventNamesPerInstanceStatus))
+            .thenReturn(instanceStatisticsProjection)
+
+        val statistics = eventService.getStatisticsForAllSourceApplications()
+
+        verify(eventCategorizationService, times(1)).eventNamesPerInstanceStatus
+        verify(eventRepository, times(1)).getTotalStatisticsForAllSourceApplications(eventNamesPerInstanceStatus)
+        verifyNoMoreInteractions(
+            eventRepository,
+            eventMappingService,
+            instanceFlowHeadersMappingService,
+            instanceFlowSummariesFilterMappingService,
+            instanceFlowSummaryMappingService,
+            integrationStatisticsFilterMappingService,
+            eventCategorizationService,
+        )
+        assertThat(statistics).isSameAs(instanceStatisticsProjection)
+    }
+
+    @Test
     fun `get integration statistics`() {
         val integrationStatisticsFilter: IntegrationStatisticsFilter = mock()
         val pageable: Pageable = mock()
