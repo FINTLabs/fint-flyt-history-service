@@ -670,6 +670,34 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         eventNamesPerInstanceStatus: EventNamesPerInstanceStatus,
     ): InstanceStatisticsProjection
 
+    @Query(
+        value =
+            """
+        SELECT COUNT(e) AS total,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.inProgressStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS inProgress,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.transferredStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS transferred,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.abortedStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS aborted,
+               COALESCE(SUM(CASE WHEN e.name IN :#{#eventNamesPerInstanceStatus.failedStatusEventNames} THEN 1 ELSE 0 END), 0)
+                   AS failed
+        FROM EventEntity e
+        WHERE e.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
+        AND e.timestamp >= ALL(
+           SELECT e1.timestamp
+           FROM EventEntity e1
+           WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
+             AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
+             AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
+             AND e1.name IN :#{#eventNamesPerInstanceStatus.allStatusEventNames}
+       )
+       """,
+    )
+    fun getTotalStatisticsForAllSourceApplications(
+        eventNamesPerInstanceStatus: EventNamesPerInstanceStatus,
+    ): InstanceStatisticsProjection
+
     fun getIntegrationStatistics(
         integrationStatisticsQueryFilter: IntegrationStatisticsQueryFilter?,
         eventNamesPerInstanceStatus: EventNamesPerInstanceStatus,

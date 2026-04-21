@@ -35,7 +35,7 @@ class StatisticsMetricsPublisherTest {
         whenever(totals.getTransferred()).thenReturn(0L)
         whenever(totals.getAborted()).thenReturn(0L)
         whenever(totals.getFailed()).thenReturn(0L)
-        whenever(eventService.getStatistics(listOf())).thenReturn(totals)
+        whenever(eventService.getStatisticsForAllSourceApplications()).thenReturn(totals)
 
         val emptySlice: Slice<IntegrationStatisticsProjection> =
             SliceImpl(listOf(), PageRequest.of(0, 500), false)

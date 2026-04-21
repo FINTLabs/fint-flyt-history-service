@@ -41,7 +41,7 @@ class StatisticsMetricsPublisher(
     }
 
     private fun publishInstanceTotals() {
-        val totals = eventService.getStatistics(emptyList())
+        val totals = eventService.getStatisticsForAllSourceApplications()
         val rows =
             listOf(
                 MultiGauge.Row.of(Tags.of(TAG_STATUS, STATUS_TOTAL), safeValue(totals.getTotal())),

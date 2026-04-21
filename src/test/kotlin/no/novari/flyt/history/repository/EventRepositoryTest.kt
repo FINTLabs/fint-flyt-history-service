@@ -425,6 +425,38 @@ class EventRepositoryTest {
         }
 
         @Test
+        fun givenNoSourceApplicationFilterShouldReturnStatisticsForAllSourceApplications() {
+            save(
+                event(
+                    1L,
+                    "testSourceApplicationIntegrationId1",
+                    "testSourceApplicationInstanceId1",
+                    EventCategory.INSTANCE_RECEIVED.eventName,
+                    odt(2024, 1, 1, 12, 0),
+                ),
+                event(
+                    2L,
+                    "testSourceApplicationIntegrationId2",
+                    "testSourceApplicationInstanceId2",
+                    EventCategory.INSTANCE_DISPATCHED.eventName,
+                    odt(2024, 1, 1, 13, 0),
+                    archiveInstanceId = "testArchiveInstanceId2",
+                ),
+            )
+
+            assertStatistics(
+                eventRepository.getTotalStatisticsForAllSourceApplications(
+                    eventCategorizationService.eventNamesPerInstanceStatus,
+                ),
+                2,
+                1,
+                1,
+                0,
+                0,
+            )
+        }
+
+        @Test
         fun givenNoEventsWithMatchingSourceApplicationIdShouldReturnZeroes() {
             save(
                 event(
