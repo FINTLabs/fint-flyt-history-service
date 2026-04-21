@@ -8,14 +8,14 @@ import no.novari.flyt.history.repository.projections.IntegrationStatisticsProjec
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Slice
 import org.springframework.data.domain.SliceImpl
 
@@ -84,7 +84,10 @@ class StatisticsMetricsPublisherTest {
         val pageableCaptor = argumentCaptor<Pageable>()
         verify(eventService, times(1)).getIntegrationStatistics(any(), pageableCaptor.capture())
 
-        assertThat(pageableCaptor.firstValue.sort.toList().map { it.property })
-            .containsExactly("integrationId", "sourceApplicationId")
+        assertThat(
+            pageableCaptor.firstValue.sort
+                .toList()
+                .map { it.property },
+        ).containsExactly("integrationId", "sourceApplicationId")
     }
 }
