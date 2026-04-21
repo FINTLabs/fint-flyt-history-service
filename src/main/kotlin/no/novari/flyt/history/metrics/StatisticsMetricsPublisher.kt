@@ -58,7 +58,7 @@ class StatisticsMetricsPublisher(
         val allIntegrations = mutableListOf<IntegrationStatisticsProjection>()
         val filter = IntegrationStatisticsFilter.builder().build()
 
-        var pageable: Pageable = PageRequest.of(0, DEFAULT_PAGE_SIZE, Sort.by("integrationId"))
+        var pageable: Pageable = PageRequest.of(0, DEFAULT_PAGE_SIZE, Sort.by("integrationId", "sourceApplicationId"))
         while (true) {
             val slice = eventService.getIntegrationStatistics(filter, pageable)
             allIntegrations += slice.content
