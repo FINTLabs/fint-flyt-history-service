@@ -146,10 +146,14 @@ Metrics:
 
 - `flyt_history_instance_count` — total counts by status (tags: `status`)
 - `flyt_history_integration_count` — counts by source application, integration, and status (tags: `sourceapplication_id`, `integration_id`, `status`)
+- `flyt_history_source_application_count` — counts by source application and status
+  (tags: `org_id`, `sourceapplication_id`, `status`)
 
 Status tag values: `total`, `in_progress`, `transferred`, `aborted`, `failed`.
 When no integration data exists yet, `flyt_history_integration_count` is published with
 `integration_id="__none__"` and zero values so dashboards can discover the metric immediately.
+When no source-application data exists yet, `flyt_history_source_application_count` is published with
+`sourceapplication_id="__none__"` and zero values so dashboards can discover the metric immediately.
 
 Scrape endpoint: `/actuator/prometheus`
 
