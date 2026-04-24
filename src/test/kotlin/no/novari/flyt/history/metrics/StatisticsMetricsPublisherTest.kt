@@ -14,11 +14,11 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
-import org.springframework.mock.env.MockEnvironment
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Slice
 import org.springframework.data.domain.SliceImpl
+import org.springframework.mock.env.MockEnvironment
 
 class StatisticsMetricsPublisherTest {
     private lateinit var eventService: EventService
