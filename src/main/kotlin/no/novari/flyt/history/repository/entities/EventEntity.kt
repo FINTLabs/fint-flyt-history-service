@@ -2,6 +2,7 @@ package no.novari.flyt.history.repository.entities
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.CascadeType
+import jakarta.persistence.Column
 import jakarta.persistence.Embedded
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -40,6 +41,10 @@ class EventEntity(
     var instanceFlowHeaders: InstanceFlowHeadersEmbeddable? = null,
     var name: String? = null,
     var timestamp: OffsetDateTime? = null,
+    @field:Column(name = "is_scrubbed", nullable = false)
+    var isScrubbed: Boolean = false,
+    @field:Column(name = "scrubbed_at")
+    var scrubbedAt: OffsetDateTime? = null,
     @field:Enumerated(EnumType.STRING)
     var type: EventType? = null,
     var applicationId: String? = null,
@@ -57,6 +62,8 @@ class EventEntity(
         private var instanceFlowHeaders: InstanceFlowHeadersEmbeddable? = null
         private var name: String? = null
         private var timestamp: OffsetDateTime? = null
+        private var isScrubbedValue: Boolean = false
+        private var scrubbedAt: OffsetDateTime? = null
         private var type: EventType? = null
         private var applicationId: String? = null
         private var errors: MutableCollection<ErrorEntity> = mutableListOf()
@@ -71,6 +78,10 @@ class EventEntity(
         fun name(name: String?) = apply { this.name = name }
 
         fun timestamp(timestamp: OffsetDateTime?) = apply { this.timestamp = timestamp }
+
+        fun isScrubbed(isScrubbed: Boolean) = apply { this.isScrubbedValue = isScrubbed }
+
+        fun scrubbedAt(scrubbedAt: OffsetDateTime?) = apply { this.scrubbedAt = scrubbedAt }
 
         fun type(type: EventType?) = apply { this.type = type }
 
@@ -87,6 +98,8 @@ class EventEntity(
                 instanceFlowHeaders = instanceFlowHeaders,
                 name = name,
                 timestamp = timestamp,
+                isScrubbed = isScrubbedValue,
+                scrubbedAt = scrubbedAt,
                 type = type,
                 applicationId = applicationId,
                 errors = errors,
