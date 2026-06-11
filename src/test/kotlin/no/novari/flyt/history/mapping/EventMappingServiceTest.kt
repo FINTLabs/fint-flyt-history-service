@@ -1,5 +1,6 @@
 package no.novari.flyt.history.mapping
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import no.novari.flyt.history.model.event.Event
 import no.novari.flyt.history.model.event.EventCategorizationService
 import no.novari.flyt.history.model.event.EventCategory
@@ -54,7 +55,8 @@ class EventMappingServiceTest {
             )
 
         verifyNoMoreInteractions(instanceFlowHeadersMappingService, eventCategorizationService)
-        assertThat(event).hasAllNullFieldsOrPropertiesExcept("errors")
+        assertThat(event).hasAllNullFieldsOrPropertiesExcept("isScrubbed", "errors")
+        assertThat(event.isScrubbed).isFalse()
         assertThat(event.errors).isEmpty()
     }
 
@@ -79,6 +81,7 @@ class EventMappingServiceTest {
                     .instanceFlowHeaders(instanceFlowHeadersEmbeddable)
                     .name("testName")
                     .timestamp(offsetDateTime)
+                    .isScrubbed(true)
                     .type(EventType.INFO)
                     .applicationId("testApplicationId")
                     .errors(listOf(errorEntity1, errorEntity2))
@@ -92,6 +95,7 @@ class EventMappingServiceTest {
         assertThat(event.instanceFlowHeaders).isSameAs(instanceFlowHeaders)
         assertThat(event.category).isEqualTo(EventCategory.INSTANCE_DISPATCHED)
         assertThat(event.timestamp).isEqualTo(offsetDateTime)
+        assertThat(event.isScrubbed).isTrue()
         assertThat(event.type).isEqualTo(EventType.INFO)
         assertThat(event.applicationId).isEqualTo("testApplicationId")
         assertThat(event.errors).containsExactly(errorEntity1, errorEntity2)
@@ -119,7 +123,8 @@ class EventMappingServiceTest {
         verifyNoMoreInteractions(instanceFlowHeadersMappingService, eventCategorizationService)
         assertThat(eventPage).hasSize(1)
         val event = eventPage.content.first()
-        assertThat(event).hasAllNullFieldsOrPropertiesExcept("errors")
+        assertThat(event).hasAllNullFieldsOrPropertiesExcept("isScrubbed", "errors")
+        assertThat(event.isScrubbed).isFalse()
         assertThat(event.errors).isEmpty()
     }
 
@@ -146,6 +151,7 @@ class EventMappingServiceTest {
                             .instanceFlowHeaders(instanceFlowHeadersEmbeddable)
                             .name("testName")
                             .timestamp(offsetDateTime)
+                            .isScrubbed(true)
                             .type(EventType.INFO)
                             .applicationId("testApplicationId")
                             .errors(listOf(errorEntity1, errorEntity2))
@@ -163,6 +169,7 @@ class EventMappingServiceTest {
         assertThat(event.instanceFlowHeaders).isSameAs(instanceFlowHeaders)
         assertThat(event.category).isEqualTo(EventCategory.INSTANCE_DISPATCHED)
         assertThat(event.timestamp).isEqualTo(offsetDateTime)
+        assertThat(event.isScrubbed).isTrue()
         assertThat(event.type).isEqualTo(EventType.INFO)
         assertThat(event.applicationId).isEqualTo("testApplicationId")
         assertThat(event.errors).containsExactly(errorEntity1, errorEntity2)
@@ -181,8 +188,9 @@ class EventMappingServiceTest {
         val eventEntity = eventMappingService.toEventEntity(Event.builder().build())
 
         verifyNoMoreInteractions(instanceFlowHeadersMappingService, eventCategorizationService)
-        assertThat(eventEntity).hasAllNullFieldsOrPropertiesExcept("id", "errors")
+        assertThat(eventEntity).hasAllNullFieldsOrPropertiesExcept("id", "isScrubbed", "errors")
         assertThat(eventEntity.id).isZero()
+        assertThat(eventEntity.isScrubbed).isFalse()
         assertThat(eventEntity.errors).isEmpty()
     }
 
@@ -204,6 +212,7 @@ class EventMappingServiceTest {
                     .instanceFlowHeaders(instanceFlowHeaders)
                     .category(EventCategory.INSTANCE_DISPATCHED)
                     .timestamp(offsetDateTime)
+                    .isScrubbed(true)
                     .type(EventType.INFO)
                     .applicationId("testApplicationId")
                     .errors(listOf(errorEntity1, errorEntity2))
@@ -217,8 +226,17 @@ class EventMappingServiceTest {
         assertThat(eventEntity.instanceFlowHeaders).isSameAs(instanceFlowHeadersEmbeddable)
         assertThat(eventEntity.name).isEqualTo(EventCategory.INSTANCE_DISPATCHED.eventName)
         assertThat(eventEntity.timestamp).isEqualTo(offsetDateTime)
+        assertThat(eventEntity.isScrubbed).isTrue()
         assertThat(eventEntity.type).isEqualTo(EventType.INFO)
         assertThat(eventEntity.applicationId).isEqualTo("testApplicationId")
         assertThat(eventEntity.errors).containsExactly(errorEntity1, errorEntity2)
+    }
+
+    @Test
+    fun `given event when serializing then expose is scrubbed field`() {
+        val json = jacksonObjectMapper().writeValueAsString(Event.builder().build())
+
+        assertThat(json).contains("\"isScrubbed\":false")
+        assertThat(json).doesNotContain("\"scrubbed\"")
     }
 }
