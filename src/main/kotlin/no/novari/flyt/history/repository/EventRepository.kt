@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Slice
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
@@ -571,6 +572,55 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         sourceApplicationInstanceId: String,
         pageable: Pageable,
     ): Page<EventEntity>
+
+    @Query(
+        """
+        SELECT e
+        FROM EventEntity e
+        WHERE e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId
+        AND e.instanceFlowHeaders.sourceApplicationIntegrationId = :sourceApplicationIntegrationId
+        AND e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId
+        """,
+    )
+    fun findAllBySourceApplicationAggregateInstanceId(
+        @Param("sourceApplicationId") sourceApplicationId: Long,
+        @Param("sourceApplicationIntegrationId") sourceApplicationIntegrationId: String,
+        @Param("sourceApplicationInstanceId") sourceApplicationInstanceId: String,
+        pageable: Pageable,
+    ): Page<EventEntity>
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        value =
+            """
+            UPDATE error_args
+            SET "value" = ''
+            WHERE error_id IN (
+                SELECT id
+                FROM error
+                WHERE event_id IN (:eventIds)
+            )
+            """,
+        nativeQuery = true,
+    )
+    fun scrubErrorArgsByEventIds(
+        @Param("eventIds") eventIds: Collection<Long>,
+    ): Int
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        value =
+            """
+            UPDATE event
+            SET is_scrubbed = TRUE,
+                scrubbed_at = COALESCE(scrubbed_at, NOW())
+            WHERE id IN (:eventIds)
+            """,
+        nativeQuery = true,
+    )
+    fun scrubByEventIds(
+        @Param("eventIds") eventIds: Collection<Long>,
+    ): Int
 
     fun findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(
         instanceId: Long,
