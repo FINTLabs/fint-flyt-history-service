@@ -44,6 +44,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import java.sql.Timestamp
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.util.UUID
 import java.util.function.Consumer
 
 @Testcontainers(disabledWithoutDocker = true)
@@ -208,6 +209,7 @@ class InstanceDeletedConsumerConfigurationTest {
             .sourceApplicationId(sourceApplicationId)
             .sourceApplicationIntegrationId(sourceApplicationIntegrationId)
             .sourceApplicationInstanceId(sourceApplicationInstanceId)
+            .correlationId(UUID.randomUUID())
             .integrationId(100L)
             .build()
     }
