@@ -580,14 +580,15 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         WHERE e.instanceFlowHeaders.sourceApplicationId = :sourceApplicationId
         AND e.instanceFlowHeaders.sourceApplicationIntegrationId = :sourceApplicationIntegrationId
         AND e.instanceFlowHeaders.sourceApplicationInstanceId = :sourceApplicationInstanceId
+        AND e.isScrubbed = FALSE
         """,
     )
-    fun findAllBySourceApplicationAggregateInstanceId(
+    fun findUnscrubbedBySourceApplicationAggregateInstanceId(
         @Param("sourceApplicationId") sourceApplicationId: Long,
         @Param("sourceApplicationIntegrationId") sourceApplicationIntegrationId: String,
         @Param("sourceApplicationInstanceId") sourceApplicationInstanceId: String,
         pageable: Pageable,
-    ): Page<EventEntity>
+    ): Slice<EventEntity>
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(

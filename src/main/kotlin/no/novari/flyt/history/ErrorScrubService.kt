@@ -20,39 +20,35 @@ class ErrorScrubService(
         val sourceApplicationIntegrationId = requireNotNull(headers.sourceApplicationIntegrationId)
         val sourceApplicationInstanceId = requireNotNull(headers.sourceApplicationInstanceId)
 
-        var pageNumber = 0
-
-        do {
-            val eventPage =
-                findEventPage(
+        while (true) {
+            val eventIds =
+                findUnscrubbedEventSlice(
                     sourceApplicationId = sourceApplicationId,
                     sourceApplicationIntegrationId = sourceApplicationIntegrationId,
                     sourceApplicationInstanceId = sourceApplicationInstanceId,
-                    pageNumber = pageNumber,
-                )
+                ).content
+                    .map { it.id }
 
-            val eventIds = eventPage.content.map { it.id }
-            if (eventIds.isNotEmpty()) {
-                eventRepository.scrubErrorArgsByEventIds(eventIds)
-                eventRepository.scrubByEventIds(eventIds)
+            if (eventIds.isEmpty()) {
+                return
             }
 
-            pageNumber++
-        } while (eventPage.hasNext())
+            eventRepository.scrubErrorArgsByEventIds(eventIds)
+            eventRepository.scrubByEventIds(eventIds)
+        }
     }
 
-    private fun findEventPage(
+    private fun findUnscrubbedEventSlice(
         sourceApplicationId: Long,
         sourceApplicationIntegrationId: String,
         sourceApplicationInstanceId: String,
-        pageNumber: Int,
-    ) = eventRepository.findAllBySourceApplicationAggregateInstanceId(
+    ) = eventRepository.findUnscrubbedBySourceApplicationAggregateInstanceId(
         sourceApplicationId = sourceApplicationId,
         sourceApplicationIntegrationId = sourceApplicationIntegrationId,
         sourceApplicationInstanceId = sourceApplicationInstanceId,
         pageable =
             PageRequest.of(
-                pageNumber,
+                0,
                 scrubBatchSize,
                 Sort.by(Sort.Direction.ASC, "id"),
             ),
