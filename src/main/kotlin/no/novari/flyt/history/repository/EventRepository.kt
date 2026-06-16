@@ -17,6 +17,7 @@ import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
@@ -621,6 +622,41 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
     )
     fun scrubByEventIds(
         @Param("eventIds") eventIds: Collection<Long>,
+    ): Int
+
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+        value =
+            """
+            WITH candidates AS (
+                SELECT e.id
+                FROM event e
+                WHERE e.is_scrubbed = FALSE
+                AND e.timestamp < :cutoff
+                ORDER BY e.timestamp, e.id
+                LIMIT :batchSize
+                FOR UPDATE SKIP LOCKED
+            ),
+            scrubbed_error_args AS (
+                UPDATE error_args ea
+                SET "value" = ''
+                FROM error er
+                JOIN candidates c ON c.id = er.event_id
+                WHERE ea.error_id = er.id
+                RETURNING 1
+            )
+            UPDATE event e
+            SET is_scrubbed = TRUE,
+                scrubbed_at = COALESCE(e.scrubbed_at, NOW())
+            FROM candidates c
+            WHERE e.id = c.id
+            """,
+        nativeQuery = true,
+    )
+    fun scrubBatch(
+        @Param("cutoff") cutoff: OffsetDateTime,
+        @Param("batchSize") batchSize: Int,
     ): Int
 
     fun findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(

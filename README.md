@@ -85,6 +85,8 @@ Validation failures respond with 422 Unprocessable Entity using the shared forma
 `StatisticsMetricsPublisher` refreshes Prometheus statistics metrics on a fixed delay
 (`novari.flyt.history-service.metrics.refresh-ms`, default `60000` ms).
 
+`ScheduledErrorScrubService` runs daily after an initial 2 minutes delay and scrubs old, unscrubbed events in batches.
+
 ## Configuration
 
 The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-web-resource-server, flyt-postgres) and exposes these key properties:
@@ -93,6 +95,8 @@ The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-web-resource-
 | --- | --- |
 | fint.application-id | Identifier included in events created by this service (default fint-flyt-history-service). |
 | novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time | Retention for instance-processing event topics (default 4d). |
+| novari.flyt.history-service.retention.time-to-keep-error-details-in-days | Number of days to keep error detail values before scheduled scrub. |
+| novari.flyt.history-service.retention.scrub-batch-size | Maximum number of events scrubbed per database transaction. |
 | fint.database.url, fint.database.username, fint.database.password | PostgreSQL JDBC connection supplied via secrets/environment. |
 | spring.kafka.bootstrap-servers | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092. |
 | spring.security.oauth2.resourceserver.jwt.issuer-uri | Authority used for JWT validation. |
