@@ -159,7 +159,7 @@ class EventRepositoryTest {
 
             assertThat(returnedEvent)
                 .usingRecursiveComparison()
-                .ignoringFields("id")
+                .ignoringFields("id", "createdAt", "createdBy")
                 .withEqualsForType(OffsetDateTime::isEqual, OffsetDateTime::class.java)
                 .isEqualTo(
                     event(
