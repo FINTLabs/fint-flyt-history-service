@@ -60,11 +60,11 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
-    implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.11.0")
+    implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.15.3")
 
     implementation("no.novari:flyt-web-resource-server:2.0.0")
     implementation("no.novari:flyt-kafka:4.0.0")
-    implementation("no.novari:flyt-audit-starter:1.0.0-rc-2")
+    implementation("no.novari:flyt-audit-starter:1.0.0-rc-3")
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
