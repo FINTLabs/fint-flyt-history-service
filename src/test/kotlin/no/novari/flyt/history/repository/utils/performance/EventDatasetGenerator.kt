@@ -204,7 +204,7 @@ class EventDatasetGenerator(
     private fun generateStringOfMaxNLength(n: Int): String {
         return generateSequence {
             random.nextInt(123 - 48) + 48
-        }.filter { (it <= 57 || it >= 65) && (it <= 90 || it >= 97) }
+        }.filter { (it !in 58..<65) && (it !in 91..<97) }
             .take(n)
             .fold(StringBuilder(), StringBuilder::appendCodePoint)
             .toString()
