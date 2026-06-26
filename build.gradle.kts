@@ -64,7 +64,7 @@ dependencies {
 
     implementation("no.novari:flyt-web-resource-server:3.1.0")
     implementation("no.novari:flyt-kafka:7.0.0")
-    implementation("no.novari:flyt-audit-starter:1.0.0-rc-6")
+    implementation("no.novari:flyt-audit-starter:1.0.0-rc-7")
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
