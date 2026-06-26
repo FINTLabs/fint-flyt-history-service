@@ -4,13 +4,13 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("org.springframework.boot") version "3.5.13"
+    id("org.springframework.boot") version "3.5.15"
     id("io.spring.dependency-management") version "1.1.7"
-    id("com.github.ben-manes.versions") version "0.53.0"
-    id("org.jlleitschuh.gradle.ktlint") version "13.1.0"
-    kotlin("jvm") version "2.3.10"
-    kotlin("plugin.spring") version "2.3.10"
-    kotlin("plugin.jpa") version "2.3.10"
+    id("com.github.ben-manes.versions") version "0.54.0"
+    id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
+    kotlin("jvm") version "2.4.0"
+    kotlin("plugin.spring") version "2.4.0"
+    kotlin("plugin.jpa") version "2.4.0"
 }
 
 group = "no.novari"
@@ -62,24 +62,20 @@ dependencies {
 
     implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.11.0")
 
-    implementation("no.novari:flyt-web-resource-server:2.0.0")
-    implementation("no.novari:flyt-kafka:4.0.0")
+    implementation("no.novari:flyt-web-resource-server:3.1.0")
+    implementation("no.novari:flyt-kafka:7.0.0")
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
 
     compileOnly("org.springframework.security:spring-security-config")
     compileOnly("org.springframework.security:spring-security-web")
-    compileOnly("org.projectlombok:lombok")
 
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
     runtimeOnly("org.postgresql:postgresql")
 
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
-    annotationProcessor("org.projectlombok:lombok")
 
-    testCompileOnly("org.projectlombok:lombok")
-    testAnnotationProcessor("org.projectlombok:lombok")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-core")
     testImplementation("org.mockito.kotlin:mockito-kotlin:6.2.3")
@@ -92,23 +88,12 @@ tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 
     testLogging {
-        events =
-            setOf(
-                TestLogEvent.FAILED,
-                TestLogEvent.STANDARD_OUT,
-                TestLogEvent.STANDARD_ERROR,
-            )
-        exceptionFormat = TestExceptionFormat.FULL
+        events = setOf(TestLogEvent.FAILED)
+        exceptionFormat = TestExceptionFormat.SHORT
         showExceptions = true
         showCauses = true
         showStackTraces = true
     }
-
-    systemProperty("spring.jpa.show-sql", "true")
-    systemProperty("spring.jpa.properties.hibernate.format_sql", "true")
-    systemProperty("logging.level.org.hibernate.SQL", "DEBUG")
-    systemProperty("logging.level.org.hibernate.orm.jdbc.bind", "TRACE")
-    systemProperty("logging.level.org.springframework.jdbc.core", "TRACE")
 }
 
 tasks.test {
@@ -120,28 +105,18 @@ tasks.test {
 }
 
 tasks.register<Test>("performanceTest") {
+    description = "Performance tests"
     useJUnitPlatform {
         includeTags("performance")
     }
 
     testLogging {
-        events =
-            setOf(
-                TestLogEvent.FAILED,
-                TestLogEvent.STANDARD_OUT,
-                TestLogEvent.STANDARD_ERROR,
-            )
-        exceptionFormat = TestExceptionFormat.FULL
+        events = setOf(TestLogEvent.FAILED)
+        exceptionFormat = TestExceptionFormat.SHORT
         showExceptions = true
         showCauses = true
         showStackTraces = true
     }
-
-    systemProperty("spring.jpa.show-sql", "true")
-    systemProperty("spring.jpa.properties.hibernate.format_sql", "true")
-    systemProperty("logging.level.org.hibernate.SQL", "DEBUG")
-    systemProperty("logging.level.org.hibernate.orm.jdbc.bind", "TRACE")
-    systemProperty("logging.level.org.springframework.jdbc.core", "TRACE")
 }
 
 ktlint {
