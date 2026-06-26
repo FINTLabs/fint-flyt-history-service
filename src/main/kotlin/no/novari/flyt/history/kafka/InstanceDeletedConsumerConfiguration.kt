@@ -36,7 +36,7 @@ class InstanceDeletedConsumerConfiguration(
                     .build(),
                 instanceFlowErrorHandlerFactory.createErrorHandler(
                     InstanceFlowErrorHandlerConfiguration
-                        .stepBuilder(Any::class.java)
+                        .stepBuilder<Any>()
                         .noRetries()
                         .skipFailedRecords()
                         .build(),

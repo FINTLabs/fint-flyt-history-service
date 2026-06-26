@@ -140,14 +140,15 @@ class EventListenerConfiguration(
 
     private fun mapToErrorEntities(errorCollection: ErrorCollection): MutableCollection<ErrorEntity> {
         return errorCollection.errors
-            .map(::mapToErrorEntity)
-            .toMutableList()
+            ?.map(::mapToErrorEntity)
+            ?.toMutableList()
+            ?: mutableListOf()
     }
 
     private fun mapToErrorEntity(errorFromEvent: Error): ErrorEntity {
         return ErrorEntity(
             errorCode = errorFromEvent.errorCode,
-            args = errorFromEvent.args,
+            args = errorFromEvent.args?.mapValues { (_, v) -> v.orEmpty() },
         )
     }
 

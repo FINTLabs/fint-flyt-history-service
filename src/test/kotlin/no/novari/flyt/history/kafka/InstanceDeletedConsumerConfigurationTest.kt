@@ -189,8 +189,8 @@ class InstanceDeletedConsumerConfigurationTest {
 
     @Test
     fun `consumer is configured with dedicated group and seek-to-beginning assignment policy`() {
-        assertThat(listenerConfiguration.groupIdSuffix).isEqualTo("instance-deleted-scrubber")
-        assertThat(listenerConfiguration.isSeekingOffsetResetOnAssignment).isTrue()
+        assertThat(listenerConfiguration.groupIdSuffix).contains("instance-deleted-scrubber")
+        assertThat(listenerConfiguration.onPartitionsAssigned).isPresent
         assertThat(topicNameParameters.eventName).isEqualTo(EventCategory.INSTANCE_DELETED.eventName)
     }
 

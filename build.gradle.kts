@@ -62,8 +62,8 @@ dependencies {
 
     implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.15.3")
 
-    implementation("no.novari:flyt-web-resource-server:2.0.0")
-    implementation("no.novari:flyt-kafka:4.0.0")
+    implementation("no.novari:flyt-web-resource-server:3.1.0")
+    implementation("no.novari:flyt-kafka:7.0.0")
     implementation("no.novari:flyt-audit-starter:1.0.0-rc-6")
 
     implementation("org.flywaydb:flyway-core")
@@ -71,16 +71,12 @@ dependencies {
 
     compileOnly("org.springframework.security:spring-security-config")
     compileOnly("org.springframework.security:spring-security-web")
-    compileOnly("org.projectlombok:lombok")
 
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
     runtimeOnly("org.postgresql:postgresql")
 
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
-    annotationProcessor("org.projectlombok:lombok")
 
-    testCompileOnly("org.projectlombok:lombok")
-    testAnnotationProcessor("org.projectlombok:lombok")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-core")
     testImplementation("org.mockito.kotlin:mockito-kotlin:6.2.3")
@@ -93,23 +89,12 @@ tasks.withType<Test>().configureEach {
     useJUnitPlatform()
 
     testLogging {
-        events =
-            setOf(
-                TestLogEvent.FAILED,
-                TestLogEvent.STANDARD_OUT,
-                TestLogEvent.STANDARD_ERROR,
-            )
-        exceptionFormat = TestExceptionFormat.FULL
+        events = setOf(TestLogEvent.FAILED)
+        exceptionFormat = TestExceptionFormat.SHORT
         showExceptions = true
         showCauses = true
         showStackTraces = true
     }
-
-    systemProperty("spring.jpa.show-sql", "true")
-    systemProperty("spring.jpa.properties.hibernate.format_sql", "true")
-    systemProperty("logging.level.org.hibernate.SQL", "DEBUG")
-    systemProperty("logging.level.org.hibernate.orm.jdbc.bind", "TRACE")
-    systemProperty("logging.level.org.springframework.jdbc.core", "TRACE")
 }
 
 tasks.test {
@@ -121,28 +106,18 @@ tasks.test {
 }
 
 tasks.register<Test>("performanceTest") {
+    description = "Performance tests"
     useJUnitPlatform {
         includeTags("performance")
     }
 
     testLogging {
-        events =
-            setOf(
-                TestLogEvent.FAILED,
-                TestLogEvent.STANDARD_OUT,
-                TestLogEvent.STANDARD_ERROR,
-            )
-        exceptionFormat = TestExceptionFormat.FULL
+        events = setOf(TestLogEvent.FAILED)
+        exceptionFormat = TestExceptionFormat.SHORT
         showExceptions = true
         showCauses = true
         showStackTraces = true
     }
-
-    systemProperty("spring.jpa.show-sql", "true")
-    systemProperty("spring.jpa.properties.hibernate.format_sql", "true")
-    systemProperty("logging.level.org.hibernate.SQL", "DEBUG")
-    systemProperty("logging.level.org.hibernate.orm.jdbc.bind", "TRACE")
-    systemProperty("logging.level.org.springframework.jdbc.core", "TRACE")
 }
 
 ktlint {
