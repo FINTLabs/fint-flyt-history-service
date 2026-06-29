@@ -9,6 +9,8 @@ import no.novari.flyt.history.repository.entities.EventEntity
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService
 import no.novari.flyt.kafka.model.Error
 import no.novari.flyt.kafka.model.ErrorCollection
+import no.novari.flyt.kafka.model.InstanceErrorEvent
+import no.novari.flyt.kafka.model.InstanceErrorOrigin
 import no.novari.kafka.OriginHeaderProducerInterceptor
 import no.novari.kafka.consuming.ErrorHandlerConfiguration
 import no.novari.kafka.consuming.ErrorHandlerFactory
@@ -137,6 +139,57 @@ class EventListenerConfiguration(
                 ),
             ).createContainer(createErrorEventTopicNameParameters(eventCategory.eventName))
     }
+
+    @Bean
+    fun instanceErrorListener(): ConcurrentMessageListenerContainer<String, InstanceErrorEvent> {
+        return instanceFlowListenerFactoryService
+            .createRecordListenerContainerFactory(
+                InstanceErrorEvent::class.java,
+                { instanceFlowConsumerRecord ->
+                    val event = instanceFlowConsumerRecord.consumerRecord.value()
+                    val eventCategory = event.name.toEventCategory()
+                    eventRepository.save(
+                        EventEntity(
+                            instanceFlowHeaders =
+                                instanceFlowHeadersMappingService.toEmbeddable(
+                                    instanceFlowConsumerRecord.instanceFlowHeaders,
+                                ),
+                            name = eventCategory.eventName,
+                            type = EventType.ERROR,
+                            timestamp =
+                                Instant
+                                    .ofEpochMilli(instanceFlowConsumerRecord.consumerRecord.timestamp())
+                                    .atOffset(ZoneOffset.UTC),
+                            errors = mapToErrorEntities(event.errors),
+                            applicationId = getApplicationId(instanceFlowConsumerRecord.consumerRecord.headers()),
+                        ),
+                    )
+                },
+                ListenerConfiguration
+                    .stepBuilder()
+                    .groupIdApplicationDefault()
+                    .maxPollRecordsKafkaDefault()
+                    .maxPollIntervalKafkaDefault()
+                    .continueFromPreviousOffsetOnAssignment()
+                    .build(),
+                errorHandlerFactory.createErrorHandler(
+                    ErrorHandlerConfiguration
+                        .stepBuilder<InstanceErrorEvent>()
+                        .noRetries()
+                        .skipFailedRecords()
+                        .build(),
+                ),
+            ).createContainer(createErrorEventTopicNameParameters("instance-error"))
+    }
+
+    private fun InstanceErrorOrigin.toEventCategory(): EventCategory =
+        when (this) {
+            InstanceErrorOrigin.RECEIVAL -> EventCategory.INSTANCE_RECEIVAL_ERROR
+            InstanceErrorOrigin.REGISTRATION -> EventCategory.INSTANCE_REGISTRATION_ERROR
+            InstanceErrorOrigin.RETRY_REQUEST -> EventCategory.INSTANCE_RETRY_REQUEST_ERROR
+            InstanceErrorOrigin.MAPPING -> EventCategory.INSTANCE_MAPPING_ERROR
+            InstanceErrorOrigin.DISPATCHING -> EventCategory.INSTANCE_DISPATCHING_ERROR
+        }
 
     private fun mapToErrorEntities(errorCollection: ErrorCollection): MutableCollection<ErrorEntity> {
         return errorCollection.errors
