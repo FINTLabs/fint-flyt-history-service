@@ -63,7 +63,7 @@ dependencies {
     implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.11.0")
 
     implementation("no.novari:flyt-web-resource-server:3.1.0")
-    implementation("no.novari:flyt-kafka:7.0.0")
+    implementation("no.novari:flyt-kafka:7.1.0")
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
