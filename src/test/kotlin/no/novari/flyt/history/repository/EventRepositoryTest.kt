@@ -1,5 +1,6 @@
 package no.novari.flyt.history.repository
 
+import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.model.SourceApplicationAggregateInstanceId
 import no.novari.flyt.history.model.event.EventCategorizationService
 import no.novari.flyt.history.model.event.EventCategory
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.context.annotation.Import
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Slice
 import org.springframework.test.annotation.DirtiesContext
@@ -33,6 +35,7 @@ import java.time.ZoneOffset
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(JpaAuditingTestConfig::class)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 class EventRepositoryTest {
@@ -156,7 +159,7 @@ class EventRepositoryTest {
 
             assertThat(returnedEvent)
                 .usingRecursiveComparison()
-                .ignoringFields("id")
+                .ignoringFields("id", "createdAt", "createdBy")
                 .withEqualsForType(OffsetDateTime::isEqual, OffsetDateTime::class.java)
                 .isEqualTo(
                     event(

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class ErrorScrubService(
     private val eventRepository: EventRepository,
+    private val eventScrubber: EventScrubber,
     @param:Value("\${novari.flyt.history-service.retention.scrub-batch-size}")
     private val scrubBatchSize: Int,
 ) {
@@ -21,20 +22,18 @@ class ErrorScrubService(
         val sourceApplicationInstanceId = requireNotNull(headers.sourceApplicationInstanceId)
 
         while (true) {
-            val eventIds =
+            val events =
                 findUnscrubbedEventSlice(
                     sourceApplicationId = sourceApplicationId,
                     sourceApplicationIntegrationId = sourceApplicationIntegrationId,
                     sourceApplicationInstanceId = sourceApplicationInstanceId,
                 ).content
-                    .map { it.id }
 
-            if (eventIds.isEmpty()) {
+            if (events.isEmpty()) {
                 return
             }
 
-            eventRepository.scrubErrorArgsByEventIds(eventIds)
-            eventRepository.scrubByEventIds(eventIds)
+            eventScrubber.scrubEvents(events)
         }
     }
 
