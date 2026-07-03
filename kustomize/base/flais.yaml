@@ -27,10 +27,18 @@ spec:
     hostname: flyt.vigoiks.no
     basePath: ""
   ingress:
-    enabled: true
-    basePath: /api/intern/instance-flow-tracking
-    middlewares:
-      - fint-flyt-auth-forward-sso
+    routes:
+      # Bearer/M2M: requests som allerede bærer en Authorization-header rutes utenom
+      # SSO-middlewaren og treffer resource-serveren direkte.
+      - host: flyt.vigoiks.no
+        path: /api/intern/instance-flow-tracking
+        headers:
+          Authorization: "re:.+"
+      # Cookie/nettleser: alt annet håndteres av SSO-middlewaren (cookie -> Bearer).
+      - host: flyt.vigoiks.no
+        path: /api/intern/instance-flow-tracking
+        middlewares:
+          - fint-flyt-auth-forward-sso
   env:
     - name: JAVA_TOOL_OPTIONS
       value: '-XX:+ExitOnOutOfMemoryError -Xmx768M -Xms700M'
