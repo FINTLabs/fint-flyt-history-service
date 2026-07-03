@@ -9,7 +9,7 @@ on:
 
 jobs:
   deploy:
-    uses: FINTLabs/fint-flyt-github-workflows/.github/workflows/java-app-cd-deploy.yaml@refactor/reusable-github-workflows-pilot
+    uses: FINTLabs/fint-flyt-github-workflows/.github/workflows/java-app-cd-deploy.yaml@main
     with:
       deploy-targets: |
         [
