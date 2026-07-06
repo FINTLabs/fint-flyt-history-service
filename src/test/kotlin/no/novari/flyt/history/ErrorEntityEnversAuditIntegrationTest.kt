@@ -32,13 +32,9 @@ import java.util.UUID
 /**
  * Verifiserer Variant D-flyten på ErrorEntity:
  * - INSERT skaper en revinfo-rad og en error_aud-rad (revtype=0)
- * - PII i error_args blir aldri speilet i en error_args_aud-tabell —
- *   @NotAudited på args hindrer at Envers genererer den
- * - Scrubbing oppdaterer last_modified_at/by på live-tabellen, men trigger
- *   IKKE en ny Envers-revisjon (Envers skriver bare revisjoner når auditerte
- *   felter endres; vi auditerer kun error_code, og scrubbing endrer kun args).
- *   "Når og av hvem scrubbing skjedde" leses derfor fra last_modified_*
- *   på live-tabellen — som er konsistent med kravanalysens behov.
+ * - PII i error_args blir aldri speilet i en error_args_aud-tabell (@NotAudited)
+ * - Scrubbing oppdaterer last_modified_at/by på live-tabellen, men trigger ikke en ny
+ *   Envers-revisjon, siden det auditerte feltet (error_code) er uendret
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(showSql = false)
@@ -112,7 +108,6 @@ class ErrorEntityEnversAuditIntegrationTest {
 
         errorScrubService.scrubByInstanceFlowHeaders(headers(event))
 
-        // PII er fjernet fra live-tabell.
         val liveArgs =
             jdbcTemplate.queryForList(
                 """SELECT "value" FROM error_args WHERE error_id = ?""",
@@ -121,7 +116,6 @@ class ErrorEntityEnversAuditIntegrationTest {
             )
         assertThat(liveArgs).allSatisfy { assertThat(it).isEmpty() }
 
-        // last_modified_at er oppdatert — dokumenterer at scrubbing skjedde.
         assertThat(lastModifiedAt(errorId)).isAfter(createdAt)
 
         // Envers skriver IKKE en ny revisjon, fordi @Audited-feltet (error_code) er uendret.
