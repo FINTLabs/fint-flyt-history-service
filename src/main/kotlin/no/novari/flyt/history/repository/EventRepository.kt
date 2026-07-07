@@ -13,11 +13,9 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Slice
 import org.springframework.data.jpa.repository.JpaRepository
-import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
-import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
@@ -591,73 +589,19 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
         pageable: Pageable,
     ): Slice<EventEntity>
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query(
-        value =
-            """
-            UPDATE error_args
-            SET "value" = ''
-            WHERE error_id IN (
-                SELECT id
-                FROM error
-                WHERE event_id IN (:eventIds)
-            )
-            """,
-        nativeQuery = true,
+        """
+        SELECT e
+        FROM EventEntity e
+        WHERE e.isScrubbed = FALSE
+        AND e.timestamp < :cutoff
+        ORDER BY e.timestamp, e.id
+        """,
     )
-    fun scrubErrorArgsByEventIds(
-        @Param("eventIds") eventIds: Collection<Long>,
-    ): Int
-
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(
-        value =
-            """
-            UPDATE event
-            SET is_scrubbed = TRUE,
-                scrubbed_at = COALESCE(scrubbed_at, NOW())
-            WHERE id IN (:eventIds)
-            """,
-        nativeQuery = true,
-    )
-    fun scrubByEventIds(
-        @Param("eventIds") eventIds: Collection<Long>,
-    ): Int
-
-    @Transactional
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(
-        value =
-            """
-            WITH candidates AS (
-                SELECT e.id
-                FROM event e
-                WHERE e.is_scrubbed = FALSE
-                AND e.timestamp < :cutoff
-                ORDER BY e.timestamp, e.id
-                LIMIT :batchSize
-                FOR UPDATE SKIP LOCKED
-            ),
-            scrubbed_error_args AS (
-                UPDATE error_args ea
-                SET "value" = ''
-                FROM error er
-                JOIN candidates c ON c.id = er.event_id
-                WHERE ea.error_id = er.id
-                RETURNING 1
-            )
-            UPDATE event e
-            SET is_scrubbed = TRUE,
-                scrubbed_at = COALESCE(e.scrubbed_at, NOW())
-            FROM candidates c
-            WHERE e.id = c.id
-            """,
-        nativeQuery = true,
-    )
-    fun scrubBatch(
+    fun findUnscrubbedByTimestampBefore(
         @Param("cutoff") cutoff: OffsetDateTime,
-        @Param("batchSize") batchSize: Int,
-    ): Int
+        pageable: Pageable,
+    ): Slice<EventEntity>
 
     fun findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(
         instanceId: Long,

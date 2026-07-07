@@ -15,6 +15,7 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.OneToMany
 import jakarta.persistence.SequenceGenerator
 import jakarta.persistence.Table
+import no.novari.flyt.audit.entity.CreatedAuditedEntity
 import no.novari.flyt.history.model.event.EventType
 import java.time.OffsetDateTime
 
@@ -51,7 +52,7 @@ class EventEntity(
     @field:OneToMany(cascade = [CascadeType.ALL], orphanRemoval = true)
     @field:JoinColumn(name = "event_id")
     var errors: MutableCollection<ErrorEntity> = mutableListOf(),
-) {
+) : CreatedAuditedEntity() {
     companion object {
         @JvmStatic
         fun builder() = Builder()

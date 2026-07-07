@@ -34,7 +34,12 @@ import java.time.ZoneOffset
 
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(showSql = false)
-@Import(ScheduledErrorScrubService::class, ScheduledErrorScrubServiceTest.FixedClockConfiguration::class)
+@Import(
+    ScheduledErrorScrubService::class,
+    EventScrubber::class,
+    ScheduledErrorScrubServiceTest.FixedClockConfiguration::class,
+    JpaAuditingTestConfig::class,
+)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)

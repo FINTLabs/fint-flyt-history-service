@@ -1,5 +1,6 @@
 package no.novari.flyt.history.kafka
 
+import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.event.EventType
@@ -48,7 +49,7 @@ import java.util.function.Consumer
 
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(showSql = false)
-@Import(InstanceFlowHeadersMappingService::class)
+@Import(InstanceFlowHeadersMappingService::class, JpaAuditingTestConfig::class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)

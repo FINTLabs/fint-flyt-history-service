@@ -12,8 +12,12 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.MapKeyColumn
 import jakarta.persistence.SequenceGenerator
 import jakarta.persistence.Table
+import no.novari.flyt.audit.entity.AuditedEntity
+import org.hibernate.envers.Audited
+import org.hibernate.envers.NotAudited
 
 @Entity
+@Audited
 @Table(name = "error")
 class ErrorEntity(
     @field:Id
@@ -22,6 +26,11 @@ class ErrorEntity(
     @get:JsonIgnore
     var id: Long = 0,
     var errorCode: String? = null,
+    // @NotAudited på args er bevisst: feltet kan inneholde PII som scrubbing-jobben rydder vekk.
+    // Hvis Envers auditerte args ville PII havnet i error_args_aud — vi har bare flyttet
+    // problemet til en historikk-tabell. Med @NotAudited lages aldri error_args_aud, så
+    // scrubbing kan kjøre uten å måtte traversere historikk og fjerne PII derfra.
+    @field:NotAudited
     @field:ElementCollection
     @field:CollectionTable(
         name = "error_args",
@@ -30,7 +39,7 @@ class ErrorEntity(
     @field:MapKeyColumn(name = "map_key")
     @field:Column(name = "\"value\"", columnDefinition = "text")
     var args: Map<String, String>? = null,
-) {
+) : AuditedEntity() {
     companion object {
         @JvmStatic
         fun builder() = Builder()

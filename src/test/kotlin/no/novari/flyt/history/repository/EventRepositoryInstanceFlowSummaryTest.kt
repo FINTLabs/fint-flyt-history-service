@@ -1,5 +1,6 @@
 package no.novari.flyt.history.repository
 
+import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.repository.filters.InstanceFlowSummariesQueryFilter
 import no.novari.flyt.history.repository.filters.InstanceFlowSummariesQueryFilter.InstanceFlowSummariesQueryFilterBuilder
 import no.novari.flyt.history.repository.filters.InstanceStorageStatusQueryFilter
@@ -39,6 +40,7 @@ import org.junit.jupiter.params.provider.MethodSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.context.annotation.Import
 import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -55,6 +57,7 @@ import java.util.stream.Stream
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Import(JpaAuditingTestConfig::class)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class EventRepositoryInstanceFlowSummaryTest {
