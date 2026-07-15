@@ -23,6 +23,15 @@ import java.time.ZoneOffset
 @Repository
 interface EventRepository : JpaRepository<EventEntity, Long> {
     @Query(
+        """
+        SELECT DISTINCT event.instanceFlowHeaders.sourceApplicationId
+        FROM EventEntity event
+        WHERE event.instanceFlowHeaders.sourceApplicationId IS NOT NULL
+        """,
+    )
+    fun findDistinctSourceApplicationIds(): Set<Long>
+
+    @Query(
         value =
             """
              SELECT  statusEvent.source_application_id             AS sourceApplicationId,

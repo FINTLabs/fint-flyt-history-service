@@ -42,6 +42,16 @@ spec:
   env:
     - name: JAVA_TOOL_OPTIONS
       value: '-XX:+ExitOnOutOfMemoryError -Xmx768M -Xms700M'
+    - name: fint.flyt.authorization.sso.client-id
+      valueFrom:
+        secretKeyRef:
+          name: fint-flyt-authorization-oauth2-client
+          key: fint.sso.client-id
+    - name: fint.flyt.authorization.sso.client-secret
+      valueFrom:
+        secretKeyRef:
+          name: fint-flyt-authorization-oauth2-client
+          key: fint.sso.client-secret
   resources:
     limits:
       memory: "1024Mi"

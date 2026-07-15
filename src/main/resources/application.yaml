@@ -30,6 +30,7 @@ spring:
       - flyt-kafka
       - flyt-logging
       - flyt-web-resource-server
+      - flyt-authorization-client
       - flyt-postgres
 
   output:
