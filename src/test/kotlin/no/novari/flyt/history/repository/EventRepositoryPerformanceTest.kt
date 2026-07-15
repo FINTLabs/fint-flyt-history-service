@@ -204,20 +204,6 @@ class EventRepositoryPerformanceTest {
         assertThat(elapsedTime).isLessThan(pageSizePerformanceTestCase.maxElapsedTime)
     }
 
-    @ParameterizedTest
-    @MethodSource("instanceFlowTotalCountTestCases")
-    fun instanceFlowTotalCount(instanceFlowSummariesQueryFilter: InstanceFlowSummariesQueryFilter) {
-        val timer = Timer.start()
-        eventRepository.getInstanceFlowSummariesTotalCount(
-            instanceFlowSummariesQueryFilter,
-            eventCategorizationService.allInstanceStatusEventNames,
-            eventCategorizationService.allInstanceStorageStatusEventNames,
-        )
-        val elapsedTime = timer.elapsedTime
-        log.info("Elapsed time={}", formatDuration(elapsedTime))
-        assertThat(elapsedTime).isLessThan(Duration.ofSeconds(5))
-    }
-
     @Test
     fun findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc() {
         val timer = Timer.start()
@@ -447,19 +433,6 @@ class EventRepositoryPerformanceTest {
             return instanceFlowTestCases
                 .stream()
                 .map { Arguments.of(it.filter, it.pageSizePerformance) }
-        }
-
-        @JvmStatic
-        fun instanceFlowTotalCountTestCases(): Stream<Arguments> {
-            val queryFilters =
-                buildList {
-                    add(INSTANCE_FLOW_SUMMARIES_QUERY_FILTER_SOURCE_APPLICATION_INSTANCE_ID)
-                    addAll(INSTANCE_FLOW_SUMMARIES_QUERY_FILTERS)
-                    addAll(INSTANCE_FLOW_SUMMARIES_QUERY_FILTERS_ASSOCIATED_EVENTS)
-                    add(INSTANCE_FLOW_SUMMARIES_QUERY_FILTER_ASSOCIATED_EVENTS_SINGLE_FIND)
-                }
-
-            return queryFilters.stream().map(Arguments::of)
         }
 
         @JvmStatic

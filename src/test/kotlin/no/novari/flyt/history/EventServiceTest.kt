@@ -86,45 +86,6 @@ class EventServiceTest {
     }
 
     @Test
-    fun `when get instance flow summaries total count invoke filter mapping categorization and repository query`() {
-        val instanceFlowSummariesFilter: InstanceFlowSummariesFilter = mock()
-        val instanceFlowSummariesQueryFilter: InstanceFlowSummariesQueryFilter = mock()
-        whenever(instanceFlowSummariesFilterMappingService.toQueryFilter(instanceFlowSummariesFilter))
-            .thenReturn(instanceFlowSummariesQueryFilter)
-        whenever(eventCategorizationService.allInstanceStatusEventNames).thenReturn(setOf("testEventName1"))
-        whenever(eventCategorizationService.allInstanceStorageStatusEventNames).thenReturn(setOf("testEventName2"))
-        whenever(
-            eventRepository.getInstanceFlowSummariesTotalCount(
-                instanceFlowSummariesQueryFilter,
-                setOf("testEventName1"),
-                setOf("testEventName2"),
-            ),
-        ).thenReturn(5L)
-
-        val instanceFlowSummariesTotalCount =
-            eventService.getInstanceFlowSummariesTotalCount(instanceFlowSummariesFilter)
-
-        verify(instanceFlowSummariesFilterMappingService, times(1)).toQueryFilter(instanceFlowSummariesFilter)
-        verify(eventRepository, times(1)).getInstanceFlowSummariesTotalCount(
-            instanceFlowSummariesQueryFilter,
-            setOf("testEventName1"),
-            setOf("testEventName2"),
-        )
-        verify(eventCategorizationService, times(1)).allInstanceStatusEventNames
-        verify(eventCategorizationService, times(1)).allInstanceStorageStatusEventNames
-        verifyNoMoreInteractions(
-            eventRepository,
-            eventMappingService,
-            instanceFlowHeadersMappingService,
-            instanceFlowSummariesFilterMappingService,
-            instanceFlowSummaryMappingService,
-            integrationStatisticsFilterMappingService,
-            eventCategorizationService,
-        )
-        assertThat(instanceFlowSummariesTotalCount).isEqualTo(5L)
-    }
-
-    @Test
     fun `when get instance flow summaries invoke filter mapping categorization repository query and summary mapping`() {
         val instanceFlowSummariesFilter: InstanceFlowSummariesFilter = mock()
         val instanceFlowSummariesQueryFilter: InstanceFlowSummariesQueryFilter = mock()

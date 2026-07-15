@@ -100,30 +100,6 @@ class EventRepositoryInstanceFlowSummaryTest {
         }
     }
 
-    @ParameterizedTest
-    @MethodSource("generateInstanceFlowSummariesTestCases")
-    fun instanceFlowSummariesTotalCountParameterized(
-        filter: InstanceFlowSummariesQueryFilter,
-        expectedInstanceFlowSummaries: List<InstanceFlowSummaryProjection>,
-    ) {
-        try {
-            val instanceFlowSummariesTotalCount =
-                eventRepository.getInstanceFlowSummariesTotalCount(
-                    filter,
-                    ALL_STATUS_EVENT_NAMES,
-                    ALL_STORAGE_STATUS_EVENT_NAMES,
-                )
-
-            assertThat(instanceFlowSummariesTotalCount).isEqualTo(expectedInstanceFlowSummaries.size.toLong())
-        } catch (e: Exception) {
-            e.printStackTrace()
-            generateSequence<Throwable>(e) { it.cause }.forEachIndexed { index, throwable ->
-                println("CAUSE[$index]: ${throwable::class.qualifiedName}: ${throwable.message}")
-            }
-            throw e
-        }
-    }
-
     companion object {
         @JvmField
         @Container

@@ -11,7 +11,6 @@ import no.novari.flyt.history.model.instance.ActiveTimePeriod
 import no.novari.flyt.history.model.instance.InstanceStatus
 import no.novari.flyt.history.model.instance.InstanceStorageStatus
 import no.novari.flyt.webresourceserver.UrlPaths.INTERNAL_API
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -26,39 +25,24 @@ class ValueSpaceController(
     private val activeTimePeriodSelectableMappingService: ActiveTimePeriodSelectableMappingService,
 ) {
     @GetMapping("instance-status/selectables")
-    fun getInstanceStatusValueSpace(): ResponseEntity<Collection<Selectable<String>>> {
-        return ResponseEntity.ok(
-            InstanceStatus.entries.map(instanceStatusSelectableMappingService::toSelectable),
-        )
-    }
+    fun getInstanceStatusValueSpace(): Collection<Selectable<String>> =
+        InstanceStatus.entries.map(instanceStatusSelectableMappingService::toSelectable)
 
     @GetMapping("storage-status/selectables")
-    fun getStorageStatusValueSpace(): ResponseEntity<Collection<Selectable<String>>> {
-        return ResponseEntity.ok(
-            InstanceStorageStatus.entries.map(instanceStorageStatusSelectableMappingService::toSelectable),
-        )
-    }
+    fun getStorageStatusValueSpace(): Collection<Selectable<String>> =
+        InstanceStorageStatus.entries.map(instanceStorageStatusSelectableMappingService::toSelectable)
 
     @GetMapping("event-category/selectables")
-    fun getEventCategoryValueSpace(): ResponseEntity<Collection<Selectable<String>>> {
-        return ResponseEntity.ok(
-            EventCategory.entries.map(eventCategorySelectableMappingService::toSelectable),
-        )
-    }
+    fun getEventCategoryValueSpace(): Collection<Selectable<String>> =
+        EventCategory.entries.map(eventCategorySelectableMappingService::toSelectable)
 
     @GetMapping("instance-status-event-category/selectables")
-    fun getInstanceStatusEventCategoryValueSpace(): ResponseEntity<Collection<Selectable<String>>> {
-        return ResponseEntity.ok(
-            eventCategorizationService.instanceStatusCategories.map(
-                eventCategorySelectableMappingService::toSelectable,
-            ),
+    fun getInstanceStatusEventCategoryValueSpace(): Collection<Selectable<String>> =
+        eventCategorizationService.instanceStatusCategories.map(
+            eventCategorySelectableMappingService::toSelectable,
         )
-    }
 
     @GetMapping("time/current-period/selectables")
-    fun getTimeCurrentPeriodValueSpace(): ResponseEntity<Collection<Selectable<String>>> {
-        return ResponseEntity.ok(
-            ActiveTimePeriod.entries.map(activeTimePeriodSelectableMappingService::toSelectable),
-        )
-    }
+    fun getTimeCurrentPeriodValueSpace(): Collection<Selectable<String>> =
+        ActiveTimePeriod.entries.map(activeTimePeriodSelectableMappingService::toSelectable)
 }

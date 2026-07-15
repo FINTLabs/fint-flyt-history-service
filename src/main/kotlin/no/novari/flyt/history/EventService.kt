@@ -38,17 +38,6 @@ class EventService(
         )
     }
 
-    fun getInstanceFlowSummariesTotalCount(instanceFlowSummariesFilter: InstanceFlowSummariesFilter): Long {
-        val instanceFlowSummariesQueryFilter =
-            instanceFlowSummariesFilterMappingService.toQueryFilter(instanceFlowSummariesFilter)
-
-        return eventRepository.getInstanceFlowSummariesTotalCount(
-            instanceFlowSummariesQueryFilter,
-            eventCategorizationService.allInstanceStatusEventNames,
-            eventCategorizationService.allInstanceStorageStatusEventNames,
-        )
-    }
-
     fun getInstanceFlowSummaries(
         instanceFlowSummariesFilter: InstanceFlowSummariesFilter,
         limit: Int,
