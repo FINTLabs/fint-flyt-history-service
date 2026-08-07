@@ -14,7 +14,6 @@ import no.novari.flyt.history.validation.ValidationErrorsFormattingService
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
-import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
@@ -98,8 +97,14 @@ class HistoryControllerWebMvcTest {
 
     @Test
     fun `integration statistics endpoint returns stable content without slice metadata`() {
-        whenever(authorizationService.getIntersectionWithAuthorizedSourceApplicationIds(any(), anyOrNull()))
-            .thenReturn(setOf(1L))
+        val candidateSourceApplicationIds = setOf(1L)
+        whenever(eventService.findDistinctSourceApplicationIds()).thenReturn(candidateSourceApplicationIds)
+        whenever(
+            authorizationService.getUserAuthorizedSourceApplicationIds(
+                authentication,
+                candidateSourceApplicationIds,
+            ),
+        ).thenReturn(setOf(1L))
         whenever(eventService.getIntegrationStatistics(any(), any()))
             .thenReturn(SliceImpl(listOf(testProjection()), PageRequest.of(0, 20), false))
 
@@ -116,8 +121,14 @@ class HistoryControllerWebMvcTest {
 
     @Test
     fun `integration statistics endpoint returns empty content when user has no authorized source applications`() {
-        whenever(authorizationService.getIntersectionWithAuthorizedSourceApplicationIds(any(), anyOrNull()))
-            .thenReturn(emptySet())
+        val candidateSourceApplicationIds = setOf(1L)
+        whenever(eventService.findDistinctSourceApplicationIds()).thenReturn(candidateSourceApplicationIds)
+        whenever(
+            authorizationService.getUserAuthorizedSourceApplicationIds(
+                authentication,
+                candidateSourceApplicationIds,
+            ),
+        ).thenReturn(emptySet())
 
         mockMvc
             .perform(

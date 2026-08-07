@@ -89,7 +89,8 @@ Validation failures respond with 422 Unprocessable Entity using the shared forma
 
 ## Configuration
 
-The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-web-resource-server, flyt-postgres) and exposes these key properties:
+The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-web-resource-server,
+flyt-authorization-client, flyt-postgres) and exposes these key properties:
 
 | Property                                                                                   | Description                                                                                |
 |--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
@@ -100,6 +101,7 @@ The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-web-resource-
 | fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                               |
 | spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.         |
 | spring.security.oauth2.resourceserver.jwt.issuer-uri                                       | Authority used for JWT validation.                                                         |
+| fint.flyt.authorization.sso.client-id / client-secret                                       | OAuth2 client credentials for authorization-service.                                      |
 | no.novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API.                                |
 | server.max-http-request-header-size                                                        | Raised to 40KB to handle large JWTs.                                                       |
 | spring.jackson.time-zone                                                                   | Forces JSON serialization to UTC.                                                          |
@@ -132,7 +134,7 @@ Flyway migrations run at startup; ensure the configured schema exists (local pro
 ## Security
 
 - Runs as an OAuth2 resource server (JWT) and only exposes internal APIs guarded by novari.flyt.web-resource-server.security.api.internal.
-- AuthorizationService relies on UserAuthorizationService to intersect requested source applications with caller entitlements before returning data or executing manual actions.
+- AuthorizationService relies on UserAuthorizationService to authorize requested source-application candidates over OAuth2-protected HTTP before returning data or executing manual actions. Unfiltered lists first obtain distinct candidates from the event database.
 - Manual event endpoints validate payloads, re-check authorization, ensure the latest status is ERROR, and return 404/400 for inconsistent histories.
 
 ## Observability & Operations

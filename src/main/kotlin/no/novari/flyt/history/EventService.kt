@@ -32,6 +32,8 @@ class EventService(
     private val integrationStatisticsFilterMappingService: IntegrationStatisticsFilterMappingService,
     private val eventCategorizationService: EventCategorizationService,
 ) {
+    fun findDistinctSourceApplicationIds(): Set<Long> = eventRepository.findDistinctSourceApplicationIds()
+
     fun save(event: Event): Event {
         return eventMappingService.toEvent(
             eventRepository.save(eventMappingService.toEventEntity(event)),

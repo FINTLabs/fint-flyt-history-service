@@ -38,7 +38,10 @@ class HistoryController(
     @GetMapping("statistics/total")
     fun getOverallStatistics(authentication: Authentication): InstanceStatisticsProjection {
         val userAuthorizedSourceApplicationIds =
-            authorizationService.getUserAuthorizedSourceApplicationIds(authentication)
+            authorizationService.getUserAuthorizedSourceApplicationIds(
+                authentication,
+                eventService.findDistinctSourceApplicationIds(),
+            )
 
         return eventService.getStatistics(userAuthorizedSourceApplicationIds)
     }
@@ -50,7 +53,7 @@ class HistoryController(
         pageable: Pageable,
     ): IntegrationStatisticsResponse {
         val intersectionOfAuthorizedAndFilterSourceApplicationIds =
-            authorizationService.getIntersectionWithAuthorizedSourceApplicationIds(
+            getAuthorizedSourceApplicationIds(
                 authentication,
                 integrationStatisticsFilter.sourceApplicationIds,
             )
@@ -91,7 +94,7 @@ class HistoryController(
         validate(instanceFlowSummariesFilter)
 
         val intersectionOfAuthorizedAndFilterSourceApplicationIds =
-            authorizationService.getIntersectionWithAuthorizedSourceApplicationIds(
+            getAuthorizedSourceApplicationIds(
                 authentication,
                 instanceFlowSummariesFilter.sourceApplicationIds,
             )
@@ -106,6 +109,16 @@ class HistoryController(
             )
 
         return eventServiceCallFunction(filterLimitedByUserAuthorization)
+    }
+
+    private fun getAuthorizedSourceApplicationIds(
+        authentication: Authentication,
+        requestedSourceApplicationIds: Collection<Long>?,
+    ): Set<Long> {
+        return authorizationService.getUserAuthorizedSourceApplicationIds(
+            authentication,
+            requestedSourceApplicationIds?.toSet() ?: eventService.findDistinctSourceApplicationIds(),
+        )
     }
 
     @GetMapping(

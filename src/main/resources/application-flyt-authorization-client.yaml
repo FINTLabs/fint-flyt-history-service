@@ -1,0 +1,20 @@
+novari:
+  flyt:
+    web-resource-server:
+      security:
+        authorization:
+          base-url: 'http://fint-flyt-authorization-service:8080${server.servlet.context-path:}'
+
+spring:
+  security:
+    oauth2:
+      client:
+        provider:
+          fint-idp:
+            token-uri: https://idp.felleskomponent.no/nidp/oauth/nam/token
+        registration:
+          authorization-service:
+            authorization-grant-type: client_credentials
+            client-id: ${fint.flyt.authorization.sso.client-id}
+            client-secret: ${fint.flyt.authorization.sso.client-secret}
+            provider: fint-idp

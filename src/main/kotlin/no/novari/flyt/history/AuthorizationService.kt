@@ -15,20 +15,12 @@ class AuthorizationService(
         userAuthorizationService.checkIfUserHasAccessToSourceApplication(authentication, sourceApplicationId)
     }
 
-    fun getUserAuthorizedSourceApplicationIds(authentication: Authentication): Set<Long> {
-        return userAuthorizationService.getUserAuthorizedSourceApplicationIds(authentication).toSortedSet()
-    }
-
-    fun getIntersectionWithAuthorizedSourceApplicationIds(
+    fun getUserAuthorizedSourceApplicationIds(
         authentication: Authentication,
-        sourceApplicationIds: Collection<Long>?,
+        sourceApplicationIds: Set<Long>,
     ): Set<Long> {
-        val userAuthorizedSourceApplicationIds = getUserAuthorizedSourceApplicationIds(authentication)
-        if (userAuthorizedSourceApplicationIds.isEmpty()) {
-            return userAuthorizedSourceApplicationIds
-        }
-
-        return sourceApplicationIds?.let { userAuthorizedSourceApplicationIds intersect it.toSet() }
-            ?: userAuthorizedSourceApplicationIds
+        return userAuthorizationService
+            .getUserAuthorizedSourceApplicationIds(authentication, sourceApplicationIds)
+            .toSortedSet()
     }
 }

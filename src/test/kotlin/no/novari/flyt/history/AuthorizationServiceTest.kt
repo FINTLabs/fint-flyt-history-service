@@ -19,61 +19,14 @@ class AuthorizationServiceTest {
     }
 
     @Test
-    fun `given authentication with no authorized source applications when get intersection then return empty list`() {
-        val authentication = mockAuthorizedSourceApplicationIds()
+    fun `returns the source applications authorized by the web resource server`() {
+        val authentication: Authentication = mock()
+        val candidateIds = setOf(3L, 1L, 2L)
+        whenever(userAuthorizationService.getUserAuthorizedSourceApplicationIds(authentication, candidateIds))
+            .thenReturn(setOf(2L, 1L))
 
-        val result =
-            authorizationService.getIntersectionWithAuthorizedSourceApplicationIds(
-                authentication,
-                listOf(1L),
-            )
-
-        assertThat(result).isEmpty()
-    }
-
-    @Test
-    fun `given authorized source applications and no intersecting ids then return empty list`() {
-        val authentication = mockAuthorizedSourceApplicationIds(2L)
-
-        val result =
-            authorizationService.getIntersectionWithAuthorizedSourceApplicationIds(
-                authentication,
-                listOf(1L),
-            )
-
-        assertThat(result).isEmpty()
-    }
-
-    @Test
-    fun `given authentication with same source application ids when get intersection then return intersection`() {
-        val authentication = mockAuthorizedSourceApplicationIds(1L, 2L)
-
-        val result =
-            authorizationService.getIntersectionWithAuthorizedSourceApplicationIds(
-                authentication,
-                listOf(1L, 3L),
-            )
-
-        assertThat(result).containsExactly(1L)
-    }
-
-    @Test
-    fun `given authorized source applications and null filter then return authorized source applications`() {
-        val authentication = mockAuthorizedSourceApplicationIds(1L, 2L)
-
-        val result =
-            authorizationService.getIntersectionWithAuthorizedSourceApplicationIds(
-                authentication,
-                null,
-            )
+        val result = authorizationService.getUserAuthorizedSourceApplicationIds(authentication, candidateIds)
 
         assertThat(result).containsExactly(1L, 2L)
-    }
-
-    private fun mockAuthorizedSourceApplicationIds(vararg sourceApplicationIds: Long): Authentication {
-        val authentication: Authentication = mock()
-        whenever(userAuthorizationService.getUserAuthorizedSourceApplicationIds(authentication))
-            .thenReturn(setOf(*sourceApplicationIds.toTypedArray()))
-        return authentication
     }
 }
