@@ -11,6 +11,7 @@ plugins {
     kotlin("jvm") version "2.4.0"
     kotlin("plugin.spring") version "2.4.0"
     kotlin("plugin.jpa") version "2.4.0"
+    kotlin("kapt") version "2.4.0"
 }
 
 group = "no.novari"
@@ -58,13 +59,15 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation("io.github.oshai:kotlin-logging-jvm:8.0.4")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.15.3")
 
-    implementation("no.novari:flyt-web-resource-server:4.0.0")
-    implementation("no.novari:flyt-kafka:7.2.0")
+    implementation("no.novari:flyt-web-resource-server:4.1.0-rc-2")
+    implementation("no.novari:flyt-kafka:7.3.0-rc-2")
     implementation("no.novari:flyt-audit-starter:1.0.0")
+    implementation("no.novari:telemetry-starter:0.0.4")
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
@@ -73,9 +76,11 @@ dependencies {
     compileOnly("org.springframework.security:spring-security-web")
 
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
+    runtimeOnly("net.logstash.logback:logstash-logback-encoder:9.0")
     runtimeOnly("org.postgresql:postgresql")
 
     annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
+    kapt("org.springframework.boot:spring-boot-configuration-processor")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-core")
@@ -83,6 +88,7 @@ dependencies {
     testImplementation(platform("org.testcontainers:testcontainers-bom:2.0.1"))
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
+    testImplementation(kotlin("test"))
 }
 
 tasks.withType<Test>().configureEach {
