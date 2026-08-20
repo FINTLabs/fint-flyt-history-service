@@ -8,6 +8,21 @@ DEFAULT_TEMPLATE="$TEMPLATE_DIR/overlay.yaml.tpl"
 USER_ROLE_URL="USER"
 DEVELOPER_ROLE_URL="DEVELOPER"
 
+OTEL_ENDPOINT_BETA="http://alloy.flais-system.svc.cluster.local:4318"
+
+# Base URL without /v1/traces; telemetry-starter appends the signal path.
+# Set manually until flaiserator supports it, and only in beta where Alloy runs.
+build_otel_env_patch() {
+  local env_path="$1"
+
+  if [[ "$env_path" != "beta" ]]; then
+    return
+  fi
+
+  printf '\n      - op: add\n        path: "/spec/env/-"\n        value:\n          name: "OTEL_EXPORTER_OTLP_ENDPOINT"\n          value: "%s"' \
+    "$OTEL_ENDPOINT_BETA"
+}
+
 extra_user_orgs_for_namespace() {
   local namespace="$1"
   case "$namespace" in
@@ -93,6 +108,7 @@ while IFS= read -r file; do
   export READINESS_PATH="${path_prefix}/actuator/health/readiness"
   export LIVENESS_PATH="${path_prefix}/actuator/health/liveness"
   export METRICS_PATH="${path_prefix}/actuator/prometheus"
+  export OTEL_ENV_PATCH="$(build_otel_env_patch "$env_path")"
   if ((${#additional_user_orgs[@]})); then
     AUTHORIZED_ORG_ROLE_PAIRS="$(render_authorized_role_pairs "$ORG_ID" "${additional_user_orgs[@]}")"
   else
@@ -105,7 +121,7 @@ while IFS= read -r file; do
   target_dir="$ROOT/kustomize/overlays/$dir"
 
   tmp="$(mktemp "$target_dir/.kustomization.yaml.XXXXXX")"
-  envsubst '$NAMESPACE $APP_INSTANCE_LABEL $ORG_ID $KAFKA_TOPIC $INGRESS_BASE_PATH $SERVLET_CONTEXT_PATH $STARTUP_PATH $READINESS_PATH $LIVENESS_PATH $METRICS_PATH $AUTHORIZED_ORG_ROLE_PAIRS $NOVARI_KAFKA_TOPIC_ORGID' \
+  envsubst '$NAMESPACE $APP_INSTANCE_LABEL $ORG_ID $KAFKA_TOPIC $INGRESS_BASE_PATH $SERVLET_CONTEXT_PATH $STARTUP_PATH $READINESS_PATH $LIVENESS_PATH $METRICS_PATH $OTEL_ENV_PATCH $AUTHORIZED_ORG_ROLE_PAIRS $NOVARI_KAFKA_TOPIC_ORGID' \
     < "$template" > "$tmp"
   mv "$tmp" "$target_dir/kustomization.yaml"
 done < <(find "$ROOT/kustomize/overlays" -name kustomization.yaml -print | sort)

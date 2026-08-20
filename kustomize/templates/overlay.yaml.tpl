@@ -38,6 +38,11 @@ $AUTHORIZED_ORG_ROLE_PAIRS
       - op: add
         path: "/spec/env/-"
         value:
+         name: "novari.telemetry.org-id"
+         value: "$ORG_ID"
+      - op: add
+        path: "/spec/env/-"
+        value:
          name: "server.servlet.context-path"
          value: "$SERVLET_CONTEXT_PATH"
       - op: replace
@@ -51,7 +56,7 @@ $AUTHORIZED_ORG_ROLE_PAIRS
         value: "$LIVENESS_PATH"
       - op: replace
         path: "/spec/observability/metrics/path"
-        value: "$METRICS_PATH"
+        value: "$METRICS_PATH"$OTEL_ENV_PATCH
     target:
       kind: Application
       name: fint-flyt-history-service

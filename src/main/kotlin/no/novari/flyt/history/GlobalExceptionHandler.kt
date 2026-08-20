@@ -1,10 +1,10 @@
 package no.novari.flyt.history
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import no.novari.flyt.history.exceptions.LatestStatusEventNotOfTypeErrorException
 import no.novari.flyt.history.exceptions.NoPreviousStatusEventsFoundException
 import no.novari.flyt.history.exceptions.RequestValidationException
 import no.novari.flyt.history.validation.ValidationErrorsFormattingService
-import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -18,11 +18,14 @@ import org.springframework.web.server.ResponseStatusException
 class GlobalExceptionHandler(
     private val validationErrorsFormattingService: ValidationErrorsFormattingService,
 ) {
-    private val logger = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
+    private val logger = KotlinLogging.logger {}
 
     @ExceptionHandler(RequestValidationException::class)
     fun handleRequestValidation(exception: RequestValidationException): ProblemDetail {
-        logger.warn("Request validation failed", exception)
+        logger.atWarn {
+            message = "Request validation failed"
+            cause = exception
+        }
         return createProblemDetail(
             status = HttpStatus.UNPROCESSABLE_ENTITY,
             title = "Unprocessable Entity",
@@ -32,7 +35,10 @@ class GlobalExceptionHandler(
 
     @ExceptionHandler(BindException::class)
     fun handleBindException(exception: BindException): ProblemDetail {
-        logger.warn("Request binding validation failed", exception)
+        logger.atWarn {
+            message = "Request binding validation failed"
+            cause = exception
+        }
         return createProblemDetail(
             status = HttpStatus.UNPROCESSABLE_ENTITY,
             title = "Unprocessable Entity",
@@ -42,7 +48,10 @@ class GlobalExceptionHandler(
 
     @ExceptionHandler(HttpMessageNotReadableException::class)
     fun handleHttpMessageNotReadable(exception: HttpMessageNotReadableException): ProblemDetail {
-        logger.warn("Malformed request body", exception)
+        logger.atWarn {
+            message = "Malformed request body"
+            cause = exception
+        }
         return createProblemDetail(
             status = HttpStatus.UNPROCESSABLE_ENTITY,
             title = "Unprocessable Entity",
@@ -52,7 +61,10 @@ class GlobalExceptionHandler(
 
     @ExceptionHandler(NoPreviousStatusEventsFoundException::class)
     fun handleNoPreviousStatusEventsFound(exception: NoPreviousStatusEventsFoundException): ProblemDetail {
-        logger.warn("No previous status event found", exception)
+        logger.atWarn {
+            message = "No previous status event found"
+            cause = exception
+        }
         return createProblemDetail(
             status = HttpStatus.NOT_FOUND,
             title = "Not Found",
@@ -62,7 +74,10 @@ class GlobalExceptionHandler(
 
     @ExceptionHandler(LatestStatusEventNotOfTypeErrorException::class)
     fun handleLatestStatusEventNotOfTypeError(exception: LatestStatusEventNotOfTypeErrorException): ProblemDetail {
-        logger.warn("Latest status event is not of type error", exception)
+        logger.atWarn {
+            message = "Latest status event is not of type error"
+            cause = exception
+        }
         return createProblemDetail(
             status = HttpStatus.BAD_REQUEST,
             title = "Bad Request",
@@ -72,7 +87,10 @@ class GlobalExceptionHandler(
 
     @ExceptionHandler(MethodArgumentTypeMismatchException::class)
     fun handleMethodArgumentTypeMismatch(exception: MethodArgumentTypeMismatchException): ProblemDetail {
-        logger.warn("Request parameter type mismatch", exception)
+        logger.atWarn {
+            message = "Request parameter type mismatch"
+            cause = exception
+        }
         return createProblemDetail(
             status = HttpStatus.BAD_REQUEST,
             title = "Bad Request",
@@ -82,7 +100,11 @@ class GlobalExceptionHandler(
 
     @ExceptionHandler(ResponseStatusException::class)
     fun handleResponseStatusException(exception: ResponseStatusException): ProblemDetail {
-        logger.warn("Response status exception with status={}", exception.statusCode, exception)
+        logger.atWarn {
+            message = "Response status exception with status={}"
+            arguments = arrayOf(exception.statusCode)
+            cause = exception
+        }
         return exception.reason
             ?.let { ProblemDetail.forStatusAndDetail(exception.statusCode, it) }
             ?: ProblemDetail.forStatus(exception.statusCode)
@@ -90,7 +112,10 @@ class GlobalExceptionHandler(
 
     @ExceptionHandler(Exception::class)
     fun handleUnhandledException(exception: Exception): ProblemDetail {
-        logger.error("Unhandled exception", exception)
+        logger.atError {
+            message = "Unhandled exception"
+            cause = exception
+        }
         return createProblemDetail(
             status = HttpStatus.INTERNAL_SERVER_ERROR,
             title = "Internal Server Error",

@@ -1,7 +1,7 @@
 package no.novari.flyt.history
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import no.novari.flyt.history.repository.EventRepository
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.PageRequest
 import org.springframework.scheduling.annotation.Scheduled
@@ -37,7 +37,10 @@ class ScheduledErrorScrubService(
             val scrubbed = transactionTemplate.execute { scrubOneBatch(cutoff) } ?: 0
 
             if (scrubbed == 0) {
-                logger.info("Scheduled error scrub completed; scrubbed {} events older than {}", scrubbedTotal, cutoff)
+                logger.atInfo {
+                    message = "Scheduled error scrub completed; scrubbed {} events older than {}"
+                    arguments = arrayOf(scrubbedTotal, cutoff)
+                }
                 return scrubbedTotal
             }
 
@@ -60,6 +63,6 @@ class ScheduledErrorScrubService(
     }
 
     private companion object {
-        private val logger = LoggerFactory.getLogger(ScheduledErrorScrubService::class.java)
+        private val logger = KotlinLogging.logger {}
     }
 }

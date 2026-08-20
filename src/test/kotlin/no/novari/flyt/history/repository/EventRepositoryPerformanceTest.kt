@@ -1,5 +1,6 @@
 package no.novari.flyt.history.repository
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.model.event.EventCategorizationService
 import no.novari.flyt.history.model.event.EventCategory
@@ -32,7 +33,6 @@ import org.junit.jupiter.api.TestMethodOrder
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
@@ -80,7 +80,10 @@ class EventRepositoryPerformanceTest {
 
     @BeforeEach
     fun generateEvents() {
-        log.info("PostgreSQL test container url: {}", postgreSQLContainer.jdbcUrl.split("?")[0])
+        log.atInfo {
+            message = "PostgreSQL test container url: {}"
+            arguments = arrayOf(postgreSQLContainer.jdbcUrl.split("?")[0])
+        }
         if (isInitialized) {
             return
         }
@@ -199,7 +202,10 @@ class EventRepositoryPerformanceTest {
                 pageSizePerformanceTestCase.requestedMaxSize,
             )
         val elapsedTime = timer.elapsedTime
-        log.info("Elapsed time={}", formatDuration(elapsedTime))
+        log.atInfo {
+            message = "Elapsed time={}"
+            arguments = arrayOf(formatDuration(elapsedTime))
+        }
         assertThat(instanceFlowSummaries).hasSize(pageSizePerformanceTestCase.expectedSize)
         assertThat(elapsedTime).isLessThan(pageSizePerformanceTestCase.maxElapsedTime)
     }
@@ -266,7 +272,7 @@ class EventRepositoryPerformanceTest {
                         .withMemory(DataSize.ofGigabytes(8).toBytes())
                 }
 
-        private val log = LoggerFactory.getLogger(EventRepositoryPerformanceTest::class.java)
+        private val log = KotlinLogging.logger {}
         private var isInitialized = false
 
         private val INSTANCE_FLOW_SUMMARIES_QUERY_FILTER_SOURCE_APPLICATION_INSTANCE_ID =
