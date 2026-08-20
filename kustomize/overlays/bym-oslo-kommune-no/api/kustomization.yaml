@@ -30,7 +30,7 @@ patches:
           name: "novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json"
           value: |
             {
-              "bym.oslo.kommune.no.no":["USER"],
+              "bym.oslo.kommune.no":["USER"],
               "vigo.no":["DEVELOPER","USER"],
               "novari.no":["DEVELOPER","USER"]
             }
