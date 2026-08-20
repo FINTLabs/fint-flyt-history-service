@@ -8,9 +8,9 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     id("com.github.ben-manes.versions") version "0.61.0"
     id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
-    kotlin("jvm") version "2.4.0"
-    kotlin("plugin.spring") version "2.4.0"
-    kotlin("plugin.jpa") version "2.4.0"
+    kotlin("jvm") version "2.4.10"
+    kotlin("plugin.spring") version "2.4.10"
+    kotlin("plugin.jpa") version "2.4.10"
 }
 
 group = "no.novari"
@@ -48,7 +48,7 @@ repositories {
 
 dependencies {
     constraints {
-        testImplementation("org.apache.commons:commons-compress:1.27.1") {
+        testImplementation("org.apache.commons:commons-compress:1.28.0") {
             because("Fixes CVE-2024-25710 and CVE-2024-26308 in the Testcontainers transitive dependency")
         }
     }
@@ -60,7 +60,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
-    implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.15.3")
+    implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.15.4")
 
     implementation("no.novari:flyt-web-resource-server:4.0.0")
     implementation("no.novari:flyt-kafka:7.2.0")
@@ -79,7 +79,7 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-core")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:6.2.3")
+    testImplementation("org.mockito.kotlin:mockito-kotlin:6.3.0")
     testImplementation(platform("org.testcontainers:testcontainers-bom:2.0.5"))
     testImplementation("org.testcontainers:junit-jupiter")
     testImplementation("org.testcontainers:postgresql")
