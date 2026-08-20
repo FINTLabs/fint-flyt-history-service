@@ -46,6 +46,10 @@ repositories {
     mavenLocal()
 }
 
+extra["jackson-bom.version"] = "2.21.5"
+extra["log4j2.version"] = "2.25.5"
+extra["postgresql.version"] = "42.7.12"
+
 dependencies {
     constraints {
         testImplementation("org.apache.commons:commons-compress:1.28.0") {
