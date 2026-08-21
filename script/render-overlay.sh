@@ -20,6 +20,27 @@ extra_user_orgs_for_namespace() {
   esac
 }
 
+app_instance_suffix() {
+  local namespace="$1"
+  case "$namespace" in
+    bym-oslo-kommune-no)
+      printf '%s' "$namespace"
+      ;;
+    *)
+      printf '%s' "${namespace//-/_}"
+      ;;
+  esac
+}
+
+authorized_org_id() {
+  local namespace="$1"
+  case "$namespace" in
+    *)
+      printf '%s' "${namespace//-/.}"
+      ;;
+  esac
+}
+
 render_authorized_role_pairs() {
   local org_id="$1"
   shift
@@ -85,7 +106,7 @@ while IFS= read -r file; do
 
   export NAMESPACE="$namespace"
   export ORG_ID="${namespace//-/.}"
-  export APP_INSTANCE_LABEL="fint-flyt-history-service_${namespace//-/_}"
+  export APP_INSTANCE_LABEL="fint-flyt-history-service_$(app_instance_suffix "$namespace")"
   export KAFKA_TOPIC="${namespace}.flyt.*"
   export INGRESS_BASE_PATH="${path_prefix}/api/intern/instance-flow-tracking"
   export SERVLET_CONTEXT_PATH="$path_prefix"
@@ -94,9 +115,9 @@ while IFS= read -r file; do
   export LIVENESS_PATH="${path_prefix}/actuator/health/liveness"
   export METRICS_PATH="${path_prefix}/actuator/prometheus"
   if ((${#additional_user_orgs[@]})); then
-    AUTHORIZED_ORG_ROLE_PAIRS="$(render_authorized_role_pairs "$ORG_ID" "${additional_user_orgs[@]}")"
+    AUTHORIZED_ORG_ROLE_PAIRS="$(render_authorized_role_pairs "$(authorized_org_id "$namespace")" "${additional_user_orgs[@]}")"
   else
-    AUTHORIZED_ORG_ROLE_PAIRS="$(render_authorized_role_pairs "$ORG_ID")"
+    AUTHORIZED_ORG_ROLE_PAIRS="$(render_authorized_role_pairs "$(authorized_org_id "$namespace")")"
   fi
   export AUTHORIZED_ORG_ROLE_PAIRS
   export NOVARI_KAFKA_TOPIC_ORGID="$namespace"

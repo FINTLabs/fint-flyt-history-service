@@ -34,11 +34,6 @@ spec:
         path: /api/intern/instance-flow-tracking
         headers:
           Authorization: "re:.+"
-      # Cookie/nettleser: alt annet håndteres av SSO-middlewaren (cookie -> Bearer).
-      - host: flyt.vigoiks.no
-        path: /api/intern/instance-flow-tracking
-        middlewares:
-          - fint-flyt-auth-forward-sso
   env:
     - name: JAVA_TOOL_OPTIONS
       value: '-XX:+ExitOnOutOfMemoryError -Xmx768M -Xms700M'
