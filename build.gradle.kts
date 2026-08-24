@@ -68,7 +68,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
-    implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.15.4")
+    implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.15.5")
 
     implementation("no.novari:flyt-web-resource-server:4.0.0")
     implementation("no.novari:flyt-kafka:7.2.0")
