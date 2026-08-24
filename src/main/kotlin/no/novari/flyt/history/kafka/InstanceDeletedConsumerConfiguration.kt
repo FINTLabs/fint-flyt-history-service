@@ -24,8 +24,9 @@ class InstanceDeletedConsumerConfiguration(
         return instanceFlowListenerFactoryService
             .createRecordListenerContainerFactory(
                 Any::class.java,
-                { instanceFlowConsumerRecord ->
-                    errorScrubService.scrubByInstanceFlowHeaders(instanceFlowConsumerRecord.instanceFlowHeaders)
+                { _ ->
+                    // Midlertidig deaktivert: umiddelbar scrubbing ved instance-deleted er skrudd av.
+                    // Scrubbing skjer nå kun via ScheduledErrorScrubService (etter retention-perioden).
                 },
                 ListenerConfiguration
                     .stepBuilder()

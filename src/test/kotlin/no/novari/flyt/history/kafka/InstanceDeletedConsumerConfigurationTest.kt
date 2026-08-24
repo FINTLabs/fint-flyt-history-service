@@ -113,7 +113,7 @@ class InstanceDeletedConsumerConfigurationTest {
     }
 
     @Test
-    fun `consumer scrubs matching events and leaves scrubbed timestamp unchanged on repeated consume`() {
+    fun `consumer does not scrub events on instance-deleted while immediate scrubbing is disabled`() {
         val matchingHeaders = headers(1L, "sa-integration-1", "sa-instance-1")
         val firstMatchingError =
             errorEvent(
@@ -141,50 +141,19 @@ class InstanceDeletedConsumerConfigurationTest {
                 name = EventCategory.INSTANCE_REGISTERED.eventName,
                 timestamp = odt(2024, 1, 1, 12, 2),
             )
-        val otherError =
-            errorEvent(
-                sourceApplicationId = 2L,
-                sourceApplicationIntegrationId = "sa-integration-2",
-                sourceApplicationInstanceId = "sa-instance-2",
-                name = EventCategory.INSTANCE_RECEIVAL_ERROR.eventName,
-                timestamp = odt(2024, 1, 1, 12, 3),
-                args = mapOf("filename" to "keep-me.pdf"),
-            )
 
-        eventRepository.saveAllAndFlush(listOf(firstMatchingError, secondMatchingError, matchingInfo, otherError))
+        eventRepository.saveAllAndFlush(listOf(firstMatchingError, secondMatchingError, matchingInfo))
 
         listener.accept(instanceDeletedConsumerRecord(matchingHeaders))
 
-        val matchingEventIds = listOf(firstMatchingError.id, secondMatchingError.id, matchingInfo.id)
+        val eventIds = listOf(firstMatchingError.id, secondMatchingError.id, matchingInfo.id)
 
-        matchingEventIds.forEach { eventId ->
-            assertThat(isScrubbed(eventId)).isTrue()
-            assertThat(scrubbedAt(eventId)).isNotNull()
+        eventIds.forEach { eventId ->
+            assertThat(isScrubbed(eventId)).isFalse()
+            assertThat(scrubbedAt(eventId)).isNull()
         }
-        assertThat(errorArgValues(firstMatchingError.id)).containsExactly("", "")
-        assertThat(errorArgValues(secondMatchingError.id)).containsExactly("")
-        assertThat(isScrubbed(otherError.id)).isFalse()
-        assertThat(scrubbedAt(otherError.id)).isNull()
-        assertThat(errorArgValues(otherError.id)).containsExactly("keep-me.pdf")
-
-        val scrubbedAtBeforeSecondConsume =
-            matchingEventIds.associateWith { eventId ->
-                requireNotNull(scrubbedAt(eventId))
-            }
-
-        Thread.sleep(20)
-        listener.accept(instanceDeletedConsumerRecord(matchingHeaders))
-
-        val scrubbedAtAfterSecondConsume =
-            matchingEventIds.associateWith { eventId ->
-                requireNotNull(scrubbedAt(eventId))
-            }
-
-        assertThat(scrubbedAtAfterSecondConsume).isEqualTo(scrubbedAtBeforeSecondConsume)
-        assertThat(errorArgValues(firstMatchingError.id)).containsExactly("", "")
-        assertThat(errorArgValues(secondMatchingError.id)).containsExactly("")
-        assertThat(isScrubbed(otherError.id)).isFalse()
-        assertThat(errorArgValues(otherError.id)).containsExactly("keep-me.pdf")
+        assertThat(errorArgValues(firstMatchingError.id)).containsExactly("document.pdf", "bad-payload")
+        assertThat(errorArgValues(secondMatchingError.id)).containsExactly("archive-123")
     }
 
     @Test
