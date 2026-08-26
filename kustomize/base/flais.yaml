@@ -28,12 +28,8 @@ spec:
     basePath: ""
   ingress:
     routes:
-      # Bearer/M2M: requests som allerede bærer en Authorization-header rutes utenom
-      # SSO-middlewaren og treffer resource-serveren direkte.
       - host: flyt.vigoiks.no
         path: /api/intern/instance-flow-tracking
-        headers:
-          Authorization: "re:.+"
   env:
     - name: JAVA_TOOL_OPTIONS
       value: '-XX:+ExitOnOutOfMemoryError -Xmx768M -Xms700M'
