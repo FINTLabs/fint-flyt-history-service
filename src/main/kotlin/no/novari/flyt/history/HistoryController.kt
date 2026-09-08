@@ -72,6 +72,18 @@ class HistoryController(
         return IntegrationStatisticsResponse(content = statistics.content)
     }
 
+    @GetMapping("summariesTotalCount")
+    fun getInstanceFlowSummariesTotalCount(
+        authentication: Authentication,
+        instanceFlowSummariesFilter: InstanceFlowSummariesFilter,
+    ): Long =
+        getInstanceFlowSummariesData(
+            authentication = authentication,
+            instanceFlowSummariesFilter = instanceFlowSummariesFilter,
+            emptyValue = 0L,
+            eventServiceCallFunction = eventService::getInstanceFlowSummariesTotalCount,
+        )
+
     @GetMapping("summaries")
     fun getInstanceFlowSummaries(
         authentication: Authentication,
