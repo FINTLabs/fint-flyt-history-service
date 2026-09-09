@@ -1,5 +1,6 @@
 package no.novari.flyt.history.repository
 
+import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.model.SourceApplicationAggregateInstanceId
 import no.novari.flyt.history.model.event.EventCategorizationService
@@ -171,6 +172,7 @@ class EventRepositoryTest {
                         archiveInstanceId = "testArchiveInstanceId1",
                     ),
                 )
+            assertThat(returnedEvent?.createdBy).isEqualTo(Actor.System)
         }
     }
 
