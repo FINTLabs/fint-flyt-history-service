@@ -1,5 +1,6 @@
 package no.novari.flyt.history.kafka
 
+import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
 import no.novari.flyt.history.model.event.EventCategory
@@ -34,6 +35,7 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.context.annotation.Import
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
 import org.springframework.kafka.listener.DefaultErrorHandler
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -64,6 +66,7 @@ class InstanceErrorListenerTest {
 
     @BeforeEach
     fun setUp() {
+        SecurityContextHolder.clearContext()
         eventRepository.deleteAll()
 
         val instanceFlowListenerFactoryService: InstanceFlowListenerFactoryService = mock()
@@ -119,6 +122,7 @@ class InstanceErrorListenerTest {
         val entity = saved.single()
         assertThat(entity.name).isEqualTo(expectedCategory.eventName)
         assertThat(entity.type).isEqualTo(EventType.ERROR)
+        assertThat(entity.createdBy).isEqualTo(Actor.System)
         assertThat(entity.errors).hasSize(1)
         assertThat(entity.errors.first().errorCode).isEqualTo("test-error")
     }

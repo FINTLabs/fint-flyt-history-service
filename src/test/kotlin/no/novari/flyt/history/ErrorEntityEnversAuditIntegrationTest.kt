@@ -15,6 +15,8 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.queryForList
+import org.springframework.jdbc.core.queryForObject
 import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -63,15 +65,14 @@ class ErrorEntityEnversAuditIntegrationTest {
 
     @Test
     fun `error_args_aud-tabellen finnes ikke — @NotAudited hindrer at PII speiles i historikk`() {
-        val exists =
-            jdbcTemplate.queryForObject(
+        val exists: Boolean =
+            jdbcTemplate.queryForObject<Boolean>(
                 """
                 SELECT EXISTS (
                     SELECT 1 FROM information_schema.tables
                     WHERE table_name = 'error_args_aud'
                 )
                 """.trimIndent(),
-                Boolean::class.java,
             )
         assertThat(exists).isEqualTo(false)
     }
@@ -88,9 +89,8 @@ class ErrorEntityEnversAuditIntegrationTest {
     @Test
     fun `error_aud lagrer kun auditerte kolonner — error_code men ikke args`() {
         val auditedColumns =
-            jdbcTemplate.queryForList(
+            jdbcTemplate.queryForList<String>(
                 "SELECT column_name FROM information_schema.columns WHERE table_name = 'error_aud'",
-                String::class.java,
             )
         assertThat(auditedColumns).containsExactlyInAnyOrder("id", "rev", "revtype", "error_code")
     }
@@ -109,10 +109,9 @@ class ErrorEntityEnversAuditIntegrationTest {
         errorScrubService.scrubByInstanceFlowHeaders(headers(event))
 
         val liveArgs =
-            jdbcTemplate.queryForList(
+            jdbcTemplate.queryForList<String>(
                 """SELECT "value" FROM error_args WHERE error_id = ?""",
-                String::class.java,
-                errorId,
+                arrayOf(errorId),
             )
         assertThat(liveArgs).allSatisfy { assertThat(it).isEmpty() }
 
@@ -124,10 +123,9 @@ class ErrorEntityEnversAuditIntegrationTest {
     }
 
     private fun lastModifiedAt(errorId: Long): OffsetDateTime =
-        jdbcTemplate.queryForObject(
+        jdbcTemplate.queryForObject<OffsetDateTime>(
             "SELECT last_modified_at FROM error WHERE id = ?",
-            OffsetDateTime::class.java,
-            errorId,
+            arrayOf(errorId),
         )!!
 
     private fun saveEventWithError(args: Map<String, String>): EventEntity {
@@ -161,13 +159,12 @@ class ErrorEntityEnversAuditIntegrationTest {
             .build()
     }
 
-    private fun countRevinfo(): Int = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM revinfo", Int::class.java)!!
+    private fun countRevinfo(): Int = jdbcTemplate.queryForObject<Int>("SELECT COUNT(*) FROM revinfo")
 
     private fun errorAudRevtypes(errorId: Long): List<Int> =
-        jdbcTemplate.queryForList(
+        jdbcTemplate.queryForList<Int>(
             "SELECT revtype FROM error_aud WHERE id = ? ORDER BY rev",
-            Int::class.java,
-            errorId,
+            arrayOf(errorId),
         )
 
     companion object {
