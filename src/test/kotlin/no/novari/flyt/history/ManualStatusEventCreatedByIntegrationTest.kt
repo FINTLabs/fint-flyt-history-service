@@ -18,8 +18,13 @@ import no.novari.flyt.history.repository.EventRepository
 import no.novari.flyt.history.repository.entities.EventEntity
 import no.novari.flyt.history.repository.entities.InstanceFlowHeadersEmbeddable
 import no.novari.flyt.history.validation.ValidationErrorsFormattingService
+import no.novari.flyt.webresourceserver.security.AuthorityMappingService
+import no.novari.flyt.webresourceserver.security.properties.InternalApiSecurityProperties
 import no.novari.flyt.webresourceserver.security.user.UserClaim
 import no.novari.flyt.webresourceserver.security.user.UserJwtConverter
+import no.novari.flyt.webresourceserver.security.user.UserRoleAuthorityMappingService
+import no.novari.flyt.webresourceserver.security.user.UserRoleFilteringService
+import no.novari.flyt.webresourceserver.security.user.UserRoleHierarchyService
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -185,6 +190,7 @@ class ManualStatusEventCreatedByIntegrationTest {
                         .sourceApplicationId(SOURCE_APPLICATION_ID)
                         .sourceApplicationIntegrationId(SOURCE_APPLICATION_INTEGRATION_ID)
                         .sourceApplicationInstanceId(SOURCE_APPLICATION_INSTANCE_ID)
+                        .correlationId(UUID.fromString("97c50875-b5ef-4800-bacd-3e5123c2368f"))
                         .integrationId(100L)
                         .build(),
                 ).name(EventCategory.INSTANCE_MAPPING_ERROR.eventName)
@@ -196,9 +202,9 @@ class ManualStatusEventCreatedByIntegrationTest {
 
     private fun userAuthentication(oid: UUID): Authentication =
         UserJwtConverter(
-            userRoleFilteringService = mock(),
-            userRoleHierarchyService = mock(),
-            userRoleAuthorityMappingService = mock(),
+            userRoleFilteringService = UserRoleFilteringService(InternalApiSecurityProperties()),
+            userRoleHierarchyService = UserRoleHierarchyService(),
+            userRoleAuthorityMappingService = UserRoleAuthorityMappingService(AuthorityMappingService()),
         ).convert(
             Jwt
                 .withTokenValue("token")
