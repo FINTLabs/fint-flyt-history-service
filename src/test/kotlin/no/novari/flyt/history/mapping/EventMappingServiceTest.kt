@@ -1,6 +1,9 @@
 package no.novari.flyt.history.mapping
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import no.novari.flyt.audit.actor.Actor
+import no.novari.flyt.audit.actor.ActorDisplayProperties
+import no.novari.flyt.audit.actor.ActorDisplayResolver
 import no.novari.flyt.history.model.event.Event
 import no.novari.flyt.history.model.event.EventCategorizationService
 import no.novari.flyt.history.model.event.EventCategory
@@ -20,10 +23,15 @@ import org.mockito.kotlin.verifyNoMoreInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
+import org.springframework.test.util.ReflectionTestUtils
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.util.UUID
 
 class EventMappingServiceTest {
+    private val oid: UUID = UUID.fromString("00000000-0000-0000-0000-000000000001")
+
     private lateinit var instanceFlowHeadersMappingService: InstanceFlowHeadersMappingService
     private lateinit var eventCategorizationService: EventCategorizationService
     private lateinit var eventMappingService: EventMappingService
@@ -36,6 +44,10 @@ class EventMappingServiceTest {
             EventMappingService(
                 instanceFlowHeadersMappingService,
                 eventCategorizationService,
+                ActorDisplayResolver(
+                    { oids -> oids.associateWith { "Ola Nordmann" } },
+                    ActorDisplayProperties(),
+                ),
             )
     }
 
@@ -58,6 +70,8 @@ class EventMappingServiceTest {
         assertThat(event).hasAllNullFieldsOrPropertiesExcept("isScrubbed", "errors")
         assertThat(event.isScrubbed).isFalse()
         assertThat(event.errors).isEmpty()
+        assertThat(event.createdBy).isNull()
+        assertThat(event.createdByActor).isNull()
     }
 
     @Test
@@ -73,8 +87,11 @@ class EventMappingServiceTest {
         val errorEntity1: ErrorEntity = mock()
         val errorEntity2: ErrorEntity = mock()
 
-        val event =
-            eventMappingService.toEvent(
+        val createdAt = Instant.parse("2024-01-01T01:02:03Z")
+        val createdBy = Actor.User(oid)
+
+        val eventEntity =
+            withAudit(
                 EventEntity
                     .builder()
                     .id(1)
@@ -86,6 +103,13 @@ class EventMappingServiceTest {
                     .applicationId("testApplicationId")
                     .errors(listOf(errorEntity1, errorEntity2))
                     .build(),
+                createdAt,
+                createdBy,
+            )
+
+        val event =
+            eventMappingService.toEvent(
+                eventEntity,
             )
 
         verify(instanceFlowHeadersMappingService, times(1)).toInstanceFlowHeaders(instanceFlowHeadersEmbeddable)
@@ -99,6 +123,9 @@ class EventMappingServiceTest {
         assertThat(event.type).isEqualTo(EventType.INFO)
         assertThat(event.applicationId).isEqualTo("testApplicationId")
         assertThat(event.errors).containsExactly(errorEntity1, errorEntity2)
+        assertThat(event.createdAt).isEqualTo(createdAt)
+        assertThat(event.createdBy).isEqualTo("Ola Nordmann")
+        assertThat(event.createdByActor).isEqualTo(createdBy)
     }
 
     @Test
@@ -126,6 +153,8 @@ class EventMappingServiceTest {
         assertThat(event).hasAllNullFieldsOrPropertiesExcept("isScrubbed", "errors")
         assertThat(event.isScrubbed).isFalse()
         assertThat(event.errors).isEmpty()
+        assertThat(event.createdBy).isNull()
+        assertThat(event.createdByActor).isNull()
     }
 
     @Test
@@ -141,22 +170,30 @@ class EventMappingServiceTest {
         val errorEntity1: ErrorEntity = mock()
         val errorEntity2: ErrorEntity = mock()
 
+        val createdAt = Instant.parse("2024-01-01T01:02:03Z")
+        val createdBy = Actor.User(oid)
+
+        val eventEntity =
+            withAudit(
+                EventEntity
+                    .builder()
+                    .id(1)
+                    .instanceFlowHeaders(instanceFlowHeadersEmbeddable)
+                    .name("testName")
+                    .timestamp(offsetDateTime)
+                    .isScrubbed(true)
+                    .type(EventType.INFO)
+                    .applicationId("testApplicationId")
+                    .errors(listOf(errorEntity1, errorEntity2))
+                    .build(),
+                createdAt,
+                createdBy,
+            )
+
         val eventPage: Page<Event> =
             eventMappingService.toEventPage(
                 PageImpl(
-                    listOf(
-                        EventEntity
-                            .builder()
-                            .id(1)
-                            .instanceFlowHeaders(instanceFlowHeadersEmbeddable)
-                            .name("testName")
-                            .timestamp(offsetDateTime)
-                            .isScrubbed(true)
-                            .type(EventType.INFO)
-                            .applicationId("testApplicationId")
-                            .errors(listOf(errorEntity1, errorEntity2))
-                            .build(),
-                    ),
+                    listOf(eventEntity),
                 ),
             )
 
@@ -173,6 +210,26 @@ class EventMappingServiceTest {
         assertThat(event.type).isEqualTo(EventType.INFO)
         assertThat(event.applicationId).isEqualTo("testApplicationId")
         assertThat(event.errors).containsExactly(errorEntity1, errorEntity2)
+        assertThat(event.createdAt).isEqualTo(createdAt)
+        assertThat(event.createdBy).isEqualTo("Ola Nordmann")
+        assertThat(event.createdByActor).isEqualTo(createdBy)
+    }
+
+    @Test
+    fun `given system and unknown actors when to event page then use resolver fallback display names`() {
+        val createdAt = Instant.parse("2024-01-01T01:02:03Z")
+        val systemEventEntity = withAudit(EventEntity.builder().build(), createdAt, Actor.System)
+        val unknownEventEntity = withAudit(EventEntity.builder().build(), createdAt, Actor.Unknown)
+
+        val eventPage: Page<Event> =
+            eventMappingService.toEventPage(
+                PageImpl(listOf(systemEventEntity, unknownEventEntity)),
+            )
+
+        assertThat(eventPage.content[0].createdBy).isEqualTo("System")
+        assertThat(eventPage.content[0].createdByActor).isEqualTo(Actor.System)
+        assertThat(eventPage.content[1].createdBy).isEqualTo("Ukjent")
+        assertThat(eventPage.content[1].createdByActor).isEqualTo(Actor.Unknown)
     }
 
     @Test
@@ -239,4 +296,14 @@ class EventMappingServiceTest {
         assertThat(json).contains("\"isScrubbed\":false")
         assertThat(json).doesNotContain("\"scrubbed\"")
     }
+
+    private fun withAudit(
+        eventEntity: EventEntity,
+        createdAt: Instant,
+        createdBy: Actor,
+    ): EventEntity =
+        eventEntity.apply {
+            ReflectionTestUtils.setField(this, "createdAt", createdAt)
+            ReflectionTestUtils.setField(this, "createdBy", createdBy)
+        }
 }

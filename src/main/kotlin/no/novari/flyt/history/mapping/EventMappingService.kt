@@ -1,5 +1,7 @@
 package no.novari.flyt.history.mapping
 
+import no.novari.flyt.audit.actor.Actor
+import no.novari.flyt.audit.actor.ActorDisplayResolver
 import no.novari.flyt.history.model.event.Event
 import no.novari.flyt.history.model.event.EventCategorizationService
 import no.novari.flyt.history.repository.entities.EventEntity
@@ -10,10 +12,17 @@ import org.springframework.stereotype.Service
 class EventMappingService(
     private val instanceFlowHeadersMappingService: InstanceFlowHeadersMappingService,
     private val eventCategorizationService: EventCategorizationService,
+    private val actorDisplayResolver: ActorDisplayResolver,
 ) {
     fun toEvent(eventEntity: EventEntity?): Event {
         requireNotNull(eventEntity) { "Event entity is null" }
+        return toEvent(eventEntity, actorDisplayResolver.resolveAll(actorsOf(eventEntity)))
+    }
 
+    private fun toEvent(
+        eventEntity: EventEntity,
+        displays: Map<Actor, String?>,
+    ): Event {
         return Event(
             instanceFlowHeaders =
                 eventEntity.instanceFlowHeaders?.let(instanceFlowHeadersMappingService::toInstanceFlowHeaders),
@@ -23,12 +32,16 @@ class EventMappingService(
             type = eventEntity.type,
             applicationId = eventEntity.applicationId,
             errors = eventEntity.errors,
+            createdAt = eventEntity.createdAt,
+            createdBy = eventEntity.createdBy?.let { displays[it] },
+            createdByActor = eventEntity.createdBy,
         )
     }
 
     fun toEventPage(events: Page<EventEntity>?): Page<Event> {
         requireNotNull(events) { "events is null" }
-        return events.map(::toEvent)
+        val displays = actorDisplayResolver.resolveAll(events.content.flatMap(::actorsOf))
+        return events.map { toEvent(it, displays) }
     }
 
     fun toEventEntity(event: Event?): EventEntity {
@@ -45,4 +58,6 @@ class EventMappingService(
             errors = event.errors.toMutableList(),
         )
     }
+
+    private fun actorsOf(eventEntity: EventEntity): List<Actor?> = listOf(eventEntity.createdBy)
 }
