@@ -106,7 +106,7 @@ class HistoryControllerWebMvcTest {
     }
 
     @Test
-    fun `events endpoint exposes audit fields with snake case json names`() {
+    fun `events endpoint exposes audit fields with camel case json names`() {
         val pageable = PageRequest.of(0, 20)
         val oid = UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333")
         val createdAt = Instant.parse("2024-01-01T12:34:56Z")
@@ -142,13 +142,13 @@ class HistoryControllerWebMvcTest {
                     .param("sourceApplicationInstanceId", "instance-1")
                     .principal(authentication),
             ).andExpect(status().isOk)
-            .andExpect(jsonPath("$.content[0].created_at").value("2024-01-01T12:34:56Z"))
-            .andExpect(jsonPath("$.content[0].created_by").value("Ola Nordmann"))
-            .andExpect(jsonPath("$.content[0].created_by_actor.type").value("USER"))
-            .andExpect(jsonPath("$.content[0].created_by_actor.oid").value(oid.toString()))
-            .andExpect(jsonPath("$.content[0].createdAt").doesNotExist())
-            .andExpect(jsonPath("$.content[0].createdBy").doesNotExist())
-            .andExpect(jsonPath("$.content[0].createdByActor").doesNotExist())
+            .andExpect(jsonPath("$.content[0].createdAt").value("2024-01-01T12:34:56Z"))
+            .andExpect(jsonPath("$.content[0].createdBy").value("Ola Nordmann"))
+            .andExpect(jsonPath("$.content[0].createdByActor.type").value("USER"))
+            .andExpect(jsonPath("$.content[0].createdByActor.oid").value(oid.toString()))
+            .andExpect(jsonPath("$.content[0].created_at").doesNotExist())
+            .andExpect(jsonPath("$.content[0].created_by").doesNotExist())
+            .andExpect(jsonPath("$.content[0].created_by_actor").doesNotExist())
     }
 
     @Test

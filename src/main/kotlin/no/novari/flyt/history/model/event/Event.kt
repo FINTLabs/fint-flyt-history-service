@@ -17,11 +17,11 @@ data class Event(
     val type: EventType? = null,
     val applicationId: String? = null,
     val errors: Collection<ErrorEntity> = emptyList(),
-    @get:JsonProperty("created_at")
+    @field:JsonProperty(access = JsonProperty.Access.READ_ONLY)
     val createdAt: Instant? = null,
-    @get:JsonProperty("created_by")
+    @field:JsonProperty(access = JsonProperty.Access.READ_ONLY)
     val createdBy: String? = null,
-    @get:JsonProperty("created_by_actor")
+    @field:JsonProperty(access = JsonProperty.Access.READ_ONLY)
     val createdByActor: Actor? = null,
 ) {
     companion object {

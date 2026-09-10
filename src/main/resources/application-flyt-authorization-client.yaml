@@ -1,9 +1,8 @@
 novari:
   flyt:
-    web-resource-server:
-      security:
-        authorization:
-          base-url: 'http://fint-flyt-authorization-service:8080${server.servlet.context-path:}'
+    audit:
+      authorization:
+        base-url: 'http://fint-flyt-authorization-service:8080${server.servlet.context-path:}'
 
 spring:
   security:
