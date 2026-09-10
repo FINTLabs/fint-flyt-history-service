@@ -17,6 +17,9 @@ class AuthorizationClientProfileConfigurationTest {
             .containsEntry(
                 "novari.flyt.audit.authorization.base-url",
                 "http://fint-flyt-authorization-service:8080\${server.servlet.context-path:}",
-            ).doesNotContainKey("novari.flyt.web-resource-server.security.authorization.base-url")
+            ).containsEntry(
+                "novari.flyt.web-resource-server.security.authorization.base-url",
+                "http://fint-flyt-authorization-service:8080\${server.servlet.context-path:}",
+            )
     }
 }
