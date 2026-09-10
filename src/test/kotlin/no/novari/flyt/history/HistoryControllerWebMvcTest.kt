@@ -1,14 +1,18 @@
 package no.novari.flyt.history
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import jakarta.validation.ConstraintViolation
 import jakarta.validation.Validator
 import jakarta.validation.ValidatorFactory
+import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.history.exceptions.LatestStatusEventNotOfTypeErrorException
 import no.novari.flyt.history.exceptions.NoPreviousStatusEventsFoundException
 import no.novari.flyt.history.model.action.ManuallyProcessedEventAction
 import no.novari.flyt.history.model.event.Event
+import no.novari.flyt.history.model.event.EventCategory
+import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.history.repository.projections.IntegrationStatisticsProjection
 import no.novari.flyt.history.validation.ValidationErrorsFormattingService
 import org.junit.jupiter.api.BeforeEach
@@ -33,6 +37,9 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.server.ResponseStatusException
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.util.UUID
 
 class HistoryControllerWebMvcTest {
     private val authorizationService: AuthorizationService = mock()
@@ -41,7 +48,10 @@ class HistoryControllerWebMvcTest {
     private val validationErrorsFormattingService: ValidationErrorsFormattingService = mock()
     private val validator: Validator = mock()
     private val authentication: Authentication = mock()
-    private val objectMapper: ObjectMapper = jacksonObjectMapper()
+    private val objectMapper: ObjectMapper =
+        jacksonObjectMapper()
+            .findAndRegisterModules()
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 
     private lateinit var mockMvc: MockMvc
 
@@ -93,6 +103,52 @@ class HistoryControllerWebMvcTest {
             .andExpect(jsonPath("$.pageable").doesNotExist())
             .andExpect(jsonPath("$.totalPages").doesNotExist())
             .andExpect(jsonPath("$.totalElements").doesNotExist())
+    }
+
+    @Test
+    fun `events endpoint exposes audit fields with camel case json names`() {
+        val pageable = PageRequest.of(0, 20)
+        val oid = UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333")
+        val createdAt = Instant.parse("2024-01-01T12:34:56Z")
+        whenever(
+            eventService.getAllEventsBySourceApplicationAggregateInstanceId(
+                eq(1L),
+                eq("integration-1"),
+                eq("instance-1"),
+                any(),
+            ),
+        ).thenReturn(
+            PageImpl(
+                listOf(
+                    Event(
+                        category = EventCategory.INSTANCE_MANUALLY_PROCESSED,
+                        timestamp = OffsetDateTime.parse("2024-01-01T12:30:00Z"),
+                        type = EventType.INFO,
+                        createdAt = createdAt,
+                        createdBy = "Ola Nordmann",
+                        createdByActor = Actor.User(oid),
+                    ),
+                ),
+                pageable,
+                1,
+            ),
+        )
+
+        mockMvc
+            .perform(
+                get("/api/intern/instance-flow-tracking/events")
+                    .param("sourceApplicationId", "1")
+                    .param("sourceApplicationIntegrationId", "integration-1")
+                    .param("sourceApplicationInstanceId", "instance-1")
+                    .principal(authentication),
+            ).andExpect(status().isOk)
+            .andExpect(jsonPath("$.content[0].createdAt").value("2024-01-01T12:34:56Z"))
+            .andExpect(jsonPath("$.content[0].createdBy").value("Ola Nordmann"))
+            .andExpect(jsonPath("$.content[0].createdByActor.type").value("USER"))
+            .andExpect(jsonPath("$.content[0].createdByActor.oid").value(oid.toString()))
+            .andExpect(jsonPath("$.content[0].created_at").doesNotExist())
+            .andExpect(jsonPath("$.content[0].created_by").doesNotExist())
+            .andExpect(jsonPath("$.content[0].created_by_actor").doesNotExist())
     }
 
     @Test

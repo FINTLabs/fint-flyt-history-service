@@ -3,6 +3,8 @@ package no.novari.flyt.history
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import jakarta.validation.Validation
 import no.novari.flyt.audit.actor.Actor
+import no.novari.flyt.audit.actor.ActorDisplayProperties
+import no.novari.flyt.audit.actor.ActorDisplayResolver
 import no.novari.flyt.history.mapping.EventMappingService
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
 import no.novari.flyt.history.mapping.InstanceFlowSummariesFilterMappingService
@@ -155,6 +157,10 @@ class ManualStatusEventCreatedByIntegrationTest {
                     EventMappingService(
                         instanceFlowHeadersMappingService,
                         eventCategorizationService,
+                        ActorDisplayResolver(
+                            { oids -> oids.associateWith { it.toString() } },
+                            ActorDisplayProperties(),
+                        ),
                     ),
                 instanceFlowHeadersMappingService = instanceFlowHeadersMappingService,
                 instanceFlowSummariesFilterMappingService = mock<InstanceFlowSummariesFilterMappingService>(),

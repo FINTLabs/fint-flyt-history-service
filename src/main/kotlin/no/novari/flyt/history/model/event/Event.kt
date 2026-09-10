@@ -1,8 +1,10 @@
 package no.novari.flyt.history.model.event
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.history.repository.entities.ErrorEntity
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
+import java.time.Instant
 import java.time.OffsetDateTime
 
 data class Event(
@@ -15,6 +17,12 @@ data class Event(
     val type: EventType? = null,
     val applicationId: String? = null,
     val errors: Collection<ErrorEntity> = emptyList(),
+    @field:JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    val createdAt: Instant? = null,
+    @field:JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    val createdBy: String? = null,
+    @field:JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    val createdByActor: Actor? = null,
 ) {
     companion object {
         @JvmStatic
