@@ -32,6 +32,8 @@ plugins {
 group = "no.novari"
 version = "0.0.1-SNAPSHOT"
 
+var springdocOpenApiVersion = "2.8.17"
+
 val javaVersion =
     providers
         .gradleProperty("javaVersion")
@@ -84,6 +86,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocOpenApiVersion")
 
     implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.15.5")
 

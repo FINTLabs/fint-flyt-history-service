@@ -1,6 +1,12 @@
 fint:
   application-id: fint-flyt-history-service
 
+springdoc:
+  api-docs:
+    path: /api/intern/instance-flow-tracking/v3/api-docs
+  swagger-ui:
+    path: /api/intern/instance-flow-tracking/swagger-ui.html
+
 novari:
   flyt:
     history-service:

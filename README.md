@@ -21,7 +21,7 @@ and Prometheus support out of the box.
 
 | Component                                                              | Responsibility                                                                                                                  |
 |------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `HistoryController`                                                    | Exposes `/internal/api/instance-flow-tracking` endpoints, performs validation, and shapes HTTP responses.                       |
+| `HistoryController`                                                    | Exposes `/api/intern/instance-flow-tracking` endpoints, performs validation, and shapes HTTP responses.                       |
 | `AuthorizationService`                                                 | Delegates to `UserAuthorizationService` to intersect requested source applications with the caller’s access rights.             |
 | `EventService`                                                         | Central orchestration for saving events, running summary/statistics queries, mapping projections, and fetching latest metadata. |
 | `ManualEventCreationService`                                           | Builds manual events, enforces “latest status must be ERROR,” injects correlation IDs, and persists via `EventService`.         |
@@ -33,7 +33,7 @@ and Prometheus support out of the box.
 
 ## HTTP API
 
-Base path: `/internal/api/instance-flow-tracking`
+Base path: `/api/intern/instance-flow-tracking`
 
 | Method | Path                                                | Description                                                            | Request body / params                                                                                                                | Response                                                                                       |
 |--------|-----------------------------------------------------|------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|
@@ -72,6 +72,14 @@ Manual action payloads:
 `archiveInstanceId` is only required for manually processed events.
 
 Validation failures respond with 422 Unprocessable Entity using the shared formatting service.
+
+### OpenAPI Documentation
+
+The OpenAPI endpoints are protected by the same OAuth2 rules as the internal API:
+
+- Swagger UI: `/api/intern/instance-flow-tracking/swagger-ui.html`
+- OpenAPI JSON: `/api/intern/instance-flow-tracking/v3/api-docs`
+- OpenAPI YAML: `/api/intern/instance-flow-tracking/v3/api-docs.yaml`
 
 ## Kafka Integration
 
