@@ -75,11 +75,21 @@ Validation failures respond with 422 Unprocessable Entity using the shared forma
 
 ### OpenAPI Documentation
 
-The OpenAPI endpoints are protected by the same OAuth2 rules as the internal API:
+Swagger UI and the generated OpenAPI specification are available only through direct service access, such as a
+Kubernetes port-forward. Their paths sit outside the external ingress route for `/api/intern/instance-flow-tracking`:
 
-- Swagger UI: `/api/intern/instance-flow-tracking/swagger-ui.html`
-- OpenAPI JSON: `/api/intern/instance-flow-tracking/v3/api-docs`
-- OpenAPI YAML: `/api/intern/instance-flow-tracking/v3/api-docs.yaml`
+- Swagger UI: `/swagger-ui.html`
+- OpenAPI JSON: `/v3/api-docs`
+- OpenAPI YAML: `/v3/api-docs.yaml`
+
+For the FINTLabs beta deployment:
+
+```shell
+kubectl -n fintlabs-no port-forward service/fint-flyt-history-service 8080:8080
+```
+
+Swagger UI is then available at `http://localhost:8080/beta/fintlabs-no/swagger-ui.html`, and OpenAPI JSON at
+`http://localhost:8080/beta/fintlabs-no/v3/api-docs`.
 
 ## Kafka Integration
 
