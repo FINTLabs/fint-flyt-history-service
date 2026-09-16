@@ -1,9 +1,11 @@
 package no.novari.flyt.history.model.action
 
+import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.Positive
 import no.novari.flyt.history.model.SourceApplicationAggregateInstanceId
 
+@Schema(description = "Request to mark an instance as manually rejected.")
 data class ManuallyRejectedEventAction(
     @field:Positive
     override val sourceApplicationId: Long = 0,
