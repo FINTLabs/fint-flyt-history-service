@@ -1,11 +1,15 @@
 package no.novari.flyt.history.kafka
 
+import no.novari.flyt.audit.actor.Actor
+import no.novari.flyt.audit.actor.ActorContext
+import no.novari.flyt.audit.actor.ActorHeader
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.history.repository.EventRepository
 import no.novari.flyt.history.repository.entities.ErrorEntity
 import no.novari.flyt.history.repository.entities.EventEntity
+import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowConsumerRecord
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService
 import no.novari.flyt.kafka.model.Error
 import no.novari.flyt.kafka.model.ErrorCollection
@@ -60,21 +64,7 @@ class EventListenerConfiguration(
             .createRecordListenerContainerFactory(
                 Any::class.java,
                 { instanceFlowConsumerRecord ->
-                    eventRepository.save(
-                        EventEntity(
-                            instanceFlowHeaders =
-                                instanceFlowHeadersMappingService.toEmbeddable(
-                                    instanceFlowConsumerRecord.instanceFlowHeaders,
-                                ),
-                            name = category.eventName,
-                            type = EventType.INFO,
-                            timestamp =
-                                Instant
-                                    .ofEpochMilli(instanceFlowConsumerRecord.consumerRecord.timestamp())
-                                    .atOffset(ZoneOffset.UTC),
-                            applicationId = getApplicationId(instanceFlowConsumerRecord.consumerRecord.headers()),
-                        ),
-                    )
+                    saveInfoEvent(instanceFlowConsumerRecord, category)
                 },
                 ListenerConfiguration
                     .stepBuilder()
@@ -97,6 +87,57 @@ class EventListenerConfiguration(
                     .topicNamePrefixParameters(topicNamePrefixParameters())
                     .build(),
             )
+    }
+
+    private fun saveInfoEvent(
+        instanceFlowConsumerRecord: InstanceFlowConsumerRecord<Any>,
+        category: EventCategory,
+    ) {
+        saveEvent(
+            EventEntity(
+                instanceFlowHeaders =
+                    instanceFlowHeadersMappingService.toEmbeddable(
+                        instanceFlowConsumerRecord.instanceFlowHeaders,
+                    ),
+                name = category.eventName,
+                type = EventType.INFO,
+                timestamp =
+                    Instant
+                        .ofEpochMilli(instanceFlowConsumerRecord.consumerRecord.timestamp())
+                        .atOffset(ZoneOffset.UTC),
+                applicationId = getApplicationId(instanceFlowConsumerRecord.consumerRecord.headers()),
+            ),
+            actor = retryActor(instanceFlowConsumerRecord, category),
+        )
+    }
+
+    private fun saveEvent(
+        event: EventEntity,
+        actor: Actor?,
+    ) {
+        if (actor == null) {
+            eventRepository.save(event)
+        } else {
+            ActorContext.withActor(actor) {
+                eventRepository.save(event)
+            }
+        }
+    }
+
+    private fun retryActor(
+        instanceFlowConsumerRecord: InstanceFlowConsumerRecord<Any>,
+        category: EventCategory,
+    ): Actor? {
+        if (category != EventCategory.INSTANCE_REQUESTED_FOR_RETRY) {
+            return null
+        }
+
+        return instanceFlowConsumerRecord
+            .consumerRecord
+            .headers()
+            .lastHeader(ActorHeader.HEADER_NAME)
+            ?.value()
+            ?.let(ActorHeader::fromHeaderValueOrNull)
     }
 
     private fun createErrorEventListener(
