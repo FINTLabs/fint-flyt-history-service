@@ -104,6 +104,20 @@ while IFS= read -r file; do
     done
   fi
 
+  AUTHORIZATION_SSO_PATCHES=""
+  if [[ "$namespace" == "ra-no" ]]; then
+    AUTHORIZATION_SSO_PATCHES=$'\n'"$(cat <<'EOF'
+      - op: replace
+        path: "/spec/env/1/valueFrom/secretKeyRef/key"
+        value: "fint.flyt.authorization.sso.client-id"
+      - op: replace
+        path: "/spec/env/2/valueFrom/secretKeyRef/key"
+        value: "fint.flyt.authorization.sso.client-secret"
+EOF
+)"
+  fi
+  export AUTHORIZATION_SSO_PATCHES
+
   export NAMESPACE="$namespace"
   export ORG_ID="${namespace//-/.}"
   export APP_INSTANCE_LABEL="fint-flyt-history-service_$(app_instance_suffix "$namespace")"
@@ -127,7 +141,7 @@ while IFS= read -r file; do
   mkdir -p "$target_dir"
 
   tmp="$(mktemp "$target_dir/.kustomization.yaml.XXXXXX")"
-  envsubst '$NAMESPACE $APP_INSTANCE_LABEL $ORG_ID $KAFKA_TOPIC $INGRESS_BASE_PATH $SERVLET_CONTEXT_PATH $STARTUP_PATH $READINESS_PATH $LIVENESS_PATH $METRICS_PATH $AUTHORIZED_ORG_ROLE_PAIRS $NOVARI_KAFKA_TOPIC_ORGID' \
+  envsubst '$AUTHORIZATION_SSO_PATCHES $NAMESPACE $APP_INSTANCE_LABEL $ORG_ID $KAFKA_TOPIC $INGRESS_BASE_PATH $SERVLET_CONTEXT_PATH $STARTUP_PATH $READINESS_PATH $LIVENESS_PATH $METRICS_PATH $AUTHORIZED_ORG_ROLE_PAIRS $NOVARI_KAFKA_TOPIC_ORGID' \
     < "$template" > "$tmp"
   mv "$tmp" "$target_dir/kustomization.yaml"
 done < <(

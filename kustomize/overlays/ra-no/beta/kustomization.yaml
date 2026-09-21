@@ -13,6 +13,12 @@ labels:
 patches:
   - patch: |-
       - op: replace
+        path: "/spec/env/1/valueFrom/secretKeyRef/key"
+        value: "fint.flyt.authorization.sso.client-id"
+      - op: replace
+        path: "/spec/env/2/valueFrom/secretKeyRef/key"
+        value: "fint.flyt.authorization.sso.client-secret"
+      - op: replace
         path: "/spec/kafka/acls/0/topic"
         value: "ra-no.flyt.*"
       - op: replace

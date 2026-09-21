@@ -11,7 +11,7 @@ labels:
       fintlabs.no/org-id: $ORG_ID
 
 patches:
-  - patch: |-
+  - patch: |-$AUTHORIZATION_SSO_PATCHES
       - op: replace
         path: "/spec/kafka/acls/0/topic"
         value: "$KAFKA_TOPIC"
