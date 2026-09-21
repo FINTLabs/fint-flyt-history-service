@@ -32,7 +32,7 @@ plugins {
 group = "no.novari"
 version = "0.0.1-SNAPSHOT"
 
-var springdocOpenApiVersion = "2.8.17"
+var springdocOpenApiVersion = "2.9.1"
 
 val javaVersion =
     providers
