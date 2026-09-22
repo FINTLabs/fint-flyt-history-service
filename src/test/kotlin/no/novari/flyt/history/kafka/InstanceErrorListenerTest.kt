@@ -97,6 +97,7 @@ class InstanceErrorListenerTest {
             instanceFlowHeadersMappingService = instanceFlowHeadersMappingService,
             errorHandlerFactory = errorHandlerFactory,
             beanFactory = mock<ConfigurableListableBeanFactory>(),
+            legacyErrorTopicListenersEnabled = true,
         ).instanceErrorListener()
 
         listener = listenerCaptor.firstValue

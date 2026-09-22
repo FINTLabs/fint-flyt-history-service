@@ -40,7 +40,7 @@ class EventListenerConfiguration(
     private val errorHandlerFactory: ErrorHandlerFactory,
     private val beanFactory: ConfigurableListableBeanFactory,
     @Value($$"${novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled:true}")
-    private val legacyErrorTopicListenersEnabled: Boolean = true,
+    private val legacyErrorTopicListenersEnabled: Boolean,
 ) {
     @Bean
     fun eventListenerContainers(): Map<String, ConcurrentMessageListenerContainer<String, *>> {
