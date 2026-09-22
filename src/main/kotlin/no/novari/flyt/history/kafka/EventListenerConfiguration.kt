@@ -23,6 +23,7 @@ import no.novari.kafka.topic.name.ErrorEventTopicNameParameters
 import no.novari.kafka.topic.name.EventTopicNameParameters
 import no.novari.kafka.topic.name.TopicNamePrefixParameters
 import org.apache.kafka.common.header.Headers
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -38,12 +39,19 @@ class EventListenerConfiguration(
     private val instanceFlowHeadersMappingService: InstanceFlowHeadersMappingService,
     private val errorHandlerFactory: ErrorHandlerFactory,
     private val beanFactory: ConfigurableListableBeanFactory,
+    @Value($$"${novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled:true}")
+    private val legacyErrorTopicListenersEnabled: Boolean = true,
 ) {
     @Bean
     fun eventListenerContainers(): Map<String, ConcurrentMessageListenerContainer<String, *>> {
         return EventCategory.entries
             .filter(EventCategory::createKafkaListener)
+            .filter(::isListenerEnabled)
             .associateBy(EventCategory::eventName, ::registerListenerBean)
+    }
+
+    private fun isListenerEnabled(category: EventCategory): Boolean {
+        return legacyErrorTopicListenersEnabled || category !in LEGACY_ERROR_TOPIC_CATEGORIES
     }
 
     private fun registerListenerBean(category: EventCategory): ConcurrentMessageListenerContainer<String, *> {
@@ -269,5 +277,15 @@ class EventListenerConfiguration(
             ).value(),
             UTF_8,
         )
+    }
+
+    private companion object {
+        val LEGACY_ERROR_TOPIC_CATEGORIES =
+            setOf(
+                EventCategory.INSTANCE_REGISTRATION_ERROR,
+                EventCategory.INSTANCE_RETRY_REQUEST_ERROR,
+                EventCategory.INSTANCE_MAPPING_ERROR,
+                EventCategory.INSTANCE_DISPATCHING_ERROR,
+            )
     }
 }

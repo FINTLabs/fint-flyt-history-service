@@ -44,6 +44,7 @@ class EventListenerConfigurationTest {
     private val actorDuringSave = mutableListOf<Actor?>()
 
     private lateinit var infoListenersByEventName: Map<String, Consumer<InstanceFlowConsumerRecord<Any>>>
+    private lateinit var eventListenerContainers: Map<String, ConcurrentMessageListenerContainer<String, *>>
 
     @BeforeEach
     fun setUp() {
@@ -85,19 +86,29 @@ class EventListenerConfigurationTest {
         whenever(errorListenerContainerFactory.createContainer(any<ErrorEventTopicNameParameters>()))
             .thenReturn(errorListenerContainer)
 
-        EventListenerConfiguration(
-            eventRepository = eventRepository,
-            instanceFlowListenerFactoryService = instanceFlowListenerFactoryService,
-            instanceFlowHeadersMappingService = instanceFlowHeadersMappingService,
-            errorHandlerFactory = errorHandlerFactory,
-            beanFactory = beanFactory,
-        ).eventListenerContainers()
+        eventListenerContainers = createEventListenerConfiguration().eventListenerContainers()
 
         infoListenersByEventName =
             infoTopicNameParametersCaptor
                 .allValues
                 .zip(infoListenerCaptor.allValues)
                 .associate { (topicNameParameters, listener) -> topicNameParameters.eventName to listener }
+    }
+
+    @Test
+    fun `legacy error topic listeners are enabled by default`() {
+        assertThat(eventListenerContainers.keys).containsAll(legacyErrorEventNames())
+    }
+
+    @Test
+    fun `legacy error topic listeners can be disabled`() {
+        val containers =
+            createEventListenerConfiguration(legacyErrorTopicListenersEnabled = false)
+                .eventListenerContainers()
+
+        assertThat(containers.keys)
+            .doesNotContainAnyElementsOf(legacyErrorEventNames())
+            .contains(EventCategory.INSTANCE_RECEIVAL_ERROR.eventName)
     }
 
     @Test
@@ -173,4 +184,24 @@ class EventListenerConfigurationTest {
             .correlationId(UUID.fromString("2ee6f95e-44c3-11ed-b878-0242ac120002"))
             .integrationId(100L)
             .build()
+
+    private fun createEventListenerConfiguration(
+        legacyErrorTopicListenersEnabled: Boolean = true,
+    ): EventListenerConfiguration =
+        EventListenerConfiguration(
+            eventRepository = eventRepository,
+            instanceFlowListenerFactoryService = instanceFlowListenerFactoryService,
+            instanceFlowHeadersMappingService = instanceFlowHeadersMappingService,
+            errorHandlerFactory = errorHandlerFactory,
+            beanFactory = beanFactory,
+            legacyErrorTopicListenersEnabled = legacyErrorTopicListenersEnabled,
+        )
+
+    private fun legacyErrorEventNames(): Set<String> =
+        setOf(
+            EventCategory.INSTANCE_REGISTRATION_ERROR.eventName,
+            EventCategory.INSTANCE_RETRY_REQUEST_ERROR.eventName,
+            EventCategory.INSTANCE_MAPPING_ERROR.eventName,
+            EventCategory.INSTANCE_DISPATCHING_ERROR.eventName,
+        )
 }

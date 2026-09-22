@@ -114,6 +114,7 @@ flyt-authorization-client, flyt-postgres) and exposes these key properties:
 |--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
 | fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service). |
 | novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                               |
+| novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the four legacy error topics (default true).                         |
 | novari.flyt.history-service.retention.time-to-keep-error-details-in-days                   | Number of days to keep error detail values before scheduled scrub.                         |
 | novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                |
 | fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                               |

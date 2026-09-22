@@ -11,6 +11,7 @@ novari:
   flyt:
     history-service:
       kafka:
+        legacy-error-topic-listeners-enabled: true
         topic:
           instance-processing-events-retention-time: "4d"
       retention:

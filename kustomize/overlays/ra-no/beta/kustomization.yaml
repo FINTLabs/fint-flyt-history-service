@@ -45,6 +45,11 @@ patches:
       - op: add
         path: "/spec/env/-"
         value:
+         name: "NOVARI_FLYT_HISTORY_SERVICE_KAFKA_LEGACY_ERROR_TOPIC_LISTENERS_ENABLED"
+         value: "false"
+      - op: add
+        path: "/spec/env/-"
+        value:
          name: "server.servlet.context-path"
          value: "/beta/ra-no"
       - op: replace
