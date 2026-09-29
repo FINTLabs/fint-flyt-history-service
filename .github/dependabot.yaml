@@ -38,6 +38,10 @@ updates:
           - dependency-name: "org.springframework*"
             update-types:
                 - "version-update:semver-major"
+          - dependency-name: "jvm"
+          - dependency-name: "plugin.spring"
+          - dependency-name: "plugin.jpa"
+          - dependency-name: "kapt"
           - dependency-name: "org.springdoc:springdoc-openapi-starter-webmvc-ui"
             update-types:
                 - "version-update:semver-major"
