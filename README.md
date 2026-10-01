@@ -142,7 +142,17 @@ Useful commands:
 ./gradlew test                         # run default test suite
 ./gradlew performanceTest              # run tests tagged @Tag("performance")
 
-Flyway migrations run at startup; ensure the configured schema exists (local profile uses fintlabs_no).
+Flyway creates the local `fintlabs_no` history schema and the `instance_received_offset` table
+inside it when history-service starts. Each row identifies a topic and partition and stores the
+next offset to consume. The table remains empty until instance-service starts writing offsets in
+a later task. Migrated instance tables will also be placed in the history schema in later tasks;
+no separate instance schema is required. The instance-service Postgres container is not needed
+to develop history-service.
+
+Flyway migrations run at startup. Before offset handover is enabled, the instance-service database
+user must have `USAGE` on the history schema and `SELECT`, `INSERT`, and `UPDATE` on its
+`instance_received_offset` table. The required role names and grants must be verified for each
+environment.
 
 ## Deployment
 
