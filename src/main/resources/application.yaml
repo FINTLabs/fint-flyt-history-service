@@ -9,6 +9,8 @@ springdoc:
 
 novari:
   flyt:
+    instance-functionality:
+      enabled: false
     history-service:
       kafka:
         legacy-error-topic-listeners-enabled: true
