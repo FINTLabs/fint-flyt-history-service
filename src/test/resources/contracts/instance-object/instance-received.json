@@ -1,0 +1,19 @@
+{
+  "valuePerKey": {
+    "caseNumber": "2026-123",
+    "source": "test"
+  },
+  "objectCollectionPerKey": {
+    "documents": [
+      {
+        "id": null,
+        "valuePerKey": {
+          "documentType": "application",
+          "fileName": "application.pdf"
+        },
+        "objectCollectionPerKey": {},
+        "createdAt": null
+      }
+    ]
+  }
+}
