@@ -3,18 +3,16 @@ package no.novari.flyt.history.kafka
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.audit.actor.ActorContext
 import no.novari.flyt.audit.actor.ActorHeader
+import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.history.repository.EventRepository
-import no.novari.flyt.history.repository.entities.ErrorEntity
 import no.novari.flyt.history.repository.entities.EventEntity
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowConsumerRecord
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService
-import no.novari.flyt.kafka.model.Error
 import no.novari.flyt.kafka.model.ErrorCollection
 import no.novari.flyt.kafka.model.InstanceErrorEvent
-import no.novari.flyt.kafka.model.InstanceErrorOrigin
 import no.novari.kafka.OriginHeaderProducerInterceptor
 import no.novari.kafka.consuming.ErrorHandlerConfiguration
 import no.novari.kafka.consuming.ErrorHandlerFactory
@@ -35,6 +33,7 @@ import java.time.ZoneOffset
 @Configuration
 class EventListenerConfiguration(
     private val eventRepository: EventRepository,
+    private val instanceErrorEventService: InstanceErrorEventService,
     private val instanceFlowListenerFactoryService: InstanceFlowListenerFactoryService,
     private val instanceFlowHeadersMappingService: InstanceFlowHeadersMappingService,
     private val errorHandlerFactory: ErrorHandlerFactory,
@@ -155,21 +154,12 @@ class EventListenerConfiguration(
             .createRecordListenerContainerFactory(
                 ErrorCollection::class.java,
                 { instanceFlowConsumerRecord ->
-                    eventRepository.save(
-                        EventEntity(
-                            instanceFlowHeaders =
-                                instanceFlowHeadersMappingService.toEmbeddable(
-                                    instanceFlowConsumerRecord.instanceFlowHeaders,
-                                ),
-                            name = eventCategory.eventName,
-                            type = EventType.ERROR,
-                            timestamp =
-                                Instant
-                                    .ofEpochMilli(instanceFlowConsumerRecord.consumerRecord.timestamp())
-                                    .atOffset(ZoneOffset.UTC),
-                            errors = mapToErrorEntities(instanceFlowConsumerRecord.consumerRecord.value()),
-                            applicationId = getApplicationId(instanceFlowConsumerRecord.consumerRecord.headers()),
-                        ),
+                    instanceErrorEventService.registerError(
+                        instanceFlowHeaders = instanceFlowConsumerRecord.instanceFlowHeaders,
+                        eventCategory = eventCategory,
+                        errorCollection = instanceFlowConsumerRecord.consumerRecord.value(),
+                        timestamp = Instant.ofEpochMilli(instanceFlowConsumerRecord.consumerRecord.timestamp()),
+                        applicationId = getApplicationId(instanceFlowConsumerRecord.consumerRecord.headers()),
                     )
                 },
                 ListenerConfiguration
@@ -195,23 +185,11 @@ class EventListenerConfiguration(
             .createRecordListenerContainerFactory(
                 InstanceErrorEvent::class.java,
                 { instanceFlowConsumerRecord ->
-                    val event = instanceFlowConsumerRecord.consumerRecord.value()
-                    val eventCategory = event.name.toEventCategory()
-                    eventRepository.save(
-                        EventEntity(
-                            instanceFlowHeaders =
-                                instanceFlowHeadersMappingService.toEmbeddable(
-                                    instanceFlowConsumerRecord.instanceFlowHeaders,
-                                ),
-                            name = eventCategory.eventName,
-                            type = EventType.ERROR,
-                            timestamp =
-                                Instant
-                                    .ofEpochMilli(instanceFlowConsumerRecord.consumerRecord.timestamp())
-                                    .atOffset(ZoneOffset.UTC),
-                            errors = mapToErrorEntities(event.errors),
-                            applicationId = getApplicationId(instanceFlowConsumerRecord.consumerRecord.headers()),
-                        ),
+                    instanceErrorEventService.registerError(
+                        instanceFlowHeaders = instanceFlowConsumerRecord.instanceFlowHeaders,
+                        instanceErrorEvent = instanceFlowConsumerRecord.consumerRecord.value(),
+                        timestamp = Instant.ofEpochMilli(instanceFlowConsumerRecord.consumerRecord.timestamp()),
+                        applicationId = getApplicationId(instanceFlowConsumerRecord.consumerRecord.headers()),
                     )
                 },
                 ListenerConfiguration
@@ -229,29 +207,6 @@ class EventListenerConfiguration(
                         .build(),
                 ),
             ).createContainer(createErrorEventTopicNameParameters("instance-error"))
-    }
-
-    private fun InstanceErrorOrigin.toEventCategory(): EventCategory =
-        when (this) {
-            InstanceErrorOrigin.RECEIVAL -> EventCategory.INSTANCE_RECEIVAL_ERROR
-            InstanceErrorOrigin.REGISTRATION -> EventCategory.INSTANCE_REGISTRATION_ERROR
-            InstanceErrorOrigin.RETRY_REQUEST -> EventCategory.INSTANCE_RETRY_REQUEST_ERROR
-            InstanceErrorOrigin.MAPPING -> EventCategory.INSTANCE_MAPPING_ERROR
-            InstanceErrorOrigin.DISPATCHING -> EventCategory.INSTANCE_DISPATCHING_ERROR
-        }
-
-    private fun mapToErrorEntities(errorCollection: ErrorCollection): MutableCollection<ErrorEntity> {
-        return errorCollection.errors
-            ?.map(::mapToErrorEntity)
-            ?.toMutableList()
-            ?: mutableListOf()
-    }
-
-    private fun mapToErrorEntity(errorFromEvent: Error): ErrorEntity {
-        return ErrorEntity(
-            errorCode = errorFromEvent.errorCode,
-            args = errorFromEvent.args?.mapValues { (_, v) -> v.orEmpty() },
-        )
     }
 
     private fun createErrorEventTopicNameParameters(errorEventName: String): ErrorEventTopicNameParameters {
