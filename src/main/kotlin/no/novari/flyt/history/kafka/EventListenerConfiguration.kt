@@ -237,6 +237,7 @@ class EventListenerConfiguration(
     private companion object {
         val LEGACY_ERROR_TOPIC_CATEGORIES =
             setOf(
+                EventCategory.INSTANCE_RECEIVAL_ERROR,
                 EventCategory.INSTANCE_REGISTRATION_ERROR,
                 EventCategory.INSTANCE_RETRY_REQUEST_ERROR,
                 EventCategory.INSTANCE_MAPPING_ERROR,

@@ -28,6 +28,7 @@ import org.apache.kafka.common.record.TimestampType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.clearInvocations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
@@ -119,13 +120,17 @@ class EventListenerConfigurationTest {
 
     @Test
     fun `legacy error topic listeners can be disabled`() {
+        clearInvocations(beanFactory)
         val containers =
             createEventListenerConfiguration(legacyErrorTopicListenersEnabled = false)
                 .eventListenerContainers()
 
         assertThat(containers.keys)
             .doesNotContainAnyElementsOf(legacyErrorEventNames())
-            .contains(EventCategory.INSTANCE_RECEIVAL_ERROR.eventName)
+
+        legacyErrorEventNames().forEach { eventName ->
+            verify(beanFactory, never()).registerSingleton(eq("eventListener-$eventName"), any())
+        }
     }
 
     @Test
@@ -135,6 +140,24 @@ class EventListenerConfigurationTest {
             ErrorCollection(
                 listOf(Error("test-error", mapOf("key" to "value"))),
             )
+        val record = errorConsumerRecord(category.eventName, errors)
+
+        errorListenersByEventName.getValue(category.eventName).accept(record)
+
+        verify(instanceErrorEventService).registerError(
+            same(record.instanceFlowHeaders),
+            eq(category),
+            same(errors),
+            eq(Instant.ofEpochMilli(record.consumerRecord.timestamp())),
+            eq("test-app"),
+        )
+        verify(eventRepository, never()).save(any<EventEntity>())
+    }
+
+    @Test
+    fun `instance receival error listener delegates record data without saving directly`() {
+        val category = EventCategory.INSTANCE_RECEIVAL_ERROR
+        val errors = ErrorCollection(listOf(Error("receival-error", null)))
         val record = errorConsumerRecord(category.eventName, errors)
 
         errorListenersByEventName.getValue(category.eventName).accept(record)
@@ -303,6 +326,7 @@ class EventListenerConfigurationTest {
 
     private fun legacyErrorEventNames(): Set<String> =
         setOf(
+            EventCategory.INSTANCE_RECEIVAL_ERROR.eventName,
             EventCategory.INSTANCE_REGISTRATION_ERROR.eventName,
             EventCategory.INSTANCE_RETRY_REQUEST_ERROR.eventName,
             EventCategory.INSTANCE_MAPPING_ERROR.eventName,

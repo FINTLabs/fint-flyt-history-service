@@ -21,7 +21,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import java.time.Instant
 import java.time.ZoneOffset
-import java.util.*
+import java.util.UUID
 
 class InstanceErrorEventServiceTest {
     private val eventRepository: EventRepository = mock()
@@ -111,7 +111,7 @@ class InstanceErrorEventServiceTest {
     }
 
     private fun expectedCategory(origin: InstanceErrorOrigin): EventCategory =
-        when(origin) {
+        when (origin) {
             InstanceErrorOrigin.RECEIVAL -> EventCategory.INSTANCE_RECEIVAL_ERROR
             InstanceErrorOrigin.REGISTRATION -> EventCategory.INSTANCE_REGISTRATION_ERROR
             InstanceErrorOrigin.RETRY_REQUEST -> EventCategory.INSTANCE_RETRY_REQUEST_ERROR
