@@ -1,12 +1,12 @@
 package no.novari.flyt.history.metrics
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.MultiGauge
 import io.micrometer.core.instrument.Tags
 import no.novari.flyt.history.EventService
 import no.novari.flyt.history.model.statistics.IntegrationStatisticsFilter
 import no.novari.flyt.history.repository.projections.IntegrationStatisticsProjection
-import org.slf4j.LoggerFactory
 import org.springframework.core.env.Environment
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
@@ -46,7 +46,10 @@ class StatisticsMetricsPublisher(
             publishIntegrationTotals(allIntegrations)
             publishSourceApplicationTotals(allIntegrations)
         } catch (exception: Exception) {
-            logger.warn("Failed to refresh statistics metrics", exception)
+            logger.atWarn {
+                message = "Failed to refresh statistics metrics"
+                cause = exception
+            }
         }
     }
 
@@ -206,7 +209,7 @@ class StatisticsMetricsPublisher(
     }
 
     companion object {
-        private val logger = LoggerFactory.getLogger(StatisticsMetricsPublisher::class.java)
+        private val logger = KotlinLogging.logger {}
 
         private const val INSTANCE_METRIC = "flyt.history.instance.count"
         private const val INTEGRATION_METRIC = "flyt.history.integration.count"

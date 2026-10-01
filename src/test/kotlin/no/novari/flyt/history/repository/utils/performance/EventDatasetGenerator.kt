@@ -1,10 +1,10 @@
 package no.novari.flyt.history.repository.utils.performance
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.repository.entities.EventEntity
 import no.novari.flyt.history.repository.entities.InstanceFlowHeadersEmbeddable
 import no.novari.flyt.history.repository.utils.BatchPersister
-import org.slf4j.LoggerFactory
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
 import java.util.Random
@@ -33,7 +33,10 @@ class EventDatasetGenerator(
         val totalNumberOfConfigs = eventGenerationConfigs.size
         var totalNumberOfEventsGeneratedAndPersisted = 0
 
-        log.info("Generating and persisting {} events from {} configs", totalNumberOfEvents, totalNumberOfConfigs)
+        log.atInfo {
+            message = "Generating and persisting {} events from {} configs"
+            arguments = arrayOf(totalNumberOfEvents, totalNumberOfConfigs)
+        }
         val totalTimer = Timer.start()
 
         eventGenerationConfigs.forEachIndexed { configIndex, eventGenerationConfig ->
@@ -42,7 +45,10 @@ class EventDatasetGenerator(
                     config.eventSequence.size * config.numberOfSequences
                 }
             val configNumber = configIndex + 1
-            log.debug("Generating and persisting {} events from config {}", numberOfEventsFromConfig, configNumber)
+            log.atDebug {
+                message = "Generating and persisting {} events from config {}"
+                arguments = arrayOf(numberOfEventsFromConfig, configNumber)
+            }
 
             val configTimer = Timer.start()
             generateAndPersistEvents(eventGenerationConfig)
@@ -62,29 +68,43 @@ class EventDatasetGenerator(
                     .dividedBy(numberOfEventsFromConfig.toLong())
                     .multipliedBy(totalRemainingEvents.toLong())
 
-            log.info(
-                "Config {}/{}: {} events in {} ({}/s) || Total: {}/{} ({}%) events in {} ({}/s) || Estimated remaining time: {}",
-                String.format("%,${getNumberOfDigits(totalNumberOfConfigs)}d", configNumber),
-                String.format("%,d", totalNumberOfConfigs),
-                String.format("%,${getNumberOfDigits(largestNumberOfEventsPerSequence)}d", numberOfEventsFromConfig),
-                DurationFormatter.formatDuration(configElapsedTime),
-                String.format("%,6.2f", numberOfEventsPerSecondForConfig),
-                String.format("%,${getNumberOfDigits(totalNumberOfEvents)}d", totalNumberOfEventsGeneratedAndPersisted),
-                String.format("%,d", totalNumberOfEvents),
-                String.format("%,.2f", percentageOfTotalEventsProcessed),
-                DurationFormatter.formatDuration(totalElapsedTime),
-                String.format("%,6.2f", numberOfEventsPerSecondTotal),
-                DurationFormatter.formatDuration(estimatedRemainingTime),
-            )
+            log.atInfo {
+                message =
+                    "Config {}/{}: {} events in {} ({}/s) || Total: {}/{} ({}%) events in {} ({}/s) || " +
+                    "Estimated remaining time: {}"
+                arguments =
+                    arrayOf(
+                        String.format("%,${getNumberOfDigits(totalNumberOfConfigs)}d", configNumber),
+                        String.format("%,d", totalNumberOfConfigs),
+                        String.format(
+                            "%,${getNumberOfDigits(largestNumberOfEventsPerSequence)}d",
+                            numberOfEventsFromConfig,
+                        ),
+                        DurationFormatter.formatDuration(configElapsedTime),
+                        String.format("%,6.2f", numberOfEventsPerSecondForConfig),
+                        String.format(
+                            "%,${getNumberOfDigits(totalNumberOfEvents)}d",
+                            totalNumberOfEventsGeneratedAndPersisted,
+                        ),
+                        String.format("%,d", totalNumberOfEvents),
+                        String.format("%,.2f", percentageOfTotalEventsProcessed),
+                        DurationFormatter.formatDuration(totalElapsedTime),
+                        String.format("%,6.2f", numberOfEventsPerSecondTotal),
+                        DurationFormatter.formatDuration(estimatedRemainingTime),
+                    )
+            }
         }
 
         val elapsedTime = totalTimer.elapsedTime
-        log.info(
-            "Generated and persisted {} events in {} ({}/s)",
-            totalNumberOfEvents,
-            DurationFormatter.formatDuration(elapsedTime),
-            String.format("%.2f", totalNumberOfEvents.toDouble() * 1000 / elapsedTime.toMillis()),
-        )
+        log.atInfo {
+            message = "Generated and persisted {} events in {} ({}/s)"
+            arguments =
+                arrayOf(
+                    totalNumberOfEvents,
+                    DurationFormatter.formatDuration(elapsedTime),
+                    String.format("%.2f", totalNumberOfEvents.toDouble() * 1000 / elapsedTime.toMillis()),
+                )
+        }
     }
 
     fun generateEvent(
@@ -211,6 +231,6 @@ class EventDatasetGenerator(
     }
 
     private companion object {
-        private val log = LoggerFactory.getLogger(EventDatasetGenerator::class.java)
+        private val log = KotlinLogging.logger {}
     }
 }
