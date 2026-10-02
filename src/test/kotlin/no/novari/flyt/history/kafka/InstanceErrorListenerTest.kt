@@ -1,6 +1,7 @@
 package no.novari.flyt.history.kafka
 
 import no.novari.flyt.audit.actor.Actor
+import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
 import no.novari.flyt.history.model.event.EventCategory
@@ -51,7 +52,7 @@ import java.util.function.Consumer
 
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(showSql = false)
-@Import(InstanceFlowHeadersMappingService::class, JpaAuditingTestConfig::class)
+@Import(InstanceErrorEventService::class, InstanceFlowHeadersMappingService::class, JpaAuditingTestConfig::class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
@@ -61,6 +62,9 @@ class InstanceErrorListenerTest {
 
     @Autowired
     lateinit var instanceFlowHeadersMappingService: InstanceFlowHeadersMappingService
+
+    @Autowired
+    lateinit var instanceErrorEventService: InstanceErrorEventService
 
     private lateinit var listener: Consumer<InstanceFlowConsumerRecord<InstanceErrorEvent>>
 
@@ -93,6 +97,7 @@ class InstanceErrorListenerTest {
 
         EventListenerConfiguration(
             eventRepository = eventRepository,
+            instanceErrorEventService = instanceErrorEventService,
             instanceFlowListenerFactoryService = instanceFlowListenerFactoryService,
             instanceFlowHeadersMappingService = instanceFlowHeadersMappingService,
             errorHandlerFactory = errorHandlerFactory,

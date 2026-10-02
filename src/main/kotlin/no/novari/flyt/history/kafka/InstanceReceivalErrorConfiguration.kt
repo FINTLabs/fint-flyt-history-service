@@ -7,10 +7,17 @@ import no.novari.kafka.topic.configuration.EventTopicConfiguration
 import no.novari.kafka.topic.name.ErrorEventTopicNameParameters
 import no.novari.kafka.topic.name.TopicNamePrefixParameters
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Configuration
 import java.time.Duration
 
 @Configuration
+@ConditionalOnProperty(
+    prefix = "novari.flyt.history-service.kafka",
+    name = ["legacy-error-topic-listeners-enabled"],
+    havingValue = "true",
+    matchIfMissing = true,
+)
 class InstanceReceivalErrorConfiguration(
     errorEventTopicService: ErrorEventTopicService,
     @Value("\${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
