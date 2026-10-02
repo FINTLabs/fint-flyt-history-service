@@ -2,6 +2,7 @@ package no.novari.flyt.history.kafka
 
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.history.InstanceErrorEventService
+import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
 import no.novari.flyt.history.model.event.EventCategory
@@ -61,9 +62,6 @@ class InstanceErrorListenerTest {
     lateinit var eventRepository: EventRepository
 
     @Autowired
-    lateinit var instanceFlowHeadersMappingService: InstanceFlowHeadersMappingService
-
-    @Autowired
     lateinit var instanceErrorEventService: InstanceErrorEventService
 
     private lateinit var listener: Consumer<InstanceFlowConsumerRecord<InstanceErrorEvent>>
@@ -96,10 +94,9 @@ class InstanceErrorListenerTest {
             .thenReturn(listenerContainer)
 
         EventListenerConfiguration(
-            eventRepository = eventRepository,
             instanceErrorEventService = instanceErrorEventService,
+            instanceInfoEventService = mock<InstanceInfoEventService>(),
             instanceFlowListenerFactoryService = instanceFlowListenerFactoryService,
-            instanceFlowHeadersMappingService = instanceFlowHeadersMappingService,
             errorHandlerFactory = errorHandlerFactory,
             beanFactory = mock<ConfigurableListableBeanFactory>(),
             legacyErrorTopicListenersEnabled = true,

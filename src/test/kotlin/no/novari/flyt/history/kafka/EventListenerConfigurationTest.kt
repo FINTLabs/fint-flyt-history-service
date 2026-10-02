@@ -1,14 +1,11 @@
 package no.novari.flyt.history.kafka
 
 import no.novari.flyt.audit.actor.Actor
-import no.novari.flyt.audit.actor.ActorContext
 import no.novari.flyt.audit.actor.ActorHeader
 import no.novari.flyt.history.InstanceErrorEventService
-import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
+import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.event.EventType
-import no.novari.flyt.history.repository.EventRepository
-import no.novari.flyt.history.repository.entities.EventEntity
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowConsumerRecord
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
@@ -32,6 +29,7 @@ import org.mockito.Mockito.clearInvocations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.isNull
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.same
@@ -46,26 +44,17 @@ import java.util.UUID
 import java.util.function.Consumer
 
 class EventListenerConfigurationTest {
-    private val eventRepository: EventRepository = mock()
     private val instanceErrorEventService: InstanceErrorEventService = mock()
+    private val instanceInfoEventService: InstanceInfoEventService = mock()
     private val instanceFlowListenerFactoryService: InstanceFlowListenerFactoryService = mock()
     private val errorHandlerFactory: ErrorHandlerFactory = mock()
     private val beanFactory: ConfigurableListableBeanFactory = mock()
-    private val instanceFlowHeadersMappingService = InstanceFlowHeadersMappingService()
-    private val actorDuringSave = mutableListOf<Actor?>()
-
     private lateinit var infoListenersByEventName: Map<String, Consumer<InstanceFlowConsumerRecord<Any>>>
     private lateinit var errorListenersByEventName: Map<String, Consumer<InstanceFlowConsumerRecord<ErrorCollection>>>
     private lateinit var eventListenerContainers: Map<String, ConcurrentMessageListenerContainer<String, *>>
 
     @BeforeEach
     fun setUp() {
-        actorDuringSave.clear()
-        whenever(eventRepository.save(any<EventEntity>())).thenAnswer { invocation ->
-            actorDuringSave.add(ActorContext.currentActor())
-            invocation.getArgument(0)
-        }
-
         val infoListenerContainerFactory: ParameterizedListenerContainerFactory<Any> = mock()
         val errorListenerContainerFactory: ParameterizedListenerContainerFactory<ErrorCollection> = mock()
         val infoListenerContainer: ConcurrentMessageListenerContainer<String, Any> = mock()
@@ -151,7 +140,6 @@ class EventListenerConfigurationTest {
             eq(Instant.ofEpochMilli(record.consumerRecord.timestamp())),
             eq("test-app"),
         )
-        verify(eventRepository, never()).save(any<EventEntity>())
     }
 
     @Test
@@ -169,7 +157,6 @@ class EventListenerConfigurationTest {
             eq(Instant.ofEpochMilli(record.consumerRecord.timestamp())),
             eq("test-app"),
         )
-        verify(eventRepository, never()).save(any<EventEntity>())
     }
 
     @Test
@@ -207,39 +194,62 @@ class EventListenerConfigurationTest {
             eq(Instant.ofEpochMilli(record.consumerRecord.timestamp())),
             eq("test-app"),
         )
-        verify(eventRepository, never()).save(any<EventEntity>())
     }
 
     @Test
-    fun `instance requested for retry listener saves event with actor from flyt actor header`() {
+    fun `instance requested for retry listener delegates actor from flyt actor header`() {
         val actor = Actor.User(UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333"))
+        val category = EventCategory.INSTANCE_REQUESTED_FOR_RETRY
+        val record = instanceFlowConsumerRecord(category, actor)
 
         infoListenersByEventName
-            .getValue(EventCategory.INSTANCE_REQUESTED_FOR_RETRY.eventName)
-            .accept(instanceFlowConsumerRecord(EventCategory.INSTANCE_REQUESTED_FOR_RETRY, actor))
+            .getValue(category.eventName)
+            .accept(record)
 
-        assertThat(actorDuringSave).containsExactly(actor)
-        assertThat(ActorContext.currentActor()).isNull()
+        verify(instanceInfoEventService).registerEvent(
+            same(record.instanceFlowHeaders),
+            eq(category),
+            eq(Instant.ofEpochMilli(record.consumerRecord.timestamp())),
+            eq("test-app"),
+            eq(actor),
+        )
     }
 
     @Test
-    fun `instance requested for retry listener leaves default auditor fallback when flyt actor header is missing`() {
-        infoListenersByEventName
-            .getValue(EventCategory.INSTANCE_REQUESTED_FOR_RETRY.eventName)
-            .accept(instanceFlowConsumerRecord(EventCategory.INSTANCE_REQUESTED_FOR_RETRY, actor = null))
+    fun `instance requested for retry listener delegates null actor when flyt actor header is missing`() {
+        val category = EventCategory.INSTANCE_REQUESTED_FOR_RETRY
+        val record = instanceFlowConsumerRecord(category, actor = null)
 
-        assertThat(actorDuringSave).containsExactly(null)
+        infoListenersByEventName
+            .getValue(category.eventName)
+            .accept(record)
+
+        verify(instanceInfoEventService).registerEvent(
+            same(record.instanceFlowHeaders),
+            eq(category),
+            eq(Instant.ofEpochMilli(record.consumerRecord.timestamp())),
+            eq("test-app"),
+            isNull(),
+        )
     }
 
     @Test
     fun `other info event listeners ignore flyt actor header`() {
         val actor = Actor.User(UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333"))
+        val category = EventCategory.INSTANCE_MAPPED
+        val record = instanceFlowConsumerRecord(category, actor)
 
         infoListenersByEventName
-            .getValue(EventCategory.INSTANCE_MAPPED.eventName)
-            .accept(instanceFlowConsumerRecord(EventCategory.INSTANCE_MAPPED, actor))
+            .getValue(category.eventName)
+            .accept(record)
 
-        assertThat(actorDuringSave).containsExactly(null)
+        verify(instanceInfoEventService).registerEvent(
+            same(record.instanceFlowHeaders),
+            eq(category),
+            eq(Instant.ofEpochMilli(record.consumerRecord.timestamp())),
+            eq("test-app"),
+            isNull(),
+        )
     }
 
     private fun instanceFlowConsumerRecord(
@@ -315,10 +325,9 @@ class EventListenerConfigurationTest {
         legacyErrorTopicListenersEnabled: Boolean = true,
     ): EventListenerConfiguration =
         EventListenerConfiguration(
-            eventRepository = eventRepository,
             instanceErrorEventService = instanceErrorEventService,
+            instanceInfoEventService = instanceInfoEventService,
             instanceFlowListenerFactoryService = instanceFlowListenerFactoryService,
-            instanceFlowHeadersMappingService = instanceFlowHeadersMappingService,
             errorHandlerFactory = errorHandlerFactory,
             beanFactory = beanFactory,
             legacyErrorTopicListenersEnabled = legacyErrorTopicListenersEnabled,
