@@ -1,3 +1,0 @@
-#!/bin/bash
-
-docker run --rm --name fint-flyt-history-service-postgres -p 5436:5432 -e POSTGRES_PASSWORD=password -e POSTGRES_DB=fint-flyt-history-service -d postgres

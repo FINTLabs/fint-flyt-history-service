@@ -129,11 +129,12 @@ Secrets referenced in the base Kustomize manifests must include DB credentials a
 
 ## Running Locally
 
-Prerequisites: Java 25+, Gradle wrapper (bundled), Docker (for Postgres), and access to a Kafka broker (local or shared).
+Prerequisites: Java 25+, Gradle wrapper (bundled), and Docker.
 
-1. Start Postgres (detached container): ./start-postgres
-2. Provide a Kafka broker on localhost:9092 (e.g., via the Flyt dev cluster or a local stack).
-3. Export SPRING_PROFILES_ACTIVE=local-staging to pick up application-local-staging.yaml.
+1. Start Postgres on localhost:5436 and Kafka on localhost:9092: `docker compose up -d`
+2. Export SPRING_PROFILES_ACTIVE=local-staging to pick up application-local-staging.yaml.
+
+Add `--profile tools` to also start Kafdrop on http://localhost:19000. `docker compose down -v` stops everything and wipes the data.
 
 Useful commands:
 
