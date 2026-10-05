@@ -134,7 +134,7 @@ Prerequisites: Java 25+, Gradle wrapper (bundled), and Docker.
 1. Start Postgres on localhost:5436 and Kafka on localhost:9092: `docker compose up -d`
 2. Export SPRING_PROFILES_ACTIVE=local-staging to pick up application-local-staging.yaml.
 
-Add `--profile tools` to also start Kafdrop on http://localhost:19000. `docker compose down -v` stops everything and wipes the data.
+Add `--profile tools` to also start Kafdrop on http://localhost:19000. Kafka topics and the database are empty on every start.
 
 Useful commands:
 
