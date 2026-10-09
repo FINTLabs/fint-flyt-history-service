@@ -118,8 +118,22 @@ EOF
   fi
   export AUTHORIZATION_SSO_PATCHES
 
+  LEGACY_ERROR_LISTENER_PATCHES=""
+  if [[ "$namespace" == "ra-no" ]]; then
+    LEGACY_ERROR_LISTENER_PATCHES=$'\n'"$(cat <<'EOF'
+      - op: add
+        path: "/spec/env/-"
+        value:
+         name: "NOVARI_FLYT_HISTORY_SERVICE_KAFKA_LEGACY_ERROR_TOPIC_LISTENERS_ENABLED"
+         value: "false"
+EOF
+)"
+  fi
+  export LEGACY_ERROR_LISTENER_PATCHES
+
   export NAMESPACE="$namespace"
   export ORG_ID="${namespace//-/.}"
+  export INSTANCE_DATABASE_SCHEMA="${ORG_ID//./_}_fint_flyt_instance_service_db"
   export APP_INSTANCE_LABEL="fint-flyt-history-service_$(app_instance_suffix "$namespace")"
   export KAFKA_TOPIC="${namespace}.flyt.*"
   export INGRESS_BASE_PATH="${path_prefix}/api/intern/instance-flow-tracking"
@@ -141,7 +155,7 @@ EOF
   mkdir -p "$target_dir"
 
   tmp="$(mktemp "$target_dir/.kustomization.yaml.XXXXXX")"
-  envsubst '$AUTHORIZATION_SSO_PATCHES $NAMESPACE $APP_INSTANCE_LABEL $ORG_ID $KAFKA_TOPIC $INGRESS_BASE_PATH $SERVLET_CONTEXT_PATH $STARTUP_PATH $READINESS_PATH $LIVENESS_PATH $METRICS_PATH $AUTHORIZED_ORG_ROLE_PAIRS $NOVARI_KAFKA_TOPIC_ORGID' \
+  envsubst '$AUTHORIZATION_SSO_PATCHES $NAMESPACE $APP_INSTANCE_LABEL $ORG_ID $KAFKA_TOPIC $INGRESS_BASE_PATH $SERVLET_CONTEXT_PATH $STARTUP_PATH $READINESS_PATH $LIVENESS_PATH $METRICS_PATH $AUTHORIZED_ORG_ROLE_PAIRS $NOVARI_KAFKA_TOPIC_ORGID $INSTANCE_DATABASE_SCHEMA $LEGACY_ERROR_LISTENER_PATCHES' \
     < "$template" > "$tmp"
   mv "$tmp" "$target_dir/kustomization.yaml"
 done < <(

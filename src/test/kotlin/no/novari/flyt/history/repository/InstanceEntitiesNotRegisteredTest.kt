@@ -3,6 +3,7 @@ package no.novari.flyt.history.repository
 import jakarta.persistence.EntityManagerFactory
 import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.repository.entities.EventEntity
+import no.novari.flyt.instance.config.InstanceDatabaseConfiguration
 import no.novari.flyt.instance.model.entities.InstanceObject
 import no.novari.flyt.instance.model.entities.InstanceObjectCollection
 import org.assertj.core.api.Assertions.assertThat
@@ -18,9 +19,9 @@ import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 
 @Testcontainers(disabledWithoutDocker = true)
-@DataJpaTest(showSql = false)
+@DataJpaTest(showSql = false, properties = ["novari.flyt.instance.database.schema="])
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(JpaAuditingTestConfig::class)
+@Import(JpaAuditingTestConfig::class, InstanceDatabaseConfiguration::class)
 class InstanceEntitiesNotRegisteredTest {
     @Autowired
     lateinit var entityManagerFactory: EntityManagerFactory
