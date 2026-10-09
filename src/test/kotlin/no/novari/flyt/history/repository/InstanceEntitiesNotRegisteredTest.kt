@@ -2,6 +2,7 @@ package no.novari.flyt.history.repository
 
 import jakarta.persistence.EntityManagerFactory
 import no.novari.flyt.history.JpaAuditingTestConfig
+import no.novari.flyt.history.repository.entities.EventEntity
 import no.novari.flyt.instance.model.entities.InstanceObject
 import no.novari.flyt.instance.model.entities.InstanceObjectCollection
 import org.assertj.core.api.Assertions.assertThat
@@ -12,7 +13,6 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.context.annotation.Import
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
-import org.springframework.test.context.TestPropertySource
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -21,7 +21,6 @@ import org.testcontainers.junit.jupiter.Testcontainers
 @DataJpaTest(showSql = false)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(JpaAuditingTestConfig::class)
-@TestPropertySource(properties = ["novari.flyt.instance-functionality.enabled=false"])
 class InstanceEntitiesNotRegisteredTest {
     @Autowired
     lateinit var entityManagerFactory: EntityManagerFactory
@@ -33,6 +32,7 @@ class InstanceEntitiesNotRegisteredTest {
                 .map { it.javaType }
                 .toSet()
 
+        assertThat(entityTypes).contains(EventEntity::class.java)
         assertThat(entityTypes)
             .doesNotContain(InstanceObject::class.java, InstanceObjectCollection::class.java)
     }
