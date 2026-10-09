@@ -11,7 +11,7 @@ import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
 
 @Entity
-@Table(name = "instance_object_collection")
+@Table(name = "instance_object_collection", schema = INSTANCE_SCHEMA)
 class InstanceObjectCollection(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

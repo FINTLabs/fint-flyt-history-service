@@ -117,6 +117,7 @@ flyt-authorization-client, flyt-postgres) and exposes these key properties:
 | novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                         |
 | novari.flyt.history-service.retention.time-to-keep-error-details-in-days                   | Number of days to keep error detail values before scheduled scrub.                         |
 | novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                |
+| novari.flyt.instance.database.schema                                                     | Existing instance schema, configured through NOVARI_FLYT_INSTANCE_DATABASE_SCHEMA.        |
 | fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                               |
 | spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.         |
 | spring.security.oauth2.resourceserver.jwt.issuer-uri                                       | Authority used for JWT validation.                                                         |
@@ -146,20 +147,39 @@ Useful commands:
 Flyway creates the local `fintlabs_no` history schema and the `instance_received_offset` table
 inside it when history-service starts. Each row identifies a topic and partition and stores the
 next offset to consume. The table remains empty until instance-service starts writing offsets in
-a later task. Migrated instance tables will also be placed in the history schema in later tasks;
-no separate instance schema is required. The instance-service Postgres container is not needed
-to develop history-service.
+a later task. The existing instance tables remain in the instance-service schema; they are not
+copied into the history schema. In deployed environments both schemas belong to the same
+`fint-flyt` database. The separate local Postgres containers do not represent this topology.
+
+`novari.flyt.instance.database.schema` explicitly selects the existing instance schema. The JPA
+naming strategy resolves the logical `flyt_instance` schema on the instance entities and their
+collection table to this configured name, without adding it to `search_path`. History entities
+continue to use the existing history schema and naming rules. Instance entities remain outside
+the production JPA metamodel; the master flag still defaults to `false`. A missing or blank instance
+schema fails JPA startup only when those entities are scanned.
+
+Flyway continues to manage only the history schema. Instance tables, sequences, and existing
+Flyway history remain in their original schema. Taking over instance migrations is later work.
+`InstanceSchemaMappingIntegrationTest` uses two schemas in one PostgreSQL container, test-only
+entity scanning, a fixture matching instance-service V1–V4, and `ddl-auto=validate`. It verifies
+schema mapping, persistence, and rollback across both domains with one transaction manager.
 
 Flyway migrations run at startup. Before offset handover is enabled, the instance-service database
 user must have `USAGE` on the history schema and `SELECT`, `INSERT`, and `UPDATE` on its
 `instance_received_offset` table. The required role names and grants must be verified for each
-environment.
+environment. Before instance functionality is activated, the history-service database role also
+needs `USAGE` on the existing instance schema, the required table privileges (`SELECT`, `INSERT`,
+`UPDATE`, and `DELETE` for the future processing flow), and access to its existing ID sequences.
+Task 3 must verify actual roles and grants in each environment; passing a container test does not
+confirm deployed permissions.
 
 ## Deployment
 
 - kustomize/base/ holds shared Flyt resources (Application, secrets, config maps, DB connection).
 - kustomize/overlays/<org>/<env>/ contains per-organization/environment patches (namespace, Kafka topics, OAuth issuers, DB secrets).
 - kustomize/templates/ stores overlay templates; regenerate overlays after edits with script/render-overlay.sh, which emits kustomization.yaml files in-place.
+- Each history-service overlay explicitly sets `NOVARI_FLYT_INSTANCE_DATABASE_SCHEMA` on the Application resource. For example, AFK uses `afk_no_fint_flyt_instance_service_db` and VLFK uses `vlfk_no_fint_flyt_instance_service_db`, in both api and beta. The render script derives these manifest values from the organization ID, never from the history-service database username. This configuration does not activate instance functionality.
+- Validate overlays locally with `kustomize build kustomize/overlays/<org>/<env>`; deploying them is a separate step.
 
 ## Security
 
