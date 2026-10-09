@@ -6,6 +6,7 @@ import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.event.EventType
+import no.novari.flyt.instance.config.InstanceFunctionalityProperties
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowConsumerRecord
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService
 import no.novari.flyt.kafka.model.ErrorCollection
@@ -30,6 +31,7 @@ import java.time.Instant
 class EventListenerConfiguration(
     private val instanceErrorEventService: InstanceErrorEventService,
     private val instanceInfoEventService: InstanceInfoEventService,
+    private val instanceFunctionalityProperties: InstanceFunctionalityProperties,
     private val instanceFlowListenerFactoryService: InstanceFlowListenerFactoryService,
     private val errorHandlerFactory: ErrorHandlerFactory,
     private val beanFactory: ConfigurableListableBeanFactory,
@@ -45,6 +47,13 @@ class EventListenerConfiguration(
     }
 
     private fun isListenerEnabled(category: EventCategory): Boolean {
+        if (
+            instanceFunctionalityProperties.enabled &&
+            category == EventCategory.INSTANCE_REGISTERED
+        ) {
+            return false
+        }
+
         return legacyErrorTopicListenersEnabled || category !in LEGACY_ERROR_TOPIC_CATEGORIES
     }
 
