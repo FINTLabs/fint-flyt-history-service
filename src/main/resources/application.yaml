@@ -9,6 +9,9 @@ springdoc:
 
 novari:
   flyt:
+    instance:
+      database:
+        schema: ${NOVARI_FLYT_INSTANCE_DATABASE_SCHEMA:}
     instance-functionality:
       enabled: false
     history-service:

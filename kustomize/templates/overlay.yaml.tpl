@@ -30,8 +30,13 @@ $AUTHORIZED_ORG_ROLE_PAIRS
       - op: add
         path: "/spec/env/-"
         value:
+          name: "NOVARI_FLYT_INSTANCE_DATABASE_SCHEMA"
+          value: "$INSTANCE_DATABASE_SCHEMA"
+      - op: add
+        path: "/spec/env/-"
+        value:
          name: "novari.kafka.topic.orgId"
-         value: "$NOVARI_KAFKA_TOPIC_ORGID"
+         value: "$NOVARI_KAFKA_TOPIC_ORGID"$LEGACY_ERROR_LISTENER_PATCHES
       - op: add
         path: "/spec/env/-"
         value:

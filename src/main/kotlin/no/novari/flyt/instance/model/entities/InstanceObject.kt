@@ -18,7 +18,7 @@ import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
 
 @Entity
-@Table(name = "instance_object")
+@Table(name = "instance_object", schema = INSTANCE_SCHEMA)
 class InstanceObject(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,6 +27,7 @@ class InstanceObject(
     @ElementCollection
     @CollectionTable(
         name = "instance_object_value_per_key",
+        schema = INSTANCE_SCHEMA,
         joinColumns = [JoinColumn(name = "instance_object_id")],
     )
     @MapKeyColumn(name = "key")

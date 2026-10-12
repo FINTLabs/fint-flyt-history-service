@@ -34,6 +34,11 @@ patches:
       - op: add
         path: "/spec/env/-"
         value:
+          name: "NOVARI_FLYT_INSTANCE_DATABASE_SCHEMA"
+          value: "innlandetfylke_no_fint_flyt_instance_service_db"
+      - op: add
+        path: "/spec/env/-"
+        value:
          name: "novari.kafka.topic.orgId"
          value: "innlandetfylke-no"
       - op: add
