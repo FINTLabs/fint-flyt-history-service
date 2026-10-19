@@ -154,15 +154,27 @@ copied into the history schema. In deployed environments both schemas belong to 
 `novari.flyt.instance.database.schema` explicitly selects the existing instance schema. The JPA
 naming strategy resolves the logical `flyt_instance` schema on the instance entities and their
 collection table to this configured name, without adding it to `search_path`. History entities
-continue to use the existing history schema and naming rules. Instance entities remain outside
-the production JPA metamodel; the master flag still defaults to `false`. A missing or blank instance
-schema fails JPA startup only when those entities are scanned.
+continue to use the existing history schema and naming rules.
+
+`novari.flyt.instance-functionality.enabled` defaults to `false`. When it is missing or `false`,
+only history entities and repositories are registered, and no instance schema configuration is
+required. When explicitly set to `true`, `InstanceJpaConfiguration` registers both entity domains,
+`EventRepository`, and `InstanceRepository` against the existing `entityManagerFactory` and
+`transactionManager`. Both domains share one datasource, EntityManagerFactory, and transaction
+manager. A missing or blank instance schema then fails startup with a configuration error.
+The instance repository provides CRUD operations and `findAllOlderThan` with a strict timestamp
+threshold. Registering it does not introduce instance processing, retention jobs, or Kafka handover.
+The default flag and deployment overlays remain unchanged; enabling instance functionality in a
+deployed environment is a separate cutover step.
 
 Flyway continues to manage only the history schema. Instance tables, sequences, and existing
 Flyway history remain in their original schema. Taking over instance migrations is later work.
-`InstanceSchemaMappingIntegrationTest` uses two schemas in one PostgreSQL container, test-only
-entity scanning, a fixture matching instance-service V1–V4, and `ddl-auto=validate`. It verifies
-schema mapping, persistence, and rollback across both domains with one transaction manager.
+`InstanceSchemaMappingIntegrationTest` enables the production JPA configuration with the master
+flag and uses two schemas in one PostgreSQL container, a fixture matching instance-service V1–V4,
+and `ddl-auto=validate`. It verifies repository CRUD, cascade and orphan removal, the strict
+age threshold, history native queries, and rollback across both repositories. Context tests also
+verify history-only startup with a missing or false flag and startup failure when instance
+functionality is enabled without a valid schema.
 
 Flyway migrations run at startup. Before offset handover is enabled, the instance-service database
 user must have `USAGE` on the history schema and `SELECT`, `INSERT`, and `UPDATE` on its
