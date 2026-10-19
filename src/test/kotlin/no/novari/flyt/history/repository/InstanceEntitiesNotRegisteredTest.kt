@@ -1,55 +1,57 @@
 package no.novari.flyt.history.repository
 
 import jakarta.persistence.EntityManagerFactory
-import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.repository.entities.EventEntity
-import no.novari.flyt.instance.config.InstanceDatabaseConfiguration
+import no.novari.flyt.instance.InstanceRepository
+import no.novari.flyt.instance.config.instanceJpaContextRunner
 import no.novari.flyt.instance.model.entities.InstanceObject
 import no.novari.flyt.instance.model.entities.InstanceObjectCollection
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
-import org.springframework.context.annotation.Import
-import org.springframework.test.context.DynamicPropertyRegistry
-import org.springframework.test.context.DynamicPropertySource
+import org.springframework.beans.factory.getBean
+import org.springframework.boot.test.context.assertj.AssertableApplicationContext
+import org.springframework.transaction.PlatformTransactionManager
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 
 @Testcontainers(disabledWithoutDocker = true)
-@DataJpaTest(showSql = false, properties = ["novari.flyt.instance.database.schema="])
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(JpaAuditingTestConfig::class, InstanceDatabaseConfiguration::class)
 class InstanceEntitiesNotRegisteredTest {
-    @Autowired
-    lateinit var entityManagerFactory: EntityManagerFactory
+    @Test
+    fun `missing flag keeps instance entities and repository inactive without instance schema configuration`() {
+        instanceJpaContextRunner(postgreSQLContainer, "disabled_instance_history").run { context ->
+            assertThat(context.environment.getProperty("novari.flyt.instance-functionality.enabled")).isNull()
+            assertHistoryOnly(context)
+        }
+    }
 
     @Test
-    fun `instance entities are absent from the active JPA metamodel`() {
-        val entityTypes =
-            entityManagerFactory.metamodel.entities
-                .map { it.javaType }
-                .toSet()
+    fun `false flag keeps instance entities and repository inactive without instance schema configuration`() {
+        instanceJpaContextRunner(postgreSQLContainer, "disabled_instance_history")
+            .withPropertyValues("novari.flyt.instance-functionality.enabled=false")
+            .run { context -> assertHistoryOnly(context) }
+    }
 
+    private fun assertHistoryOnly(context: AssertableApplicationContext) {
+        assertThat(context).hasNotFailed()
+        assertThat(context).hasSingleBean(EntityManagerFactory::class.java)
+        assertThat(context).hasSingleBean(PlatformTransactionManager::class.java)
+        assertThat(context).hasSingleBean(EventRepository::class.java)
+        assertThat(context).doesNotHaveBean(InstanceRepository::class.java)
+        assertThat(context.environment.getProperty("novari.flyt.instance.database.schema")).isNull()
+        val entityTypes =
+            context
+                .getBean(EntityManagerFactory::class.java)
+                .metamodel.entities
+                .map { it.javaType }
         assertThat(entityTypes).contains(EventEntity::class.java)
-        assertThat(entityTypes)
-            .doesNotContain(InstanceObject::class.java, InstanceObjectCollection::class.java)
+        assertThat(entityTypes).doesNotContain(InstanceObject::class.java, InstanceObjectCollection::class.java)
+        assertThat(context.getBean<EventRepository>().count()).isZero()
     }
 
     companion object {
         @JvmField
         @Container
         val postgreSQLContainer: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17")
-
-        @JvmStatic
-        @DynamicPropertySource
-        fun postgreSQLProperties(registry: DynamicPropertyRegistry) {
-            postgreSQLContainer.start()
-            registry.add("fint.database.url", postgreSQLContainer::getJdbcUrl)
-            registry.add("fint.database.username", postgreSQLContainer::getUsername)
-            registry.add("fint.database.password", postgreSQLContainer::getPassword)
-        }
     }
 }
