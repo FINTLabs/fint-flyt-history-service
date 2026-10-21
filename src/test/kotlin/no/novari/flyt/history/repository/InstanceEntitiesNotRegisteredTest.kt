@@ -1,9 +1,12 @@
 package no.novari.flyt.history.repository
 
 import jakarta.persistence.EntityManagerFactory
+import no.novari.flyt.history.ClockConfiguration
 import no.novari.flyt.history.repository.entities.EventEntity
 import no.novari.flyt.instance.InstanceRepository
+import no.novari.flyt.instance.InstanceService
 import no.novari.flyt.instance.config.instanceJpaContextRunner
+import no.novari.flyt.instance.model.InstanceMappingService
 import no.novari.flyt.instance.model.entities.InstanceObject
 import no.novari.flyt.instance.model.entities.InstanceObjectCollection
 import org.assertj.core.api.Assertions.assertThat
@@ -19,7 +22,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 class InstanceEntitiesNotRegisteredTest {
     @Test
     fun `missing flag keeps instance entities and repository inactive without instance schema configuration`() {
-        instanceJpaContextRunner(postgreSQLContainer, "disabled_instance_history").run { context ->
+        contextRunner().run { context ->
             assertThat(context.environment.getProperty("novari.flyt.instance-functionality.enabled")).isNull()
             assertHistoryOnly(context)
         }
@@ -27,10 +30,18 @@ class InstanceEntitiesNotRegisteredTest {
 
     @Test
     fun `false flag keeps instance entities and repository inactive without instance schema configuration`() {
-        instanceJpaContextRunner(postgreSQLContainer, "disabled_instance_history")
+        contextRunner()
             .withPropertyValues("novari.flyt.instance-functionality.enabled=false")
             .run { context -> assertHistoryOnly(context) }
     }
+
+    private fun contextRunner() =
+        instanceJpaContextRunner(postgreSQLContainer, "disabled_instance_history")
+            .withUserConfiguration(
+                InstanceService::class.java,
+                InstanceMappingService::class.java,
+                ClockConfiguration::class.java,
+            )
 
     private fun assertHistoryOnly(context: AssertableApplicationContext) {
         assertThat(context).hasNotFailed()
@@ -38,6 +49,8 @@ class InstanceEntitiesNotRegisteredTest {
         assertThat(context).hasSingleBean(PlatformTransactionManager::class.java)
         assertThat(context).hasSingleBean(EventRepository::class.java)
         assertThat(context).doesNotHaveBean(InstanceRepository::class.java)
+        assertThat(context).doesNotHaveBean(InstanceService::class.java)
+        assertThat(context).doesNotHaveBean(InstanceMappingService::class.java)
         assertThat(context.environment.getProperty("novari.flyt.instance.database.schema")).isNull()
         val entityTypes =
             context

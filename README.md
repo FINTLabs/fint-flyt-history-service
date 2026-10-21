@@ -167,6 +167,20 @@ threshold. Registering it does not introduce instance processing, retention jobs
 The default flag and deployment overlays remain unchanged; enabling instance functionality in a
 deployed environment is a separate cutover step.
 
+The same flag also controls `InstanceMappingService` and `InstanceService`. The mapper recursively
+copies the DTO graph and converts entity creation timestamps from `Instant` to `Date`. Incoming
+DTO IDs and creation timestamps are ignored when creating entities; saving an existing DTO again
+creates a new graph rather than updating the original. The DTO contract is unchanged.
+
+`InstanceService.save` maps, persists, and maps the result back within one write transaction.
+`getById` and `getAllOlderThan` map the complete graph within read-only transactions so returned
+DTOs can be used after the transaction ends without lazy loading. Missing IDs propagate
+`EntityNotFoundException`. The age query uses the existing injected `Clock` and a strict
+`createdAt < now - days` threshold and returns only root instances. Nested objects remain part
+of each returned DTO graph rather than separate query results. These services use the shared
+transaction manager and have no Kafka dependencies. Deletion flows, cleanup jobs, controllers,
+and event publication remain later work.
+
 Flyway continues to manage only the history schema. Instance tables, sequences, and existing
 Flyway history remain in their original schema. Taking over instance migrations is later work.
 `InstanceSchemaMappingIntegrationTest` enables the production JPA configuration with the master
@@ -174,7 +188,10 @@ flag and uses two schemas in one PostgreSQL container, a fixture matching instan
 and `ddl-auto=validate`. It verifies repository CRUD, cascade and orphan removal, the strict
 age threshold, history native queries, and rollback across both repositories. Context tests also
 verify history-only startup with a missing or false flag and startup failure when instance
-functionality is enabled without a valid schema.
+functionality is enabled without a valid schema. `InstanceServiceIntegrationTest` calls the
+Spring-managed service without an enclosing test transaction, with lazy loading outside
+transactions disabled. It covers detached DTO graphs, new identities on repeated saves,
+clock-based age filtering, unknown IDs, and complete rollback on a nested database error.
 
 Flyway migrations run at startup. Before offset handover is enabled, the instance-service database
 user must have `USAGE` on the history schema and `SELECT`, `INSERT`, and `UPDATE` on its
