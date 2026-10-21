@@ -181,6 +181,22 @@ of each returned DTO graph rather than separate query results. These services us
 transaction manager and have no Kafka dependencies. Deletion flows, cleanup jobs, controllers,
 and event publication remain later work.
 
+`InstanceRegistrationService.register(headers, instance)` is also controlled by the master flag.
+It saves the instance graph and records one `INSTANCE_REGISTERED` INFO event through
+`InstanceInfoEventService` in the same database transaction, using the existing transaction
+manager with REQUIRED propagation. The event uses the generated instance ID, copied incoming
+headers, the injected clock, and this service's configured `fint.application-id`. Incoming headers
+are unchanged, and the method returns the saved `InstanceObjectDto` without an additional result
+class. A failure in either write, including flush or commit failure, rolls back both domains.
+An enclosing transaction can also roll back both writes. Database exceptions propagate to the
+caller; this service does not record an error event itself.
+
+The registration service has no Kafka dependencies and does not call the existing registered-event
+producer. Consumers, offset handover, idempotent processing, reliable publication, and error
+recording by the calling processing flow remain later work. Repeated registration calls can still
+create new graphs. `InstanceRegistrationServiceIntegrationTest` verifies successful registration,
+header preservation, database failures in each domain, and rollback of an enclosing transaction.
+
 Flyway continues to manage only the history schema. Instance tables, sequences, and existing
 Flyway history remain in their original schema. Taking over instance migrations is later work.
 `InstanceSchemaMappingIntegrationTest` enables the production JPA configuration with the master
