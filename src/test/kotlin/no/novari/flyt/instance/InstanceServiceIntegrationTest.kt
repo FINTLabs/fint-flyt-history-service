@@ -12,6 +12,8 @@ import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.assertj.core.api.Assertions.within
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
@@ -146,7 +148,10 @@ class InstanceServiceIntegrationTest {
     fun `getAllOlderThan uses the injected clock and maps results before its transaction ends`() {
         val instances = listOf(instanceGraph(), InstanceObjectDto(), InstanceObjectDto()).map(instanceService::save)
         val threshold = NOW.minus(30, ChronoUnit.DAYS)
-        jdbcTemplate.update("UPDATE $INSTANCE_SCHEMA.instance_object SET created_at = ?", NOW.atOffset(ZoneOffset.UTC))
+        jdbcTemplate.update(
+            "UPDATE $INSTANCE_SCHEMA.instance_object SET created_at = ?",
+            threshold.minusSeconds(1).atOffset(ZoneOffset.UTC),
+        )
         instances
             .zip(listOf(threshold.minusSeconds(1), threshold, threshold.plusSeconds(1)))
             .forEach { (instance, createdAt) ->
@@ -162,6 +167,24 @@ class InstanceServiceIntegrationTest {
         assertThat(result.map { it.id }).containsExactly(instances.first().id)
         assertThat(nodes(result.single()).map { it.valuePerKey.getValue("level") })
             .containsExactly("root", "child", "grandchild")
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = [0, 1])
+    fun `getAllOlderThan excludes old descendants of a root at or after the threshold`(rootOffset: Long) {
+        val root = instanceService.save(instanceGraph())
+        val threshold = NOW.minus(30, ChronoUnit.DAYS)
+        jdbcTemplate.update(
+            "UPDATE $INSTANCE_SCHEMA.instance_object SET created_at = ?",
+            threshold.minusSeconds(1).atOffset(ZoneOffset.UTC),
+        )
+        jdbcTemplate.update(
+            "UPDATE $INSTANCE_SCHEMA.instance_object SET created_at = ? WHERE id = ?",
+            threshold.plusSeconds(rootOffset).atOffset(ZoneOffset.UTC),
+            root.id,
+        )
+
+        assertThat(instanceService.getAllOlderThan(30)).isEmpty()
     }
 
     @Test

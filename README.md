@@ -176,9 +176,10 @@ creates a new graph rather than updating the original. The DTO contract is uncha
 `getById` and `getAllOlderThan` map the complete graph within read-only transactions so returned
 DTOs can be used after the transaction ends without lazy loading. Missing IDs propagate
 `EntityNotFoundException`. The age query uses the existing injected `Clock` and a strict
-`createdAt < now - days` threshold. These services use the shared transaction manager and have
-no Kafka dependencies. Deletion flows, cleanup jobs, controllers, and event publication remain
-later work.
+`createdAt < now - days` threshold and returns only root instances. Nested objects remain part
+of each returned DTO graph rather than separate query results. These services use the shared
+transaction manager and have no Kafka dependencies. Deletion flows, cleanup jobs, controllers,
+and event publication remain later work.
 
 Flyway continues to manage only the history schema. Instance tables, sequences, and existing
 Flyway history remain in their original schema. Taking over instance migrations is later work.

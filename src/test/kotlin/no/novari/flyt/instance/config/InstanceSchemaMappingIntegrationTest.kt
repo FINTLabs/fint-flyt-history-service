@@ -218,6 +218,48 @@ class InstanceSchemaMappingIntegrationTest {
         }
     }
 
+    @ParameterizedTest
+    @ValueSource(longs = [-1, 0, 1])
+    fun `only old root instances are returned when descendants are old`(rootOffset: Long) {
+        inRollbackTransaction {
+            val threshold = Instant.parse("2026-01-01T12:00:00Z")
+            val root = instanceRepository.saveAndFlush(instanceGraph())
+            val childId =
+                root.objectCollectionPerKey
+                    .getValue("children")
+                    .objects
+                    .single()
+                    .id!!
+            jdbcTemplate.update(
+                "UPDATE $INSTANCE_SCHEMA.instance_object SET created_at = ? WHERE id IN (?, ?)",
+                threshold.minusSeconds(1).atOffset(ZoneOffset.UTC),
+                root.id,
+                childId,
+            )
+            jdbcTemplate.update(
+                "UPDATE $INSTANCE_SCHEMA.instance_object SET created_at = ? WHERE id = ?",
+                threshold.plusSeconds(rootOffset).atOffset(ZoneOffset.UTC),
+                root.id,
+            )
+            entityManager.clear()
+
+            val result = instanceRepository.findAllOlderThan(threshold)
+            val expectedIds = if (rootOffset < 0) listOf(root.id) else emptyList()
+            assertThat(result.map { it.id }).containsExactlyElementsOf(expectedIds)
+            if (result.isNotEmpty()) {
+                assertThat(
+                    result
+                        .single()
+                        .objectCollectionPerKey
+                        .getValue("children")
+                        .objects
+                        .single()
+                        .id,
+                ).isEqualTo(childId)
+            }
+        }
+    }
+
     @Test
     fun `one transaction rolls back writes through both repositories`() {
         val root = instanceGraph()
