@@ -205,10 +205,29 @@ local registration history. This metadata must be persisted with the pending pub
 survives restarts. This publication requirement is not implemented by the registration service yet.
 
 The registration service has no Kafka dependencies and does not call the existing registered-event
-producer. Consumers, offset handover, idempotent processing, reliable publication, and error
-recording by the calling processing flow remain later work. Repeated registration calls can still
-create new graphs. `InstanceRegistrationServiceIntegrationTest` verifies successful registration,
-header preservation, database failures in each domain, and rollback of an enclosing transaction.
+producer. Consumers, offset handover, idempotent processing, and reliable publication remain
+later work. Repeated registration calls can still create new graphs.
+`InstanceRegistrationServiceIntegrationTest` verifies successful registration, header preservation,
+database failures in each domain, and rollback of an enclosing transaction.
+
+`InstanceRegistrationHandler.handle(headers, instance)` is controlled by the same master flag.
+It requires no active transaction (`Propagation.NEVER`), allowing `InstanceRegistrationService`
+to complete or roll back its own transaction before an exception is caught, including a commit
+failure. On success, it returns the saved DTO without recording additional history. On registration
+failure, it records one `INSTANCE_REGISTRATION_ERROR` through the existing `InstanceErrorEventService`
+in a separate, subsequent transaction. The error uses the original incoming headers, the injected
+clock, this service's `fint.application-id`, and `FINT_FLYT_INSTANCE_SERVICE_GENERAL_SYSTEM_ERROR`
+without arguments. A generated instance ID from a rolled-back registration is never attached.
+The error service retains REQUIRED propagation; it starts a transaction because the handler has none.
+Calls within an active transaction are rejected before registration or error recording.
+
+The handler always rethrows the original registration exception, even after error history commits.
+If error recording also fails, that exception is added as suppressed on the original exception.
+Persisting error history does not mark the incoming record as processed or authorize offset advancement.
+The handler has no Kafka dependencies, publishes no error event, and changes no listeners or offsets.
+It is not idempotent: another attempt may record another error until deduplication is implemented.
+The registration integration tests also cover handler success, nested instance failures, INFO commit
+failure followed by a committed ERROR, failure of both transactions, and rejection of an outer transaction.
 
 Keep the master flag disabled in deployments until the complete processing flow is ready:
 enabling it already disables the Kafka history listener for `INSTANCE_REGISTERED`, while the
