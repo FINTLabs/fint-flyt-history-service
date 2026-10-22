@@ -2,6 +2,7 @@ package no.novari.flyt.instance
 
 import jakarta.persistence.EntityManager
 import no.novari.flyt.history.Application
+import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
@@ -17,6 +18,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
@@ -29,6 +33,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ContextConfiguration
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.transaction.IllegalTransactionStateException
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -60,6 +65,8 @@ import java.util.UUID
     InstanceDatabaseConfiguration::class,
     InstanceJpaConfiguration::class,
     InstanceRegistrationService::class,
+    InstanceRegistrationHandler::class,
+    InstanceErrorEventService::class,
     InstanceService::class,
     InstanceMappingService::class,
     InstanceInfoEventService::class,
@@ -68,6 +75,9 @@ import java.util.UUID
 )
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class InstanceRegistrationServiceIntegrationTest {
+    @Autowired
+    lateinit var registrationHandler: InstanceRegistrationHandler
+
     @Autowired
     lateinit var registrationService: InstanceRegistrationService
 
@@ -104,13 +114,20 @@ class InstanceRegistrationServiceIntegrationTest {
         }
     }
 
-    @Test
-    fun `registration commits the graph and one info event while preserving incoming headers`() {
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `registration commits the graph and one info event while preserving incoming headers`(throughHandler: Boolean) {
         assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
         assertThat(applicationContext.getBeansOfType(InstanceRegistrationService::class.java)).hasSize(1)
         val headers = instanceFlowHeaders()
         val originalHeaders = headersMapper.toEmbeddable(headers)
-        val saved = registrationService.register(headers, instanceGraph())
+        assertThat(applicationContext.getBeansOfType(InstanceRegistrationHandler::class.java)).hasSize(1)
+        val saved =
+            if (throughHandler) {
+                registrationHandler.handle(headers, instanceGraph())
+            } else {
+                registrationService.register(headers, instanceGraph())
+            }
         assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
 
         assertThat(saved.id).isNotNull().isNotEqualTo(headers.instanceId)
@@ -187,12 +204,125 @@ class InstanceRegistrationServiceIntegrationTest {
         assertNoRegistrationData()
     }
 
-    private fun assertNoRegistrationData() {
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `handler records a nested instance failure after rollback and preserves original headers`(
+        withInstanceId: Boolean,
+    ) {
+        val headers = instanceFlowHeaders().toBuilder().instanceId(if (withInstanceId) 900001L else null).build()
+        val originalHeaders = headers.toBuilder().build()
+        val invalidGraph = instanceGraph()
+        val invalidChild = invalidGraph.objectCollectionPerKey.getValue("children").single()
+        invalidChild.valuePerKey["x".repeat(256)] = "invalid"
+
+        assertThatThrownBy { registrationHandler.handle(headers, invalidGraph) }
+            .isInstanceOf(DataIntegrityViolationException::class.java)
+
+        assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
+        assertNoInstanceData()
+        assertRegistrationError(originalHeaders)
+        assertThat(headersMapper.toEmbeddable(headers))
+            .usingRecursiveComparison()
+            .isEqualTo(headersMapper.toEmbeddable(originalHeaders))
+    }
+
+    @Test
+    fun `handler records an info commit failure in a separate successful transaction`() {
+        val headers = instanceFlowHeaders().toBuilder().instanceId(null).build()
+        withRejectedEvents(EventCategory.INSTANCE_REGISTERED) {
+            assertThatThrownBy { registrationHandler.handle(headers, instanceGraph()) }
+                .isInstanceOf(DataIntegrityViolationException::class.java)
+                .hasStackTraceContaining("reject_instance_registered")
+
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
+            assertNoInstanceData()
+            assertThat(headers.instanceId).isNull()
+            assertRegistrationError(headers)
+        }
+    }
+
+    @Test
+    fun `handler preserves the registration commit failure when error commit also fails`() {
+        withRejectedEvents(EventCategory.INSTANCE_REGISTERED, EventCategory.INSTANCE_REGISTRATION_ERROR) {
+            val failure =
+                assertThrows<DataIntegrityViolationException> {
+                    registrationHandler.handle(instanceFlowHeaders(), instanceGraph())
+                }
+            assertThat(failure.cause).hasStackTraceContaining("reject_instance_registered")
+            assertThat(failure.suppressed).hasSize(1)
+            assertThat(failure.suppressed.single())
+                .isInstanceOf(DataIntegrityViolationException::class.java)
+                .hasStackTraceContaining("reject_instance_registration_error")
+
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
+            assertNoRegistrationData()
+        }
+    }
+
+    @Test
+    fun `handler rejects an enclosing transaction before registration or error recording`() {
+        TransactionTemplate(transactionManager).executeWithoutResult {
+            assertThatThrownBy { registrationHandler.handle(instanceFlowHeaders(), instanceGraph()) }
+                .isInstanceOf(IllegalTransactionStateException::class.java)
+            entityManager.flush()
+            assertNoRegistrationData()
+        }
+        assertNoRegistrationData()
+    }
+
+    private fun assertRegistrationError(headers: InstanceFlowHeaders) {
+        val originalHeaders = headersMapper.toEmbeddable(headers)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+        assertThat(rowCount("$HISTORY_SCHEMA.error")).isEqualTo(1L)
+        assertThat(rowCount("$HISTORY_SCHEMA.error_args")).isZero()
+        TransactionTemplate(transactionManager).executeWithoutResult {
+            val event = eventRepository.findAll().single()
+            assertThat(event.name).isEqualTo(EventCategory.INSTANCE_REGISTRATION_ERROR.eventName)
+            assertThat(event.type).isEqualTo(EventType.ERROR)
+            assertThat(event.timestamp!!.toInstant()).isEqualTo(NOW)
+            assertThat(event.applicationId).isEqualTo(APPLICATION_ID)
+            assertThat(event.errors).hasSize(1)
+            assertThat(event.errors.single().errorCode)
+                .isEqualTo("FINT_FLYT_INSTANCE_SERVICE_GENERAL_SYSTEM_ERROR")
+            assertThat(event.errors.single().args).isNullOrEmpty()
+            assertThat(event.instanceFlowHeaders)
+                .usingRecursiveComparison()
+                .ignoringCollectionOrder()
+                .isEqualTo(originalHeaders)
+        }
+    }
+
+    private fun withRejectedEvents(
+        vararg categories: EventCategory,
+        action: () -> Unit,
+    ) {
+        categories.forEach { category ->
+            val constraint = "reject_${category.eventName.replace('-', '_')}"
+            jdbcTemplate.execute(
+                "ALTER TABLE $HISTORY_SCHEMA.event ADD CONSTRAINT $constraint CHECK (name <> '${category.eventName}')",
+            )
+        }
+        try {
+            action()
+        } finally {
+            categories.forEach { category ->
+                val constraint = "reject_${category.eventName.replace('-', '_')}"
+                jdbcTemplate.execute("ALTER TABLE $HISTORY_SCHEMA.event DROP CONSTRAINT $constraint")
+            }
+        }
+    }
+
+    private fun assertNoInstanceData() {
         listOf("instance_object", "instance_object_collection", "instance_object_value_per_key").forEach { table ->
             assertThat(rowCount("$INSTANCE_SCHEMA.$table")).isZero()
         }
-        assertThat(rowCount("$HISTORY_SCHEMA.event")).isZero()
-        assertThat(rowCount("$HISTORY_SCHEMA.file_id")).isZero()
+    }
+
+    private fun assertNoRegistrationData() {
+        assertNoInstanceData()
+        listOf("event", "file_id", "error", "error_args").forEach { table ->
+            assertThat(rowCount("$HISTORY_SCHEMA.$table")).isZero()
+        }
     }
 
     private fun rowCount(table: String): Long =
