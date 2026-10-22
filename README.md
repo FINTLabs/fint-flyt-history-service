@@ -181,15 +181,33 @@ of each returned DTO graph rather than separate query results. These services us
 transaction manager and have no Kafka dependencies. Deletion flows, cleanup jobs, controllers,
 and event publication remain later work.
 
-`InstanceRegistrationService.register(headers, instance)` is also controlled by the master flag.
-It saves the instance graph and records one `INSTANCE_REGISTERED` INFO event through
-`InstanceInfoEventService` in the same database transaction, using the existing transaction
-manager with REQUIRED propagation. The event uses the generated instance ID, copied incoming
-headers, the injected clock, and this service's configured `fint.application-id`. Incoming headers
-are unchanged, and the method returns the saved `InstanceObjectDto` without an additional result
-class. A failure in either write, including flush or commit failure, rolls back both domains.
-An enclosing transaction can also roll back both writes. Database exceptions propagate to the
-caller; this service does not record an error event itself.
+`InstanceRegistrationService.register(messageId, headers, instance)` is controlled by the master flag.
+`InstanceReceivedMessageId` identifies the incoming record by topic, partition, and offset. Its topic
+must not be blank, and partition and offset must be non-negative. The incoming consumer will supply
+these values from the actual Kafka record when it is implemented; correlation IDs and source
+instance IDs are not deduplication keys.
+
+Registration first reserves the message identity in `processed_instance_received`, a technical table
+created by Flyway V10 in the history schema. `InstanceReceivedMessageRepository` uses parameterized
+`INSERT ... ON CONFLICT DO NOTHING` and requires an active transaction (`Propagation.MANDATORY`).
+A competing insert waits for the transaction holding the same identity: after commit it reports a
+duplicate, and after rollback it can reserve the identity and perform registration itself.
+
+A new message saves its marker, the instance graph, and one `INSTANCE_REGISTERED` INFO event in the
+same database transaction, using the existing transaction manager with REQUIRED propagation.
+The event uses the generated instance ID, copied incoming headers, the injected clock, and this
+service's configured `fint.application-id`. Incoming headers are unchanged. The internal result is
+`InstanceRegistrationOutcome.Registered` containing the saved DTO, or `AlreadyProcessed` for a
+committed duplicate. Duplicate processing does not read or recreate the instance graph or add
+history, even if the graph has since been deleted. There is no registration overload without a
+message identity; `InstanceService.save` remains the lower-level persistence operation.
+
+A failure in any registration write, including flush or commit failure, rolls back the marker,
+instance graph, and INFO history. An enclosing transaction can also roll back all three together.
+Database exceptions propagate to the caller; this service does not record an error event itself.
+The marker has no instance foreign key and is retained independently of instance cleanup. No
+automatic marker expiration is implemented; any future retention must preserve the required replay
+window. The existing `instance_received_offset` table remains separate and is not updated here.
 
 The registration event timestamp represents registration performed here, using the injected clock.
 It is not the timestamp of an incoming `instance-received` record. The existing Kafka history
@@ -205,29 +223,33 @@ local registration history. This metadata must be persisted with the pending pub
 survives restarts. This publication requirement is not implemented by the registration service yet.
 
 The registration service has no Kafka dependencies and does not call the existing registered-event
-producer. Consumers, offset handover, idempotent processing, and reliable publication remain
-later work. Repeated registration calls can still create new graphs.
-`InstanceRegistrationServiceIntegrationTest` verifies successful registration, header preservation,
-database failures in each domain, and rollback of an enclosing transaction.
+producer. Consumers, offset handover, and reliable publication remain later work. When publication
+is added, its durable pending record must be written inside the registration transaction for new
+messages only. Deduplication alone does not guarantee delivery of `instance-registered`.
+`InstanceRegistrationServiceIntegrationTest` verifies registration, duplicate delivery, independent
+message identities, concurrent commit and rollback, redelivery after instance deletion, retry after
+database failures, and rollback of an enclosing transaction against PostgreSQL.
 
-`InstanceRegistrationHandler.handle(headers, instance)` is controlled by the same master flag.
-It requires no active transaction (`Propagation.NEVER`), allowing `InstanceRegistrationService`
+`InstanceRegistrationHandler.handle(messageId, headers, instance)` is controlled by the same master
+flag. It requires no active transaction (`Propagation.NEVER`), allowing `InstanceRegistrationService`
 to complete or roll back its own transaction before an exception is caught, including a commit
-failure. On success, it returns the saved DTO without recording additional history. On registration
-failure, it records one `INSTANCE_REGISTRATION_ERROR` through the existing `InstanceErrorEventService`
-in a separate, subsequent transaction. The error uses the original incoming headers, the injected
-clock, this service's `fint.application-id`, and `FINT_FLYT_INSTANCE_SERVICE_GENERAL_SYSTEM_ERROR`
-without arguments. A generated instance ID from a rolled-back registration is never attached.
-The error service retains REQUIRED propagation; it starts a transaction because the handler has none.
-Calls within an active transaction are rejected before registration or error recording.
+failure. It returns the registration outcome without adding history for `AlreadyProcessed`.
+On registration failure, it records one `INSTANCE_REGISTRATION_ERROR` through the existing
+`InstanceErrorEventService` in a separate, subsequent transaction. The error uses the original
+incoming headers, the injected clock, this service's `fint.application-id`, and
+`FINT_FLYT_INSTANCE_SERVICE_GENERAL_SYSTEM_ERROR` without arguments. A generated instance ID from
+a rolled-back registration is never attached. The error service retains REQUIRED propagation;
+it starts a transaction because the handler has none. Calls within an active transaction are
+rejected before registration or error recording.
 
 The handler always rethrows the original registration exception, even after error history commits.
 If error recording also fails, that exception is added as suppressed on the original exception.
 Persisting error history does not mark the incoming record as processed or authorize offset advancement.
 The handler has no Kafka dependencies, publishes no error event, and changes no listeners or offsets.
-It is not idempotent: another attempt may record another error until deduplication is implemented.
-The registration integration tests also cover handler success, nested instance failures, INFO commit
-failure followed by a committed ERROR, failure of both transactions, and rejection of an outer transaction.
+Failed attempts are not deduplicated: another failed attempt can record another ERROR event, while a
+later successful retry can register the same message identity. The registration tests retain coverage
+of INFO commit failure followed by a committed ERROR, failure of both transactions, and rejection
+of an outer transaction.
 
 Keep the master flag disabled in deployments until the complete processing flow is ready:
 enabling it already disables the Kafka history listener for `INSTANCE_REGISTERED`, while the

@@ -38,13 +38,14 @@ class InstanceRegistrationHandlerTest {
             .correlationId(UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333"))
             .build()
     private val instance = InstanceObjectDto()
+    private val messageId = InstanceReceivedMessageId("instance-received-test", 0, 0)
 
     @Test
     fun `successful error recording still rethrows the original registration exception`() {
         val failure = IllegalStateException("registration failed")
-        whenever(registrationService.register(headers, instance)).thenThrow(failure)
+        whenever(registrationService.register(messageId, headers, instance)).thenThrow(failure)
 
-        assertThatThrownBy { service.handle(headers, instance) }.isSameAs(failure)
+        assertThatThrownBy { service.handle(messageId, headers, instance) }.isSameAs(failure)
 
         verify(errorEventService).registerError(
             eq(headers),
@@ -59,7 +60,7 @@ class InstanceRegistrationHandlerTest {
     fun `error recording failure is suppressed on the original registration exception`() {
         val failure = IllegalStateException("registration failed")
         val errorFailure = IllegalArgumentException("error recording failed")
-        whenever(registrationService.register(headers, instance)).thenThrow(failure)
+        whenever(registrationService.register(messageId, headers, instance)).thenThrow(failure)
         doThrow(errorFailure).whenever(errorEventService).registerError(
             any(),
             any<EventCategory>(),
@@ -68,7 +69,7 @@ class InstanceRegistrationHandlerTest {
             any(),
         )
 
-        assertThatThrownBy { service.handle(headers, instance) }.isSameAs(failure)
+        assertThatThrownBy { service.handle(messageId, headers, instance) }.isSameAs(failure)
         assertThat(failure.suppressed).containsExactly(errorFailure)
     }
 }

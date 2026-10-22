@@ -25,11 +25,12 @@ class InstanceRegistrationHandler(
 ) {
     @Transactional(propagation = Propagation.NEVER)
     fun handle(
+        messageId: InstanceReceivedMessageId,
         instanceFlowHeaders: InstanceFlowHeaders,
         instance: InstanceObjectDto,
-    ): InstanceObjectDto {
+    ): InstanceRegistrationOutcome {
         try {
-            return instanceRegistrationService.register(instanceFlowHeaders, instance)
+            return instanceRegistrationService.register(messageId, instanceFlowHeaders, instance)
         } catch (registrationFailure: Exception) {
             try {
                 instanceErrorEventService.registerError(

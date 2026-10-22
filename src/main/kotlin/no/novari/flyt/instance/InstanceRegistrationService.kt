@@ -16,15 +16,20 @@ import java.time.Instant
 class InstanceRegistrationService(
     private val instanceService: InstanceService,
     private val instanceInfoEventService: InstanceInfoEventService,
+    private val instanceReceivedMessageRepository: InstanceReceivedMessageRepository,
     private val clock: Clock,
-    @param:Value("\${fint.application-id}")
+    @param:Value($$"${fint.application-id}")
     private val applicationId: String,
 ) {
     @Transactional
     fun register(
+        messageId: InstanceReceivedMessageId,
         instanceFlowHeaders: InstanceFlowHeaders,
         instance: InstanceObjectDto,
-    ): InstanceObjectDto {
+    ): InstanceRegistrationOutcome {
+        if (!instanceReceivedMessageRepository.tryInsert(messageId)) {
+            return InstanceRegistrationOutcome.AlreadyProcessed
+        }
         val savedInstance = instanceService.save(instance)
         val instanceId = checkNotNull(savedInstance.id) { "Persisted instance must have an id" }
         val registeredHeaders = instanceFlowHeaders.toBuilder().instanceId(instanceId).build()
@@ -34,6 +39,6 @@ class InstanceRegistrationService(
             timestamp = Instant.now(clock),
             applicationId = applicationId,
         )
-        return savedInstance
+        return InstanceRegistrationOutcome.Registered(savedInstance)
     }
 }
