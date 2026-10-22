@@ -17,7 +17,7 @@ class InstanceRegistrationService(
     private val instanceService: InstanceService,
     private val instanceInfoEventService: InstanceInfoEventService,
     private val clock: Clock,
-    @Value("\${fint.application-id}")
+    @param:Value("\${fint.application-id}")
     private val applicationId: String,
 ) {
     @Transactional

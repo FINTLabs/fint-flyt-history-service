@@ -191,11 +191,28 @@ class. A failure in either write, including flush or commit failure, rolls back 
 An enclosing transaction can also roll back both writes. Database exceptions propagate to the
 caller; this service does not record an error event itself.
 
+The registration event timestamp represents registration performed here, using the injected clock.
+It is not the timestamp of an incoming `instance-received` record. The existing Kafka history
+listener reads the timestamp and origin application ID from the outgoing `instance-registered`
+record, which is a different event from `instance-received`. The configured `fint.application-id`
+identifies history-service as the service performing registration after the takeover; copying the
+incoming record's origin would instead attribute registration to the producer of `instance-received`.
+
+When reliable publication is implemented, determine the registration timestamp once and preserve
+that same timestamp in both local history and the outgoing `instance-registered` record, including
+publication retries. The outgoing origin application ID must match the application ID stored in
+local registration history. This metadata must be persisted with the pending publication so it
+survives restarts. This publication requirement is not implemented by the registration service yet.
+
 The registration service has no Kafka dependencies and does not call the existing registered-event
 producer. Consumers, offset handover, idempotent processing, reliable publication, and error
 recording by the calling processing flow remain later work. Repeated registration calls can still
 create new graphs. `InstanceRegistrationServiceIntegrationTest` verifies successful registration,
 header preservation, database failures in each domain, and rollback of an enclosing transaction.
+
+Keep the master flag disabled in deployments until the complete processing flow is ready:
+enabling it already disables the Kafka history listener for `INSTANCE_REGISTERED`, while the
+registration service currently has no incoming consumer calling it.
 
 Flyway continues to manage only the history schema. Instance tables, sequences, and existing
 Flyway history remain in their original schema. Taking over instance migrations is later work.
