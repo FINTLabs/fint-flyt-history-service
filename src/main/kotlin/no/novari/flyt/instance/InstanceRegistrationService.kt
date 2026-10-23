@@ -31,7 +31,9 @@ class InstanceRegistrationService(
         instanceFlowHeaders: InstanceFlowHeaders,
         instance: InstanceObjectDto,
     ): InstanceRegistrationOutcome {
-        require(expectedNextOffset >= 0) { "Expected next offset must not be negative" }
+        if (expectedNextOffset < 0) {
+            throw InstanceReceivedOffsetException("Expected next offset must not be negative")
+        }
         val nextOffset = instanceReceivedOffsetRepository.lockNextOffset(messageId)
         if (messageId.offset < nextOffset) {
             logger.info {

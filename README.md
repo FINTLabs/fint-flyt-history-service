@@ -249,9 +249,10 @@ without fabricating topic identity.
 `InstanceRegistrationHandler.handle(messageId, expectedNextOffset, headers, instance)` is controlled
 by the same master flag. It requires no active transaction (`Propagation.NEVER`), allowing the
 registration transaction to finish before exceptions are caught, including commit failures.
-An invalid persisted position or topic generation is logged as an ERROR and rethrown without
-creating business error history. The future consumer must stop the affected partition and require
-resolution instead of using its existing skip-failed-records policy.
+An invalid expected or persisted position, including a negative `expectedNextOffset`, or a topic
+generation mismatch raises `InstanceReceivedOffsetException`. It is logged as an ERROR and rethrown
+without creating business error history or advancing the position. The future consumer must stop
+the affected partition and require resolution instead of using its existing skip-failed-records policy.
 
 Other registration failures still record one `INSTANCE_REGISTRATION_ERROR` through the existing
 `InstanceErrorEventService` in a separate, subsequent transaction. This uses the original incoming

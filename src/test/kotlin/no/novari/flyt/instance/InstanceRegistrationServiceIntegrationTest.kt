@@ -472,6 +472,27 @@ class InstanceRegistrationServiceIntegrationTest {
         assertOneRegistration()
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `negative expected position is rejected without changing registration data`(alreadyRegistered: Boolean) {
+        if (alreadyRegistered) {
+            registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        }
+        val originalPosition = jdbcTemplate.queryForMap("SELECT * FROM $HISTORY_SCHEMA.instance_received_offset")
+
+        assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, -1, instanceFlowHeaders(), instanceGraph()) }
+            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+            .hasMessage("Expected next offset must not be negative")
+
+        if (alreadyRegistered) {
+            assertOneRegistration()
+        } else {
+            assertNoRegistrationData()
+        }
+        assertThat(jdbcTemplate.queryForMap("SELECT * FROM $HISTORY_SCHEMA.instance_received_offset"))
+            .isEqualTo(originalPosition)
+    }
+
     @Test
     fun `missing partition position is rejected without creating history or choosing a start offset`() {
         jdbcTemplate.execute("DELETE FROM $HISTORY_SCHEMA.instance_received_offset")
