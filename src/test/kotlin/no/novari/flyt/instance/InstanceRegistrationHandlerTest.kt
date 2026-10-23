@@ -12,6 +12,7 @@ import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import java.time.Clock
 import java.time.Instant
@@ -38,14 +39,31 @@ class InstanceRegistrationHandlerTest {
             .correlationId(UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333"))
             .build()
     private val instance = InstanceObjectDto()
-    private val messageId = InstanceReceivedMessageId("instance-received-test", 0, 0)
+    private val messageId =
+        InstanceReceivedMessageId(
+            "instance-received-test",
+            0,
+            0,
+            "test-cluster",
+            UUID.fromString("d254590e-616f-4e52-ac28-f84d55bb4281"),
+        )
+
+    @Test
+    fun `invalid persisted position stops without recording a registration error`() {
+        val failure = InstanceReceivedOffsetException("Topic generation mismatch")
+        whenever(registrationService.register(messageId, 0, headers, instance)).thenThrow(failure)
+
+        assertThatThrownBy { service.handle(messageId, 0, headers, instance) }.isSameAs(failure)
+
+        verifyNoInteractions(errorEventService)
+    }
 
     @Test
     fun `successful error recording still rethrows the original registration exception`() {
         val failure = IllegalStateException("registration failed")
-        whenever(registrationService.register(messageId, headers, instance)).thenThrow(failure)
+        whenever(registrationService.register(messageId, 0, headers, instance)).thenThrow(failure)
 
-        assertThatThrownBy { service.handle(messageId, headers, instance) }.isSameAs(failure)
+        assertThatThrownBy { service.handle(messageId, 0, headers, instance) }.isSameAs(failure)
 
         verify(errorEventService).registerError(
             eq(headers),
@@ -60,7 +78,7 @@ class InstanceRegistrationHandlerTest {
     fun `error recording failure is suppressed on the original registration exception`() {
         val failure = IllegalStateException("registration failed")
         val errorFailure = IllegalArgumentException("error recording failed")
-        whenever(registrationService.register(messageId, headers, instance)).thenThrow(failure)
+        whenever(registrationService.register(messageId, 0, headers, instance)).thenThrow(failure)
         doThrow(errorFailure).whenever(errorEventService).registerError(
             any(),
             any<EventCategory>(),
@@ -69,7 +87,7 @@ class InstanceRegistrationHandlerTest {
             any(),
         )
 
-        assertThatThrownBy { service.handle(messageId, headers, instance) }.isSameAs(failure)
+        assertThatThrownBy { service.handle(messageId, 0, headers, instance) }.isSameAs(failure)
         assertThat(failure.suppressed).containsExactly(errorFailure)
     }
 }

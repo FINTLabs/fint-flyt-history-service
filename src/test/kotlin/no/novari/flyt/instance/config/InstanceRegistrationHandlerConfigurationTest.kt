@@ -1,7 +1,7 @@
 package no.novari.flyt.instance.config
 
 import no.novari.flyt.history.InstanceErrorEventService
-import no.novari.flyt.instance.InstanceReceivedMessageRepository
+import no.novari.flyt.instance.InstanceReceivedOffsetRepository
 import no.novari.flyt.instance.InstanceRegistrationHandler
 import no.novari.flyt.instance.InstanceRegistrationService
 import org.assertj.core.api.Assertions.assertThat
@@ -16,7 +16,7 @@ class InstanceRegistrationHandlerConfigurationTest {
         ApplicationContextRunner()
             .withUserConfiguration(
                 InstanceRegistrationHandler::class.java,
-                InstanceReceivedMessageRepository::class.java,
+                InstanceReceivedOffsetRepository::class.java,
             )
 
     @Test
@@ -24,7 +24,7 @@ class InstanceRegistrationHandlerConfigurationTest {
         contextRunner.run { context ->
             assertThat(context).hasNotFailed()
             assertThat(context).doesNotHaveBean(InstanceRegistrationHandler::class.java)
-            assertThat(context).doesNotHaveBean(InstanceReceivedMessageRepository::class.java)
+            assertThat(context).doesNotHaveBean(InstanceReceivedOffsetRepository::class.java)
         }
     }
 
@@ -33,7 +33,7 @@ class InstanceRegistrationHandlerConfigurationTest {
         contextRunner.withPropertyValues("novari.flyt.instance-functionality.enabled=false").run { context ->
             assertThat(context).hasNotFailed()
             assertThat(context).doesNotHaveBean(InstanceRegistrationHandler::class.java)
-            assertThat(context).doesNotHaveBean(InstanceReceivedMessageRepository::class.java)
+            assertThat(context).doesNotHaveBean(InstanceReceivedOffsetRepository::class.java)
         }
     }
 
@@ -50,7 +50,7 @@ class InstanceRegistrationHandlerConfigurationTest {
             .run { context ->
                 assertThat(context).hasNotFailed()
                 assertThat(context).hasSingleBean(InstanceRegistrationHandler::class.java)
-                assertThat(context).hasSingleBean(InstanceReceivedMessageRepository::class.java)
+                assertThat(context).hasSingleBean(InstanceReceivedOffsetRepository::class.java)
             }
     }
 }

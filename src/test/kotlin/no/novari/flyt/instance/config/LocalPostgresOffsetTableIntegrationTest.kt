@@ -5,6 +5,7 @@ import com.zaxxer.hikari.HikariDataSource
 import org.assertj.core.api.Assertions.assertThat
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Test
+import org.springframework.jdbc.core.JdbcTemplate
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -86,6 +87,8 @@ class LocalPostgresOffsetTableIntegrationTest {
                         "partition_id",
                         "next_offset",
                         "updated_at",
+                        "cluster_id",
+                        "topic_id",
                     )
                 }
             }
@@ -103,6 +106,52 @@ class LocalPostgresOffsetTableIntegrationTest {
                 }
                 assertThat(primaryKeyColumns).containsExactlyInAnyOrder("topic_name", "partition_id")
             }
+        }
+    }
+
+    @Test
+    fun `generation migration preserves existing V9 positions without inventing broker identity`() {
+        val config =
+            HikariConfig().apply {
+                jdbcUrl = postgreSQLContainer.jdbcUrl
+                username = postgreSQLContainer.username
+                password = postgreSQLContainer.password
+                schema = "offset_upgrade"
+            }
+        HikariDataSource(config).use { dataSource ->
+            Flyway
+                .configure()
+                .dataSource(dataSource)
+                .schemas("offset_upgrade")
+                .target("9")
+                .load()
+                .migrate()
+            val jdbc = JdbcTemplate(dataSource)
+            jdbc.update(
+                "INSERT INTO instance_received_offset (topic_name, partition_id, next_offset) VALUES (?, ?, ?)",
+                "existing-instance-received",
+                0,
+                123L,
+            )
+
+            Flyway
+                .configure()
+                .dataSource(dataSource)
+                .schemas("offset_upgrade")
+                .load()
+                .migrate()
+
+            val position = jdbc.queryForMap("SELECT * FROM instance_received_offset")
+            assertThat(position["topic_name"]).isEqualTo("existing-instance-received")
+            assertThat(position["next_offset"]).isEqualTo(123L)
+            assertThat(position["cluster_id"]).isNull()
+            assertThat(position["topic_id"]).isNull()
+            assertThat(
+                jdbc.queryForObject(
+                    "SELECT to_regclass('offset_upgrade.processed_instance_received')",
+                    String::class.java,
+                ),
+            ).isNull()
         }
     }
 
