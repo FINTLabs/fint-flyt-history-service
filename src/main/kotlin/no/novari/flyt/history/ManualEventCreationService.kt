@@ -19,7 +19,7 @@ import java.time.OffsetDateTime
 class ManualEventCreationService(
     private val clock: Clock,
     private val uuidService: UuidService,
-    @param:Value("\${fint.application-id}") private val applicationId: String,
+    @param:Value($$"${fint.application-id}") private val applicationId: String,
     private val eventService: EventService,
 ) {
     fun addManuallyProcessedEvent(manuallyProcessedEventAction: ManuallyProcessedEventAction): Event {

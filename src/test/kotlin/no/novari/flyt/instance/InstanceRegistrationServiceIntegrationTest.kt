@@ -16,10 +16,13 @@ import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.MethodSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
@@ -46,6 +49,10 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(
@@ -66,6 +73,7 @@ import java.util.UUID
     InstanceJpaConfiguration::class,
     InstanceRegistrationService::class,
     InstanceRegistrationHandler::class,
+    InstanceReceivedOffsetRepository::class,
     InstanceErrorEventService::class,
     InstanceService::class,
     InstanceMappingService::class,
@@ -75,6 +83,12 @@ import java.util.UUID
 )
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class InstanceRegistrationServiceIntegrationTest {
+    @Autowired
+    lateinit var offsetRepository: InstanceReceivedOffsetRepository
+
+    @Autowired
+    lateinit var instanceRepository: InstanceRepository
+
     @Autowired
     lateinit var registrationHandler: InstanceRegistrationHandler
 
@@ -102,10 +116,16 @@ class InstanceRegistrationServiceIntegrationTest {
     @Autowired
     lateinit var applicationContext: ApplicationContext
 
+    @BeforeEach
+    fun initializePartition() {
+        initializePosition(MESSAGE_ID)
+    }
+
     @AfterEach
     fun cleanUp() {
         TransactionTemplate(transactionManager).executeWithoutResult {
             eventRepository.deleteAll()
+            jdbcTemplate.execute("DELETE FROM $HISTORY_SCHEMA.instance_received_offset")
             jdbcTemplate.execute("DELETE FROM $INSTANCE_SCHEMA.instance_object_value_per_key")
             jdbcTemplate.execute("UPDATE $INSTANCE_SCHEMA.instance_object SET instance_object_collection_id = NULL")
             jdbcTemplate.execute("UPDATE $INSTANCE_SCHEMA.instance_object_collection SET instance_object_id = NULL")
@@ -122,13 +142,15 @@ class InstanceRegistrationServiceIntegrationTest {
         val headers = instanceFlowHeaders()
         val originalHeaders = headersMapper.toEmbeddable(headers)
         assertThat(applicationContext.getBeansOfType(InstanceRegistrationHandler::class.java)).hasSize(1)
-        val saved =
+        val outcome =
             if (throughHandler) {
-                registrationHandler.handle(headers, instanceGraph())
+                registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph())
             } else {
-                registrationService.register(headers, instanceGraph())
+                registrationService.register(MESSAGE_ID, 0, headers, instanceGraph())
             }
         assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
+        val saved = registeredInstance(outcome)
+        assertNextOffset(1)
 
         assertThat(saved.id).isNotNull().isNotEqualTo(headers.instanceId)
         assertThat(nodes(saved).map { it.id }).doesNotContainNull().doesNotHaveDuplicates()
@@ -164,7 +186,7 @@ class InstanceRegistrationServiceIntegrationTest {
                 valuePerKey = mutableMapOf("valid" to "root"),
                 objectCollectionPerKey = mutableMapOf("children" to listOf(invalidChild)),
             )
-        assertThatThrownBy { registrationService.register(instanceFlowHeaders(), root) }
+        assertThatThrownBy { registrationService.register(MESSAGE_ID, 0, instanceFlowHeaders(), root) }
             .isInstanceOf(DataIntegrityViolationException::class.java)
         assertNoRegistrationData()
     }
@@ -176,7 +198,7 @@ class InstanceRegistrationServiceIntegrationTest {
                 "CHECK (name <> 'instance-registered')",
         )
         try {
-            assertThatThrownBy { registrationService.register(instanceFlowHeaders(), instanceGraph()) }
+            assertThatThrownBy { registrationService.register(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()) }
                 .isInstanceOf(DataIntegrityViolationException::class.java)
                 .hasStackTraceContaining("reject_registration_event")
             assertNoRegistrationData()
@@ -188,10 +210,12 @@ class InstanceRegistrationServiceIntegrationTest {
     @Test
     fun `registration joins an outer transaction and both domains roll back together`() {
         TransactionTemplate(transactionManager).executeWithoutResult { status ->
-            val saved = registrationService.register(instanceFlowHeaders(), instanceGraph())
+            val saved =
+                registeredInstance(registrationService.register(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()))
             entityManager.flush()
             assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(3L)
             assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+            assertNextOffset(1)
             assertThat(
                 eventRepository
                     .findAll()
@@ -215,7 +239,7 @@ class InstanceRegistrationServiceIntegrationTest {
         val invalidChild = invalidGraph.objectCollectionPerKey.getValue("children").single()
         invalidChild.valuePerKey["x".repeat(256)] = "invalid"
 
-        assertThatThrownBy { registrationHandler.handle(headers, invalidGraph) }
+        assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, headers, invalidGraph) }
             .isInstanceOf(DataIntegrityViolationException::class.java)
 
         assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
@@ -230,7 +254,7 @@ class InstanceRegistrationServiceIntegrationTest {
     fun `handler records an info commit failure in a separate successful transaction`() {
         val headers = instanceFlowHeaders().toBuilder().instanceId(null).build()
         withRejectedEvents(EventCategory.INSTANCE_REGISTERED) {
-            assertThatThrownBy { registrationHandler.handle(headers, instanceGraph()) }
+            assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph()) }
                 .isInstanceOf(DataIntegrityViolationException::class.java)
                 .hasStackTraceContaining("reject_instance_registered")
 
@@ -246,7 +270,7 @@ class InstanceRegistrationServiceIntegrationTest {
         withRejectedEvents(EventCategory.INSTANCE_REGISTERED, EventCategory.INSTANCE_REGISTRATION_ERROR) {
             val failure =
                 assertThrows<DataIntegrityViolationException> {
-                    registrationHandler.handle(instanceFlowHeaders(), instanceGraph())
+                    registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
                 }
             assertThat(failure.cause).hasStackTraceContaining("reject_instance_registered")
             assertThat(failure.suppressed).hasSize(1)
@@ -262,7 +286,7 @@ class InstanceRegistrationServiceIntegrationTest {
     @Test
     fun `handler rejects an enclosing transaction before registration or error recording`() {
         TransactionTemplate(transactionManager).executeWithoutResult {
-            assertThatThrownBy { registrationHandler.handle(instanceFlowHeaders(), instanceGraph()) }
+            assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()) }
                 .isInstanceOf(IllegalTransactionStateException::class.java)
             entityManager.flush()
             assertNoRegistrationData()
@@ -270,7 +294,364 @@ class InstanceRegistrationServiceIntegrationTest {
         assertNoRegistrationData()
     }
 
+    @Test
+    fun `redelivery returns already processed without reading or saving another graph`() {
+        val headers = instanceFlowHeaders()
+        val first = registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph())
+        val invalidDuplicate = InstanceObjectDto(valuePerKey = mutableMapOf("x".repeat(256) to "invalid"))
+
+        val duplicate = registrationHandler.handle(MESSAGE_ID, 0, headers, invalidDuplicate)
+
+        registeredInstance(first)
+        assertThat(duplicate).isSameAs(InstanceRegistrationOutcome.AlreadyProcessed)
+        assertOneRegistration()
+    }
+
+    @ParameterizedTest
+    @MethodSource("differentMessageIds")
+    fun `different message identities register independently with the same flow headers`(
+        otherMessageId: InstanceReceivedMessageId,
+    ) {
+        val headers = instanceFlowHeaders()
+        val first = registeredInstance(registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph()))
+        val samePartition = otherMessageId.topic == MESSAGE_ID.topic && otherMessageId.partition == MESSAGE_ID.partition
+        if (!samePartition) {
+            initializePosition(otherMessageId)
+        }
+        val expectedNextOffset = if (samePartition) 1L else 0L
+        val second =
+            registeredInstance(registrationHandler.handle(otherMessageId, expectedNextOffset, headers, instanceGraph()))
+
+        assertThat(first.id).isNotEqualTo(second.id)
+        assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(6L)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(2L)
+        assertThat(rowCount("$HISTORY_SCHEMA.instance_received_offset")).isEqualTo(if (samePartition) 1L else 2L)
+        if (samePartition) {
+            assertNextOffset(2)
+        }
+    }
+
+    @Test
+    fun `redelivery remains processed after the registered graph is deleted`() {
+        val registered =
+            registeredInstance(registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()))
+        instanceRepository.deleteById(registered.id!!)
+        assertNoInstanceData()
+
+        val duplicate = registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+
+        assertThat(duplicate).isSameAs(InstanceRegistrationOutcome.AlreadyProcessed)
+        assertNoInstanceData()
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+        assertThat(rowCount("$HISTORY_SCHEMA.error")).isZero()
+        assertNextOffset(1)
+    }
+
+    @Test
+    fun `a failed graph can be retried successfully with the same message identity`() {
+        val headers = instanceFlowHeaders()
+        val invalid = InstanceObjectDto(valuePerKey = mutableMapOf("x".repeat(256) to "invalid"))
+        assertThrows<DataIntegrityViolationException> { registrationHandler.handle(MESSAGE_ID, 0, headers, invalid) }
+        assertNoInstanceData()
+        assertRegistrationError(headers)
+
+        registeredInstance(registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph()))
+
+        assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(3L)
+        assertThat(eventRepository.findAll().map { it.name })
+            .containsExactlyInAnyOrder(
+                EventCategory.INSTANCE_REGISTRATION_ERROR.eventName,
+                EventCategory.INSTANCE_REGISTERED.eventName,
+            )
+        assertNextOffset(1)
+    }
+
+    @Test
+    fun `an info commit failure releases the message identity for a successful retry`() {
+        val headers = instanceFlowHeaders()
+        withRejectedEvents(EventCategory.INSTANCE_REGISTERED) {
+            assertThrows<DataIntegrityViolationException> {
+                registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph())
+            }
+            assertNoInstanceData()
+            assertRegistrationError(headers)
+        }
+
+        registeredInstance(registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph()))
+
+        assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(3L)
+        assertThat(eventRepository.findAll().map { it.name })
+            .containsExactlyInAnyOrder(
+                EventCategory.INSTANCE_REGISTRATION_ERROR.eventName,
+                EventCategory.INSTANCE_REGISTERED.eventName,
+            )
+        assertNextOffset(1)
+    }
+
+    @Test
+    fun `message repository rejects calls outside a transaction`() {
+        assertThatThrownBy { offsetRepository.lockNextOffset(MESSAGE_ID) }
+            .isInstanceOf(IllegalTransactionStateException::class.java)
+        assertNoRegistrationData()
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `concurrent delivery waits for commit or takes over after rollback`(firstRollsBack: Boolean) {
+        val firstReady = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val contenderPid = CompletableFuture<Int>()
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val first =
+                executor.submit<InstanceRegistrationOutcome> {
+                    TransactionTemplate(transactionManager).execute { status ->
+                        val outcome =
+                            registrationService.register(
+                                MESSAGE_ID,
+                                0,
+                                instanceFlowHeaders(),
+                                instanceGraph(),
+                            )
+                        entityManager.flush()
+                        firstReady.countDown()
+                        check(releaseFirst.await(20, TimeUnit.SECONDS)) { "First transaction was not released" }
+                        if (firstRollsBack) {
+                            status.setRollbackOnly()
+                        }
+                        outcome
+                    }!!
+                }
+            assertThat(firstReady.await(10, TimeUnit.SECONDS)).isTrue()
+            val contender =
+                executor.submit<InstanceRegistrationOutcome> {
+                    TransactionTemplate(transactionManager).execute {
+                        contenderPid.complete(jdbcTemplate.queryForObject("SELECT pg_backend_pid()", Int::class.java)!!)
+                        registrationService.register(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+                    }!!
+                }
+            val pid = contenderPid.get(10, TimeUnit.SECONDS)
+            await().atMost(10, TimeUnit.SECONDS).until {
+                jdbcTemplate.queryForObject(
+                    "SELECT cardinality(pg_blocking_pids(?)) > 0",
+                    Boolean::class.java,
+                    pid,
+                ) == true
+            }
+            releaseFirst.countDown()
+            registeredInstance(first.get(10, TimeUnit.SECONDS))
+            val contenderOutcome = contender.get(10, TimeUnit.SECONDS)
+            if (firstRollsBack) {
+                registeredInstance(contenderOutcome)
+            } else {
+                assertThat(contenderOutcome).isSameAs(InstanceRegistrationOutcome.AlreadyProcessed)
+            }
+            assertOneRegistration()
+        } finally {
+            releaseFirst.countDown()
+            executor.shutdownNow()
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue()
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["topic", "cluster"])
+    fun `changed topic generation is rejected before duplicate detection`(changedField: String) {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        val changed =
+            if (changedField == "topic") {
+                MESSAGE_ID.copy(topicId = UUID.fromString("5e22b734-6ff4-4e42-a261-b8ed9003526b"))
+            } else {
+                MESSAGE_ID.copy(clusterId = "replacement-cluster")
+            }
+
+        assertThatThrownBy { registrationHandler.handle(changed, 0, instanceFlowHeaders(), instanceGraph()) }
+            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+            .hasMessageContaining("Topic generation mismatch")
+
+        assertOneRegistration()
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `negative expected position is rejected without changing registration data`(alreadyRegistered: Boolean) {
+        if (alreadyRegistered) {
+            registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        }
+        val originalPosition = jdbcTemplate.queryForMap("SELECT * FROM $HISTORY_SCHEMA.instance_received_offset")
+
+        assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, -1, instanceFlowHeaders(), instanceGraph()) }
+            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+            .hasMessage("Expected next offset must not be negative")
+
+        if (alreadyRegistered) {
+            assertOneRegistration()
+        } else {
+            assertNoRegistrationData()
+        }
+        assertThat(jdbcTemplate.queryForMap("SELECT * FROM $HISTORY_SCHEMA.instance_received_offset"))
+            .isEqualTo(originalPosition)
+    }
+
+    @Test
+    fun `missing partition position is rejected without creating history or choosing a start offset`() {
+        jdbcTemplate.execute("DELETE FROM $HISTORY_SCHEMA.instance_received_offset")
+
+        assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()) }
+            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+            .hasMessageContaining("No instance-received offset initialized")
+
+        assertNoInstanceData()
+        assertThat(rowCount("$HISTORY_SCHEMA.instance_received_offset")).isZero()
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isZero()
+    }
+
+    @Test
+    fun `legacy position without verified topic generation is rejected without overwriting it`() {
+        jdbcTemplate.update(
+            "UPDATE $HISTORY_SCHEMA.instance_received_offset " +
+                "SET cluster_id = NULL, topic_id = NULL, next_offset = 17 WHERE topic_name = ? AND partition_id = ?",
+            MESSAGE_ID.topic,
+            MESSAGE_ID.partition,
+        )
+
+        assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()) }
+            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+            .hasMessageContaining("Topic generation is not initialized")
+
+        assertNoInstanceData()
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isZero()
+        val position = jdbcTemplate.queryForMap("SELECT * FROM $HISTORY_SCHEMA.instance_received_offset")
+        assertThat(position["next_offset"]).isEqualTo(17L)
+        assertThat(position["cluster_id"]).isNull()
+        assertThat(position["topic_id"]).isNull()
+    }
+
+    @Test
+    fun `processing cannot advance past a failed record using the next expected position`() {
+        val invalid = InstanceObjectDto(valuePerKey = mutableMapOf("x".repeat(256) to "invalid"))
+        assertThrows<DataIntegrityViolationException> {
+            registrationService.register(MESSAGE_ID, 0, instanceFlowHeaders(), invalid)
+        }
+        assertNoRegistrationData()
+
+        assertThatThrownBy {
+            registrationHandler.handle(MESSAGE_ID.copy(offset = 1), 1, instanceFlowHeaders(), instanceGraph())
+        }.isInstanceOf(InstanceReceivedOffsetException::class.java)
+            .hasMessageContaining("storedNextOffset=0, expectedNextOffset=1")
+        assertNoRegistrationData()
+
+        registeredInstance(registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()))
+        assertOneRegistration()
+    }
+
+    @Test
+    fun `Kafka offset gaps can be processed when the expected position matches persisted progress`() {
+        val withGap = MESSAGE_ID.copy(offset = 7)
+
+        registeredInstance(registrationHandler.handle(withGap, 0, instanceFlowHeaders(), instanceGraph()))
+
+        assertNextOffset(8)
+        assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(3L)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+    }
+
+    @Test
+    fun `a stale expected position is rejected and older redelivery cannot rewind progress`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        assertThatThrownBy {
+            registrationHandler.handle(MESSAGE_ID.copy(offset = 1), 0, instanceFlowHeaders(), instanceGraph())
+        }.isInstanceOf(InstanceReceivedOffsetException::class.java)
+            .hasMessageContaining("storedNextOffset=1, expectedNextOffset=0")
+        assertOneRegistration()
+
+        registrationHandler.handle(MESSAGE_ID.copy(offset = 1), 1, instanceFlowHeaders(), instanceGraph())
+        assertThat(registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()))
+            .isSameAs(InstanceRegistrationOutcome.AlreadyProcessed)
+        assertNextOffset(2)
+        assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(6L)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(2L)
+    }
+
+    @Test
+    fun `conditional offset update cannot overwrite a newer position`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+
+        assertThatThrownBy {
+            TransactionTemplate(transactionManager).executeWithoutResult {
+                offsetRepository.advance(MESSAGE_ID, 0)
+            }
+        }.isInstanceOf(InstanceReceivedOffsetException::class.java)
+            .hasMessageContaining("position changed")
+
+        assertOneRegistration()
+    }
+
+    @Test
+    fun `conditional offset update cannot rewind even when the expected position matches`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        registrationHandler.handle(MESSAGE_ID.copy(offset = 1), 1, instanceFlowHeaders(), instanceGraph())
+
+        assertThatThrownBy {
+            TransactionTemplate(transactionManager).executeWithoutResult {
+                offsetRepository.advance(MESSAGE_ID, 2)
+            }
+        }.isInstanceOf(InstanceReceivedOffsetException::class.java)
+            .hasMessageContaining("position changed")
+
+        assertNextOffset(2)
+        assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(6L)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(2L)
+    }
+
+    private fun registeredInstance(outcome: InstanceRegistrationOutcome): InstanceObjectDto {
+        assertThat(outcome).isInstanceOf(InstanceRegistrationOutcome.Registered::class.java)
+        return (outcome as InstanceRegistrationOutcome.Registered).instance
+    }
+
+    private fun assertOneRegistration() {
+        assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(3L)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+        assertThat(eventRepository.findAll().single().name).isEqualTo(EventCategory.INSTANCE_REGISTERED.eventName)
+        assertThat(rowCount("$HISTORY_SCHEMA.error")).isZero()
+        assertNextOffset(1)
+    }
+
+    private fun initializePosition(
+        messageId: InstanceReceivedMessageId,
+        nextOffset: Long = 0,
+    ) {
+        jdbcTemplate.update(
+            """
+            INSERT INTO $HISTORY_SCHEMA.instance_received_offset
+                (topic_name, partition_id, next_offset, cluster_id, topic_id)
+            VALUES (?, ?, ?, ?, ?)
+            """.trimIndent(),
+            messageId.topic,
+            messageId.partition,
+            nextOffset,
+            messageId.clusterId,
+            messageId.topicId,
+        )
+    }
+
+    private fun assertNextOffset(expected: Long) {
+        assertThat(rowCount("$HISTORY_SCHEMA.instance_received_offset")).isEqualTo(1L)
+        val position =
+            jdbcTemplate.queryForMap(
+                "SELECT topic_name, partition_id, next_offset, cluster_id, topic_id, updated_at " +
+                    "FROM $HISTORY_SCHEMA.instance_received_offset",
+            )
+        assertThat(position["topic_name"]).isEqualTo(MESSAGE_ID.topic)
+        assertThat(position["partition_id"]).isEqualTo(MESSAGE_ID.partition)
+        assertThat(position["cluster_id"]).isEqualTo(MESSAGE_ID.clusterId)
+        assertThat(position["topic_id"]).isEqualTo(MESSAGE_ID.topicId)
+        assertThat(position["next_offset"]).isEqualTo(expected)
+        assertThat(position["updated_at"]).isNotNull()
+    }
+
     private fun assertRegistrationError(headers: InstanceFlowHeaders) {
+        assertNextOffset(0)
         val originalHeaders = headersMapper.toEmbeddable(headers)
         assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
         assertThat(rowCount("$HISTORY_SCHEMA.error")).isEqualTo(1L)
@@ -320,6 +701,7 @@ class InstanceRegistrationServiceIntegrationTest {
 
     private fun assertNoRegistrationData() {
         assertNoInstanceData()
+        assertNextOffset(0)
         listOf("event", "file_id", "error", "error_args").forEach { table ->
             assertThat(rowCount("$HISTORY_SCHEMA.$table")).isZero()
         }
@@ -372,6 +754,22 @@ class InstanceRegistrationServiceIntegrationTest {
         private const val INSTANCE_SCHEMA = "mapping_test_instance"
         private const val APPLICATION_ID = "registration-test-app"
         private val NOW = Instant.parse("2026-10-21T10:20:30Z")
+        private val MESSAGE_ID =
+            InstanceReceivedMessageId(
+                "instance-received-test",
+                0,
+                0,
+                "test-cluster",
+                UUID.fromString("d254590e-616f-4e52-ac28-f84d55bb4281"),
+            )
+
+        @JvmStatic
+        fun differentMessageIds(): List<InstanceReceivedMessageId> =
+            listOf(
+                MESSAGE_ID.copy(offset = 1),
+                MESSAGE_ID.copy(partition = 1),
+                MESSAGE_ID.copy(topic = "another-instance-received-topic"),
+            )
 
         @JvmField
         @Container

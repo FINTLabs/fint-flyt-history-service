@@ -1,5 +1,6 @@
 package no.novari.flyt.instance
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
@@ -20,16 +21,25 @@ class InstanceRegistrationHandler(
     private val instanceRegistrationService: InstanceRegistrationService,
     private val instanceErrorEventService: InstanceErrorEventService,
     private val clock: Clock,
-    @param:Value("\${fint.application-id}")
+    @param:Value($$"${fint.application-id}")
     private val applicationId: String,
 ) {
+    private val logger = KotlinLogging.logger {}
+
     @Transactional(propagation = Propagation.NEVER)
     fun handle(
+        messageId: InstanceReceivedMessageId,
+        expectedNextOffset: Long,
         instanceFlowHeaders: InstanceFlowHeaders,
         instance: InstanceObjectDto,
-    ): InstanceObjectDto {
+    ): InstanceRegistrationOutcome {
         try {
-            return instanceRegistrationService.register(instanceFlowHeaders, instance)
+            return instanceRegistrationService.register(messageId, expectedNextOffset, instanceFlowHeaders, instance)
+        } catch (offsetFailure: InstanceReceivedOffsetException) {
+            logger.error(
+                offsetFailure,
+            ) { "Instance registration stopped because its persisted Kafka position is invalid" }
+            throw offsetFailure
         } catch (registrationFailure: Exception) {
             try {
                 instanceErrorEventService.registerError(

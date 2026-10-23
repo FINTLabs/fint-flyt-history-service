@@ -3,6 +3,7 @@ package no.novari.flyt.history.repository
 import jakarta.persistence.EntityManagerFactory
 import no.novari.flyt.history.ClockConfiguration
 import no.novari.flyt.history.repository.entities.EventEntity
+import no.novari.flyt.instance.InstanceReceivedOffsetRepository
 import no.novari.flyt.instance.InstanceRegistrationService
 import no.novari.flyt.instance.InstanceRepository
 import no.novari.flyt.instance.InstanceService
@@ -40,6 +41,7 @@ class InstanceEntitiesNotRegisteredTest {
         instanceJpaContextRunner(postgreSQLContainer, "disabled_instance_history")
             .withUserConfiguration(
                 InstanceRegistrationService::class.java,
+                InstanceReceivedOffsetRepository::class.java,
                 InstanceService::class.java,
                 InstanceMappingService::class.java,
                 ClockConfiguration::class.java,
@@ -52,6 +54,7 @@ class InstanceEntitiesNotRegisteredTest {
         assertThat(context).hasSingleBean(EventRepository::class.java)
         assertThat(context).doesNotHaveBean(InstanceRepository::class.java)
         assertThat(context).doesNotHaveBean(InstanceRegistrationService::class.java)
+        assertThat(context).doesNotHaveBean(InstanceReceivedOffsetRepository::class.java)
         assertThat(context).doesNotHaveBean(InstanceService::class.java)
         assertThat(context).doesNotHaveBean(InstanceMappingService::class.java)
         assertThat(context.environment.getProperty("novari.flyt.instance.database.schema")).isNull()
