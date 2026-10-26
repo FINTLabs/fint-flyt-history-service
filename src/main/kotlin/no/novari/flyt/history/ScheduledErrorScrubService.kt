@@ -17,9 +17,9 @@ class ScheduledErrorScrubService(
     private val eventScrubber: EventScrubber,
     transactionManager: PlatformTransactionManager,
     private val clock: Clock,
-    @param:Value("\${novari.flyt.history-service.retention.time-to-keep-error-details-in-days}")
+    @param:Value($$"${novari.flyt.history-service.retention.time-to-keep-error-details-in-days}")
     private val timeToKeepErrorDetailsInDays: Long,
-    @param:Value("\${novari.flyt.history-service.retention.scrub-batch-size}")
+    @param:Value($$"${novari.flyt.history-service.retention.scrub-batch-size}")
     private val scrubBatchSize: Int,
 ) {
     private val transactionTemplate = TransactionTemplate(transactionManager)

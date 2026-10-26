@@ -1,5 +1,6 @@
 package no.novari.flyt.instance
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import jakarta.persistence.EntityManager
 import no.novari.flyt.history.Application
 import no.novari.flyt.history.InstanceErrorEventService
@@ -11,8 +12,16 @@ import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.history.repository.EventRepository
 import no.novari.flyt.instance.config.InstanceDatabaseConfiguration
 import no.novari.flyt.instance.config.InstanceJpaConfiguration
+import no.novari.flyt.instance.kafka.InstanceRegisteredEventProducerService
 import no.novari.flyt.instance.model.InstanceMappingService
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
+import no.novari.flyt.instance.outbox.InstanceRegisteredOutboxCodec
+import no.novari.flyt.instance.outbox.InstanceRegisteredOutboxConfiguration
+import no.novari.flyt.instance.outbox.InstanceRegisteredOutboxEvent
+import no.novari.flyt.instance.outbox.InstanceRegisteredOutboxProperties
+import no.novari.flyt.instance.outbox.InstanceRegisteredOutboxPublisher
+import no.novari.flyt.instance.outbox.InstanceRegisteredOutboxRepository
+import no.novari.flyt.instance.outbox.InstanceRegisteredOutboxService
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -24,7 +33,17 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.junit.jupiter.params.provider.ValueSource
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration
+import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.boot.test.context.TestConfiguration
@@ -36,6 +55,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ContextConfiguration
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import org.springframework.transaction.IllegalTransactionStateException
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Propagation
@@ -53,6 +73,7 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(
@@ -67,6 +88,7 @@ import java.util.concurrent.TimeUnit
 )
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @ContextConfiguration(classes = [Application::class])
+@ImportAutoConfiguration(JacksonAutoConfiguration::class)
 @Import(
     JpaAuditingTestConfig::class,
     InstanceDatabaseConfiguration::class,
@@ -74,6 +96,10 @@ import java.util.concurrent.TimeUnit
     InstanceRegistrationService::class,
     InstanceRegistrationHandler::class,
     InstanceReceivedOffsetRepository::class,
+    InstanceRegisteredOutboxConfiguration::class,
+    InstanceRegisteredOutboxRepository::class,
+    InstanceRegisteredOutboxCodec::class,
+    InstanceRegisteredOutboxService::class,
     InstanceErrorEventService::class,
     InstanceService::class,
     InstanceMappingService::class,
@@ -83,6 +109,15 @@ import java.util.concurrent.TimeUnit
 )
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class InstanceRegistrationServiceIntegrationTest {
+    @Autowired
+    lateinit var outboxService: InstanceRegisteredOutboxService
+
+    @MockitoSpyBean
+    lateinit var outboxCodec: InstanceRegisteredOutboxCodec
+
+    @Autowired
+    lateinit var outboxProperties: InstanceRegisteredOutboxProperties
+
     @Autowired
     lateinit var offsetRepository: InstanceReceivedOffsetRepository
 
@@ -124,6 +159,7 @@ class InstanceRegistrationServiceIntegrationTest {
     @AfterEach
     fun cleanUp() {
         TransactionTemplate(transactionManager).executeWithoutResult {
+            jdbcTemplate.execute("DELETE FROM $HISTORY_SCHEMA.instance_registered_outbox")
             eventRepository.deleteAll()
             jdbcTemplate.execute("DELETE FROM $HISTORY_SCHEMA.instance_received_offset")
             jdbcTemplate.execute("DELETE FROM $INSTANCE_SCHEMA.instance_object_value_per_key")
@@ -160,6 +196,7 @@ class InstanceRegistrationServiceIntegrationTest {
         assertThat(instanceService.getById(saved.id!!).valuePerKey).containsEntry("level", "root")
         assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(3L)
         assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+        assertThat(rowCount("$HISTORY_SCHEMA.instance_registered_outbox")).isEqualTo(1L)
         assertThat(headersMapper.toEmbeddable(headers))
             .usingRecursiveComparison()
             .isEqualTo(originalHeaders)
@@ -604,12 +641,261 @@ class InstanceRegistrationServiceIntegrationTest {
         assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(2L)
     }
 
+    @Test
+    fun `outbox serialization failure rolls back instance history and position`() {
+        doThrow(IllegalStateException("outbox serialization failed")).whenever(outboxCodec).encodeInstance(any())
+
+        assertThatThrownBy {
+            registrationService.register(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        }.isInstanceOf(IllegalStateException::class.java).hasMessage("outbox serialization failed")
+
+        assertNoRegistrationData()
+    }
+
+    @Test
+    fun `outbox insert failure rolls back instance history and position`() {
+        jdbcTemplate.execute(
+            "ALTER TABLE $HISTORY_SCHEMA.instance_registered_outbox ADD CONSTRAINT reject_outbox CHECK (false)",
+        )
+        try {
+            assertThatThrownBy {
+                registrationService.register(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+            }.isInstanceOf(DataIntegrityViolationException::class.java).hasStackTraceContaining("reject_outbox")
+            assertNoRegistrationData()
+        } finally {
+            jdbcTemplate.execute("ALTER TABLE $HISTORY_SCHEMA.instance_registered_outbox DROP CONSTRAINT reject_outbox")
+        }
+    }
+
+    @Test
+    fun `outbox snapshot preserves the complete registered graph and headers after instance deletion`() {
+        val headers = instanceFlowHeaders()
+        val saved = registeredInstance(registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph()))
+        instanceRepository.deleteById(saved.id!!)
+        assertNoInstanceData()
+
+        val claim = outboxService.claimNext()!!
+        val event = outboxCodec.decode(claim)
+        assertThat(event.instance).isEqualTo(saved)
+        assertThat(event.headers).isEqualTo(headers.toBuilder().instanceId(saved.id).build())
+        assertThat(event.messageId).isEqualTo(MESSAGE_ID)
+        assertThat(event.timestamp).isEqualTo(NOW)
+        assertThat(event.applicationId).isEqualTo(APPLICATION_ID)
+        assertThat(
+            event.instance.objectCollectionPerKey
+                .getValue("children")
+                .single()
+                .id,
+        ).isNotNull()
+        assertThat(rowCount("$HISTORY_SCHEMA.instance_registered_outbox")).isEqualTo(1L)
+    }
+
+    @Test
+    fun `concurrent publishers reserve one active claim`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        val start = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+        try {
+            val tasks =
+                (1..2).map {
+                    executor.submit<no.novari.flyt.instance.outbox.InstanceRegisteredOutboxClaim?> {
+                        check(start.await(10, TimeUnit.SECONDS))
+                        outboxService.claimNext()
+                    }
+                }
+            start.countDown()
+            assertThat(tasks.map { it.get(10, TimeUnit.SECONDS) }.filterNotNull()).hasSize(1)
+            assertOneRegistration()
+        } finally {
+            start.countDown()
+            executor.shutdownNow()
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue()
+        }
+    }
+
+    @Test
+    fun `expired claims can be taken over and stale owners cannot complete or change them`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        val first = outboxService.claimNext()!!
+        expireClaim(first.id)
+        val replacement = outboxService.claimNext()!!
+
+        assertThat(replacement.id).isEqualTo(first.id)
+        assertThat(replacement.token).isNotEqualTo(first.token)
+        assertThat(replacement.attempts).isEqualTo(2)
+        assertThat(outboxService.complete(first)).isFalse()
+        assertThat(outboxService.fail(first, "stale-failure")).isFalse()
+        assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT claim_token FROM $HISTORY_SCHEMA.instance_registered_outbox WHERE id = ?",
+                UUID::class.java,
+                first.id,
+            ),
+        ).isEqualTo(replacement.token)
+        assertThat(outboxService.complete(replacement)).isTrue()
+        assertThat(outboxService.statistics().pending).isZero()
+    }
+
+    @Test
+    fun `an unresolved head blocks its partition while other partitions continue`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        registrationHandler.handle(MESSAGE_ID.copy(offset = 1), 1, instanceFlowHeaders(), instanceGraph())
+        val other = MESSAGE_ID.copy(partition = 1)
+        initializePosition(other)
+        registrationHandler.handle(other, 0, instanceFlowHeaders(), instanceGraph())
+        val first = outboxService.claimNext()!!
+        assertThat(first.messageId).isEqualTo(MESSAGE_ID)
+        assertThat(outboxService.claimNext()!!.messageId).isEqualTo(other)
+        assertThat(outboxService.claimNext()).isNull()
+        outboxService.fail(first, "test-failure")
+        assertThat(outboxService.claimNext()).isNull()
+        makeRetryReady(first.id)
+        val retried = outboxService.claimNext()!!
+        assertThat(retried.id).isEqualTo(first.id)
+        outboxService.complete(retried)
+        assertThat(outboxService.claimNext()!!.messageId).isEqualTo(MESSAGE_ID.copy(offset = 1))
+    }
+
+    @Test
+    fun `failed publication retries the same snapshot and updates queue metrics`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        val producer: InstanceRegisteredEventProducerService = mock()
+        var attempts = 0
+        doAnswer {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
+            if (attempts++ == 0) throw TimeoutException("unconfirmed")
+            null
+        }.whenever(producer).publish(any())
+        withMeterRegistry { registry ->
+            val publisher = publisher(producer, registry)
+            publisher.publishPending()
+            assertThat(outboxService.statistics().pending).isEqualTo(1)
+            assertThat(outboxService.claimNext()).isNull()
+            assertThat(registry.get("flyt.instance.outbox.pending").gauge().value()).isEqualTo(1.0)
+            val id =
+                jdbcTemplate.queryForObject(
+                    "SELECT id FROM $HISTORY_SCHEMA.instance_registered_outbox",
+                    UUID::class.java,
+                )!!
+            makeRetryReady(id)
+            publisher.publishPending()
+            assertThat(outboxService.statistics().pending).isZero()
+            assertThat(registry.get("flyt.instance.outbox.pending").gauge().value()).isZero()
+            assertThat(registry.get("flyt.instance.outbox.oldest.age.seconds").gauge().value()).isZero()
+            assertThat(registry.get("flyt.instance.outbox.publish.failures").counter().count()).isEqualTo(1.0)
+        }
+        val sent = argumentCaptor<InstanceRegisteredOutboxEvent>()
+        verify(producer, times(2)).publish(sent.capture())
+        assertThat(sent.allValues[1]).isEqualTo(sent.allValues[0])
+        assertNextOffset(1)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+        assertThat(rowCount("$HISTORY_SCHEMA.error")).isZero()
+    }
+
+    @Test
+    fun `a crash after acknowledgement leaves the same event available for redelivery`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        val producer: InstanceRegisteredEventProducerService = mock()
+        val abandoned = outboxService.claimNext()!!
+        producer.publish(outboxCodec.decode(abandoned))
+        expireClaim(abandoned.id)
+        withMeterRegistry { publisher(producer, it).publishPending() }
+
+        val sent = argumentCaptor<InstanceRegisteredOutboxEvent>()
+        verify(producer, times(2)).publish(sent.capture())
+        assertThat(sent.allValues[1]).isEqualTo(sent.allValues[0])
+        assertThat(outboxService.statistics().pending).isZero()
+        assertNextOffset(1)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+    }
+
+    @Test
+    fun `outbox row remains until publication acknowledges without holding a database transaction`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        val entered = CountDownLatch(1)
+        val acknowledge = CountDownLatch(1)
+        val producer: InstanceRegisteredEventProducerService = mock()
+        doAnswer {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
+            entered.countDown()
+            check(acknowledge.await(10, TimeUnit.SECONDS))
+            null
+        }.whenever(producer).publish(any())
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            withMeterRegistry { registry ->
+                val task = executor.submit { publisher(producer, registry).publishPending() }
+                assertThat(entered.await(10, TimeUnit.SECONDS)).isTrue()
+                assertThat(outboxService.statistics().pending).isEqualTo(1)
+                assertThat(outboxService.claimNext()).isNull()
+                assertNextOffset(1)
+                acknowledge.countDown()
+                task.get(10, TimeUnit.SECONDS)
+                assertThat(outboxService.statistics().pending).isZero()
+            }
+        } finally {
+            acknowledge.countDown()
+            executor.shutdownNow()
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue()
+        }
+    }
+
+    @Test
+    fun `incoming redelivery does not recreate an already completed outbox event`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        outboxService.complete(outboxService.claimNext()!!)
+
+        assertThat(registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()))
+            .isSameAs(InstanceRegistrationOutcome.AlreadyProcessed)
+
+        assertThat(outboxService.statistics().pending).isZero()
+        assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(3L)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+        assertNextOffset(1)
+    }
+
+    private fun withMeterRegistry(action: (SimpleMeterRegistry) -> Unit) {
+        val registry = SimpleMeterRegistry()
+        try {
+            action(registry)
+        } finally {
+            registry.close()
+        }
+    }
+
+    private fun publisher(
+        producer: InstanceRegisteredEventProducerService,
+        registry: SimpleMeterRegistry,
+    ): InstanceRegisteredOutboxPublisher =
+        InstanceRegisteredOutboxPublisher(
+            outboxService,
+            outboxCodec,
+            producer,
+            outboxProperties.copy(maxRecordsPerRun = 1),
+            registry,
+        )
+
+    private fun expireClaim(id: UUID) {
+        jdbcTemplate.update(
+            "UPDATE $HISTORY_SCHEMA.instance_registered_outbox SET claimed_until = clock_timestamp() - INTERVAL '1 second' WHERE id = ?",
+            id,
+        )
+    }
+
+    private fun makeRetryReady(id: UUID) {
+        jdbcTemplate.update(
+            "UPDATE $HISTORY_SCHEMA.instance_registered_outbox SET next_attempt_at = clock_timestamp() - INTERVAL '1 second' WHERE id = ?",
+            id,
+        )
+    }
+
     private fun registeredInstance(outcome: InstanceRegistrationOutcome): InstanceObjectDto {
         assertThat(outcome).isInstanceOf(InstanceRegistrationOutcome.Registered::class.java)
         return (outcome as InstanceRegistrationOutcome.Registered).instance
     }
 
     private fun assertOneRegistration() {
+        assertThat(rowCount("$HISTORY_SCHEMA.instance_registered_outbox")).isEqualTo(1L)
         assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(3L)
         assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
         assertThat(eventRepository.findAll().single().name).isEqualTo(EventCategory.INSTANCE_REGISTERED.eventName)
@@ -651,6 +937,7 @@ class InstanceRegistrationServiceIntegrationTest {
     }
 
     private fun assertRegistrationError(headers: InstanceFlowHeaders) {
+        assertThat(rowCount("$HISTORY_SCHEMA.instance_registered_outbox")).isZero()
         assertNextOffset(0)
         val originalHeaders = headersMapper.toEmbeddable(headers)
         assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
@@ -702,7 +989,7 @@ class InstanceRegistrationServiceIntegrationTest {
     private fun assertNoRegistrationData() {
         assertNoInstanceData()
         assertNextOffset(0)
-        listOf("event", "file_id", "error", "error_args").forEach { table ->
+        listOf("event", "file_id", "error", "error_args", "instance_registered_outbox").forEach { table ->
             assertThat(rowCount("$HISTORY_SCHEMA.$table")).isZero()
         }
     }

@@ -2,31 +2,44 @@ package no.novari.flyt.instance.kafka
 
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowProducerRecord
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplate
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
+import no.novari.flyt.instance.outbox.InstanceRegisteredOutboxEvent
+import no.novari.flyt.instance.outbox.InstanceRegisteredOutboxProperties
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeadersMapper
+import no.novari.kafka.OriginHeaderProducerInterceptor
 import no.novari.kafka.topic.EventTopicService
 import no.novari.kafka.topic.configuration.EventCleanupFrequency
 import no.novari.kafka.topic.configuration.EventTopicConfiguration
 import no.novari.kafka.topic.name.EventTopicNameParameters
 import no.novari.kafka.topic.name.TopicNamePrefixParameters
+import no.novari.kafka.topic.name.TopicNameService
+import org.apache.kafka.clients.admin.Admin
+import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common.config.ConfigResource
+import org.apache.kafka.common.config.TopicConfig
+import org.apache.kafka.common.header.internals.RecordHeaders
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Service
 import java.time.Duration
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 @Service
 @ConditionalOnInstanceFunctionality
 class InstanceRegisteredEventProducerService(
-    instanceFlowTemplateFactory: InstanceFlowTemplateFactory,
+    @param:Qualifier("instanceRegisteredOutboxKafkaTemplate")
+    private val kafkaTemplate: KafkaTemplate<String, InstanceObjectDto>,
+    @param:Qualifier("instanceRegisteredOutboxAdmin")
+    private val admin: Admin,
+    private val headersMapper: InstanceFlowHeadersMapper,
+    private val topicNameService: TopicNameService,
     eventTopicService: EventTopicService,
-    @Value("\${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
-    retentionTime: Duration,
+    private val properties: InstanceRegisteredOutboxProperties,
+    @param:Value($$"${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
+    private val retentionTime: Duration,
 ) {
-    private val instanceFlowTemplate: InstanceFlowTemplate<InstanceObjectDto> =
-        instanceFlowTemplateFactory.createTemplate(InstanceObjectDto::class.java)
-
-    private val topicNameParameters: EventTopicNameParameters =
+    private val topicNameParameters =
         EventTopicNameParameters
             .builder()
             .topicNamePrefixParameters(
@@ -37,6 +50,7 @@ class InstanceRegisteredEventProducerService(
                     .build(),
             ).eventName("instance-registered")
             .build()
+    private val topicName = topicNameService.validateAndMapToTopicName(topicNameParameters)
 
     init {
         eventTopicService.createOrModifyTopic(
@@ -50,17 +64,39 @@ class InstanceRegisteredEventProducerService(
         )
     }
 
-    fun publish(
-        instanceFlowHeaders: InstanceFlowHeaders,
-        instance: InstanceObjectDto,
-    ) {
-        instanceFlowTemplate.send(
-            InstanceFlowProducerRecord
-                .builder<InstanceObjectDto>()
-                .instanceFlowHeaders(instanceFlowHeaders)
-                .topicNameParameters(topicNameParameters)
-                .value(instance)
-                .build(),
-        )
+    fun publish(event: InstanceRegisteredOutboxEvent) {
+        val deadline = System.nanoTime() + properties.sendTimeout.toNanos()
+        val resource = ConfigResource(ConfigResource.Type.TOPIC, topicName)
+        val configuration = admin.describeConfigs(listOf(resource)).all().get(remaining(deadline), TimeUnit.NANOSECONDS)
+        check(
+            configuration.getValue(resource).get(TopicConfig.MESSAGE_TIMESTAMP_TYPE_CONFIG)?.value() == "CreateTime",
+        ) {
+            "instance-registered must use CreateTime"
+        }
+        val headers =
+            RecordHeaders().add(headersMapper.toHeader(event.headers)).add(
+                OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_RECORD_HEADER,
+                event.applicationId.toByteArray(Charsets.UTF_8),
+            )
+        val record =
+            ProducerRecord<String, InstanceObjectDto>(
+                topicName,
+                null,
+                event.timestamp.toEpochMilli(),
+                null,
+                event.instance,
+                headers,
+            )
+        remaining(deadline)
+        val send = kafkaTemplate.send(record)
+        val result = send.get(remaining(deadline), TimeUnit.NANOSECONDS)
+        check(
+            result.recordMetadata.timestamp() == event.timestamp.toEpochMilli(),
+        ) { "Kafka changed registration timestamp" }
     }
+
+    private fun remaining(deadline: Long): Long =
+        (deadline - System.nanoTime()).also {
+            if (it <= 0) throw TimeoutException("Outbox publication timed out")
+        }
 }

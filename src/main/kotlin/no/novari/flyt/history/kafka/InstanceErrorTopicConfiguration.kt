@@ -12,7 +12,7 @@ import java.time.Duration
 @Configuration
 class InstanceErrorTopicConfiguration(
     errorEventTopicService: ErrorEventTopicService,
-    @Value("\${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
+    @Value($$"${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
     retentionTime: Duration,
 ) {
     init {
