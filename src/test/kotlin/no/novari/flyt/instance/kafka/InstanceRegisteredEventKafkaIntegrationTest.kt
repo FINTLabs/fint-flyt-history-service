@@ -40,7 +40,7 @@ class InstanceRegisteredEventKafkaIntegrationTest {
     }
 
     @Test
-    fun `LogAppendTime topic retains the pending publication instead of sending incorrect metadata`() {
+    fun `LogAppendTime topic prevents producer startup`() {
         publishToBroker("LogAppendTime")
     }
 
@@ -76,7 +76,7 @@ class InstanceRegisteredEventKafkaIntegrationTest {
                     .get()
                 val names: TopicNameService = mock()
                 whenever(names.validateAndMapToTopicName(any())).thenReturn(topic)
-                val producer =
+                val createProducer = {
                     InstanceRegisteredEventProducerService(
                         template,
                         admin,
@@ -86,6 +86,7 @@ class InstanceRegisteredEventKafkaIntegrationTest {
                         properties,
                         Duration.ofDays(4),
                     )
+                }
                 val event =
                     outboxEvent().copy(
                         timestamp = Instant.now().minusSeconds(30).truncatedTo(ChronoUnit.MILLIS),
@@ -102,13 +103,10 @@ class InstanceRegisteredEventKafkaIntegrationTest {
                     consumer.assign(listOf(partition))
                     consumer.seekToBeginning(listOf(partition))
                     if (timestampType == "LogAppendTime") {
-                        assertThatThrownBy {
-                            producer.publish(
-                                event,
-                            )
-                        }.hasMessage("instance-registered must use CreateTime")
+                        assertThatThrownBy { createProducer() }.hasMessage("instance-registered must use CreateTime")
                         assertThat(consumer.endOffsets(listOf(partition)).getValue(partition)).isZero()
                     } else {
+                        val producer = createProducer()
                         producer.publish(event)
                         val record = consumer.poll(Duration.ofSeconds(15)).single()
                         assertThat(record.timestamp()).isEqualTo(event.timestamp.toEpochMilli())

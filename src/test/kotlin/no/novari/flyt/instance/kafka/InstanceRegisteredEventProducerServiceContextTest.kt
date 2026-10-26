@@ -8,7 +8,13 @@ import no.novari.kafka.topic.EventTopicService
 import no.novari.kafka.topic.name.EventTopicNameParameters
 import no.novari.kafka.topic.name.TopicNameService
 import org.apache.kafka.clients.admin.Admin
+import org.apache.kafka.clients.admin.Config
+import org.apache.kafka.clients.admin.ConfigEntry
+import org.apache.kafka.clients.admin.DescribeConfigsResult
 import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.common.KafkaFuture
+import org.apache.kafka.common.config.ConfigResource
+import org.apache.kafka.common.config.TopicConfig
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
@@ -59,6 +65,14 @@ class InstanceRegisteredEventProducerServiceContextTest {
     @Test
     fun `true flag registers the producer with the existing topic name`() {
         whenever(names.validateAndMapToTopicName(any())).thenReturn("registered-test")
+        val resource = ConfigResource(ConfigResource.Type.TOPIC, "registered-test")
+        val result: DescribeConfigsResult = mock()
+        whenever(admin.describeConfigs(any<Collection<ConfigResource>>())).thenReturn(result)
+        whenever(result.all()).thenReturn(
+            KafkaFuture.completedFuture(
+                mapOf(resource to Config(listOf(ConfigEntry(TopicConfig.MESSAGE_TIMESTAMP_TYPE_CONFIG, "CreateTime")))),
+            ),
+        )
         runner.withPropertyValues("novari.flyt.instance-functionality.enabled=true").run {
             assertThat(it).hasSingleBean(InstanceRegisteredEventProducerService::class.java)
             verify(topics).createOrModifyTopic(any<EventTopicNameParameters>(), any())

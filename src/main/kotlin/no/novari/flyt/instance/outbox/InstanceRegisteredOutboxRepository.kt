@@ -57,14 +57,6 @@ class InstanceRegisteredOutboxRepository(
                     FROM instance_registered_outbox pending
                     WHERE pending.next_attempt_at <= clock_timestamp()
                       AND (pending.claimed_until IS NULL OR pending.claimed_until <= clock_timestamp())
-                      AND NOT EXISTS (
-                          SELECT 1 FROM instance_registered_outbox earlier
-                          WHERE earlier.origin_cluster_id = pending.origin_cluster_id
-                            AND earlier.origin_topic_id = pending.origin_topic_id
-                            AND earlier.origin_topic_name = pending.origin_topic_name
-                            AND earlier.origin_partition_id = pending.origin_partition_id
-                            AND earlier.origin_offset < pending.origin_offset
-                      )
                     ORDER BY pending.created_at, pending.id
                     LIMIT 1 FOR UPDATE OF pending SKIP LOCKED
                 )

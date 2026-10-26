@@ -20,6 +20,7 @@ import org.apache.kafka.common.KafkaFuture
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.config.ConfigResource
 import org.apache.kafka.common.config.TopicConfig
+import org.apache.kafka.common.internals.KafkaFutureImpl
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
@@ -27,6 +28,7 @@ import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
@@ -50,16 +52,7 @@ class InstanceRegisteredEventProducerServiceTest {
     fun setUp() {
         whenever(topicNames.validateAndMapToTopicName(any())).thenReturn("instance-registered-test")
         timestampType("CreateTime")
-        producer =
-            InstanceRegisteredEventProducerService(
-                template,
-                admin,
-                headersMapper,
-                topicNames,
-                topics,
-                InstanceRegisteredOutboxProperties(sendTimeout = Duration.ofMillis(100)),
-                Duration.ofDays(4),
-            )
+        producer = createProducer()
         whenever(template.send(any<ProducerRecord<String, InstanceObjectDto>>())).thenAnswer {
             val record = it.getArgument<ProducerRecord<String, InstanceObjectDto>>(0)
             CompletableFuture.completedFuture(
@@ -114,11 +107,41 @@ class InstanceRegisteredEventProducerServiceTest {
     }
 
     @Test
-    fun `LogAppendTime is rejected before sending`() {
+    fun `CreateTime is verified only at startup`() {
+        producer.publish(event)
+        producer.publish(event)
+
+        verify(admin).describeConfigs(any<Collection<ConfigResource>>())
+        verify(template, times(2)).send(any<ProducerRecord<String, InstanceObjectDto>>())
+    }
+
+    @Test
+    fun `LogAppendTime prevents producer startup`() {
         timestampType("LogAppendTime")
-        assertThatThrownBy { producer.publish(event) }.hasMessage("instance-registered must use CreateTime")
+        assertThatThrownBy { createProducer() }.hasMessage("instance-registered must use CreateTime")
         verifyNoInteractions(template)
     }
+
+    @Test
+    fun `an unresponsive topic configuration lookup times out at startup`() {
+        val result: DescribeConfigsResult = mock()
+        whenever(admin.describeConfigs(any<Collection<ConfigResource>>())).thenReturn(result)
+        whenever(result.all()).thenReturn(KafkaFutureImpl())
+
+        assertThatThrownBy { createProducer() }.isInstanceOf(TimeoutException::class.java)
+        verifyNoInteractions(template)
+    }
+
+    private fun createProducer(): InstanceRegisteredEventProducerService =
+        InstanceRegisteredEventProducerService(
+            template,
+            admin,
+            headersMapper,
+            topicNames,
+            topics,
+            InstanceRegisteredOutboxProperties(sendTimeout = Duration.ofMillis(100)),
+            Duration.ofDays(4),
+        )
 
     private fun timestampType(value: String) {
         val result: DescribeConfigsResult = mock()

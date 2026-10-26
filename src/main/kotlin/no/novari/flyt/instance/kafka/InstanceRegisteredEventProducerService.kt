@@ -23,7 +23,6 @@ import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Service
 import java.time.Duration
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 @Service
 @ConditionalOnInstanceFunctionality
@@ -62,17 +61,17 @@ class InstanceRegisteredEventProducerService(
                 .cleanupFrequency(EventCleanupFrequency.NORMAL)
                 .build(),
         )
-    }
-
-    fun publish(event: InstanceRegisteredOutboxEvent) {
-        val deadline = System.nanoTime() + properties.sendTimeout.toNanos()
         val resource = ConfigResource(ConfigResource.Type.TOPIC, topicName)
-        val configuration = admin.describeConfigs(listOf(resource)).all().get(remaining(deadline), TimeUnit.NANOSECONDS)
+        val configuration =
+            admin.describeConfigs(listOf(resource)).all().get(properties.sendTimeout.toMillis(), TimeUnit.MILLISECONDS)
         check(
             configuration.getValue(resource).get(TopicConfig.MESSAGE_TIMESTAMP_TYPE_CONFIG)?.value() == "CreateTime",
         ) {
             "instance-registered must use CreateTime"
         }
+    }
+
+    fun publish(event: InstanceRegisteredOutboxEvent) {
         val headers =
             RecordHeaders().add(headersMapper.toHeader(event.headers)).add(
                 OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_RECORD_HEADER,
@@ -87,16 +86,6 @@ class InstanceRegisteredEventProducerService(
                 event.instance,
                 headers,
             )
-        remaining(deadline)
-        val send = kafkaTemplate.send(record)
-        val result = send.get(remaining(deadline), TimeUnit.NANOSECONDS)
-        check(
-            result.recordMetadata.timestamp() == event.timestamp.toEpochMilli(),
-        ) { "Kafka changed registration timestamp" }
+        kafkaTemplate.send(record).get(properties.sendTimeout.toMillis(), TimeUnit.MILLISECONDS)
     }
-
-    private fun remaining(deadline: Long): Long =
-        (deadline - System.nanoTime()).also {
-            if (it <= 0) throw TimeoutException("Outbox publication timed out")
-        }
 }

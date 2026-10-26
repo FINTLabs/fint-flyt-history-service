@@ -235,8 +235,9 @@ incoming record's origin would instead attribute registration to the producer of
 Registration determines its timestamp once from the injected clock, truncated to milliseconds.
 Both local INFO history and the outbox snapshot use that timestamp and the configured application
 ID. Kafka publication uses the stored values on every attempt, including after restarts. The
-registered-event producer verifies `CreateTime` before sending and verifies the acknowledged Kafka
-timestamp. It refuses `LogAppendTime`, which would replace the stored event timestamp.
+registered-event producer verifies `CreateTime` once at startup, after topic creation. A topic
+using `LogAppendTime` prevents startup when the feature is enabled. Publication performs no topic
+configuration lookup or acknowledged-timestamp comparison per record.
 
 The registration service has no direct Kafka publication. V11 creates `instance_registered_outbox`
 in the history schema, with a unique source message identity and no foreign key to the instance
@@ -275,11 +276,13 @@ and `SKIP LOCKED`, then waits for Kafka outside a database transaction. A fresh 
 completion and failure updates; an expired reservation can be taken over after a crash. Reservation
 and retry times use the database clock rather than pod clocks.
 
-A pending head blocks later outbox rows from the same source topic generation and partition,
-including while it is leased or waiting for retry. Other partitions can continue. Confirmed rows
-are deleted only after the broker acknowledges publication. Failed or unconfirmed rows remain with
-capped exponential backoff and a technical error type; there is no attempt limit that discards data.
-A stale owner cannot delete or change a row claimed by another publisher.
+Eligible outbox rows can be published independently, including rows from the same source partition.
+A leased row or a row waiting for retry does not block other eligible rows. Publication does not
+guarantee the order of incoming records; the incoming consumer must still process its records
+sequentially per partition. Confirmed rows are deleted only after the broker acknowledges
+publication. Failed or unconfirmed rows remain with capped exponential backoff and a technical
+error type; there is no attempt limit that discards data. A stale owner cannot delete or change
+a row claimed by another publisher.
 
 Delivery is at least once. If Kafka accepts a record but the acknowledgement is lost, or the
 process stops before the queue deletion commits, the same event can be published again. A lease
@@ -293,8 +296,9 @@ The dedicated producer inherits the existing connection and serialization config
 origin interceptor is excluded so the stored origin header is not replaced by the current runtime
 application ID. The adapter uses the shared instance-flow header mapper and DTO JSON serializer.
 Its Kafka clients and scheduler are qualified, non-default beans so other Kafka components and
-scheduled jobs keep their existing configuration. No topic settings are silently changed: a topic
-using `LogAppendTime` leaves publication unresolved until configuration is corrected.
+scheduled jobs keep their existing configuration. Configure `message.timestamp.type=CreateTime`
+on the topic or broker before activation. The startup check validates this prerequisite without
+changing topic settings.
 
 Configuration under `novari.flyt.instance.outbox`:
 
@@ -302,7 +306,7 @@ Configuration under `novari.flyt.instance.outbox`:
 | --- | --- | --- |
 | `poll-delay` | `1s` | Delay between completed runs. |
 | `max-records-per-run` | `100` | Maximum attempts during one run. |
-| `send-timeout` | `30s` | Common deadline for topic verification and acknowledgement; metadata/buffer blocking is also bounded. |
+| `send-timeout` | `30s` | Timeout for the startup topic check and each acknowledgement wait. Producer metadata/buffer blocking is bounded separately by the same duration. |
 | `claim-duration` | `2m` | Reservation lifetime; must exceed twice `send-timeout`. |
 | `retry-initial-delay` | `5s` | Delay after the first unresolved attempt. |
 | `retry-max-delay` | `5m` | Maximum exponential retry delay. |
@@ -311,8 +315,8 @@ Metrics are `flyt.instance.outbox.pending`, `flyt.instance.outbox.oldest.age.sec
 `flyt.instance.outbox.publish.failures`. Queue gauges refresh on each run; the failure counter is
 per running process. Application logs contain technical IDs and error types, without snapshots or
 complete headers. Published rows and their payloads are removed; unresolved rows are retained for
-recovery and must be monitored. Serialization failures also remain pending and block their source
-partition until resolved. Repeated publication failures do not create business registration errors.
+recovery and must be monitored. Serialization failures remain pending while other eligible rows
+continue. Repeated publication failures do not create business registration errors.
 
 Keep the master flag disabled in deployments until the complete processing flow is ready:
 enabling it already disables the Kafka history listener for `INSTANCE_REGISTERED`, while the

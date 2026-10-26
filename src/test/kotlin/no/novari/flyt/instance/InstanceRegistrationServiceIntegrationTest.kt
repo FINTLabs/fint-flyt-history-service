@@ -736,8 +736,9 @@ class InstanceRegistrationServiceIntegrationTest {
         assertThat(outboxService.statistics().pending).isZero()
     }
 
-    @Test
-    fun `an unresolved head blocks its partition while other partitions continue`() {
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `a leased or failed row allows other rows from any partition to continue`(failed: Boolean) {
         registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
         registrationHandler.handle(MESSAGE_ID.copy(offset = 1), 1, instanceFlowHeaders(), instanceGraph())
         val other = MESSAGE_ID.copy(partition = 1)
@@ -745,15 +746,72 @@ class InstanceRegistrationServiceIntegrationTest {
         registrationHandler.handle(other, 0, instanceFlowHeaders(), instanceGraph())
         val first = outboxService.claimNext()!!
         assertThat(first.messageId).isEqualTo(MESSAGE_ID)
-        assertThat(outboxService.claimNext()!!.messageId).isEqualTo(other)
+        if (failed) outboxService.fail(first, "test-failure")
+
+        val remaining = listOf(outboxService.claimNext()!!, outboxService.claimNext()!!)
+        assertThat(remaining.map { it.messageId }).containsExactlyInAnyOrder(MESSAGE_ID.copy(offset = 1), other)
+        remaining.forEach { assertThat(outboxService.complete(it)).isTrue() }
         assertThat(outboxService.claimNext()).isNull()
-        outboxService.fail(first, "test-failure")
-        assertThat(outboxService.claimNext()).isNull()
-        makeRetryReady(first.id)
+        assertThat(outboxService.statistics().pending).isEqualTo(1)
+
+        if (failed) makeRetryReady(first.id) else expireClaim(first.id)
         val retried = outboxService.claimNext()!!
         assertThat(retried.id).isEqualTo(first.id)
-        outboxService.complete(retried)
-        assertThat(outboxService.claimNext()!!.messageId).isEqualTo(MESSAGE_ID.copy(offset = 1))
+        assertThat(retried.attempts).isEqualTo(2)
+        assertThat(outboxService.complete(retried)).isTrue()
+        assertThat(outboxService.statistics().pending).isZero()
+    }
+
+    @Test
+    fun `a failed publication does not stop later rows in the same publisher run`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        registrationHandler.handle(MESSAGE_ID.copy(offset = 1), 1, instanceFlowHeaders(), instanceGraph())
+        val producer: InstanceRegisteredEventProducerService = mock()
+        doAnswer {
+            val event = it.getArgument<InstanceRegisteredOutboxEvent>(0)
+            if (event.messageId == MESSAGE_ID) throw TimeoutException("unconfirmed")
+            null
+        }.whenever(producer).publish(any())
+
+        withMeterRegistry { publisher(producer, it, maxRecordsPerRun = 2).publishPending() }
+
+        val sent = argumentCaptor<InstanceRegisteredOutboxEvent>()
+        verify(producer, times(2)).publish(sent.capture())
+        assertThat(sent.allValues.map { it.messageId }).containsExactly(MESSAGE_ID, MESSAGE_ID.copy(offset = 1))
+        assertThat(outboxService.statistics().pending).isEqualTo(1)
+        assertThat(outboxService.claimNext()).isNull()
+        assertNextOffset(2)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(2L)
+        assertThat(rowCount("$HISTORY_SCHEMA.error")).isZero()
+    }
+
+    @Test
+    fun `an unreadable snapshot remains pending while the next row is published`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        registrationHandler.handle(MESSAGE_ID.copy(offset = 1), 1, instanceFlowHeaders(), instanceGraph())
+        jdbcTemplate.update(
+            "UPDATE $HISTORY_SCHEMA.instance_registered_outbox SET instance_payload = '{}'::jsonb WHERE origin_offset = ?",
+            MESSAGE_ID.offset,
+        )
+        val producer: InstanceRegisteredEventProducerService = mock()
+
+        withMeterRegistry { publisher(producer, it, maxRecordsPerRun = 2).publishPending() }
+
+        val sent = argumentCaptor<InstanceRegisteredOutboxEvent>()
+        verify(producer).publish(sent.capture())
+        assertThat(sent.firstValue.messageId).isEqualTo(MESSAGE_ID.copy(offset = 1))
+        assertThat(outboxService.statistics().pending).isEqualTo(1)
+        assertThat(outboxService.claimNext()).isNull()
+        assertThat(
+            jdbcTemplate.queryForObject(
+                "SELECT last_error_type FROM $HISTORY_SCHEMA.instance_registered_outbox WHERE origin_offset = ?",
+                String::class.java,
+                MESSAGE_ID.offset,
+            ),
+        ).isNotBlank()
+        assertNextOffset(2)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(2L)
+        assertThat(rowCount("$HISTORY_SCHEMA.error")).isZero()
     }
 
     @Test
@@ -866,12 +924,13 @@ class InstanceRegistrationServiceIntegrationTest {
     private fun publisher(
         producer: InstanceRegisteredEventProducerService,
         registry: SimpleMeterRegistry,
+        maxRecordsPerRun: Int = 1,
     ): InstanceRegisteredOutboxPublisher =
         InstanceRegisteredOutboxPublisher(
             outboxService,
             outboxCodec,
             producer,
-            outboxProperties.copy(maxRecordsPerRun = 1),
+            outboxProperties.copy(maxRecordsPerRun = maxRecordsPerRun),
             registry,
         )
 
