@@ -1,77 +1,159 @@
 package no.novari.flyt.instance.kafka
 
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowProducerRecord
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplate
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
+import no.novari.flyt.instance.outbox.InstanceRegisteredOutboxProperties
+import no.novari.flyt.instance.outbox.outboxEvent
+import no.novari.flyt.instance.outbox.outboxObjectMapper
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeadersMapper
+import no.novari.kafka.OriginHeaderProducerInterceptor
 import no.novari.kafka.topic.EventTopicService
-import no.novari.kafka.topic.configuration.EventCleanupFrequency
 import no.novari.kafka.topic.configuration.EventTopicConfiguration
 import no.novari.kafka.topic.name.EventTopicNameParameters
+import no.novari.kafka.topic.name.TopicNameService
+import org.apache.kafka.clients.admin.Admin
+import org.apache.kafka.clients.admin.Config
+import org.apache.kafka.clients.admin.ConfigEntry
+import org.apache.kafka.clients.admin.DescribeConfigsResult
+import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.clients.producer.RecordMetadata
+import org.apache.kafka.common.KafkaFuture
+import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.config.ConfigResource
+import org.apache.kafka.common.config.TopicConfig
+import org.apache.kafka.common.internals.KafkaFutureImpl
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
+import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.kafka.support.SendResult
 import java.time.Duration
-import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeoutException
 
 class InstanceRegisteredEventProducerServiceTest {
-    private val instanceFlowTemplateFactory: InstanceFlowTemplateFactory = mock()
-    private val eventTopicService: EventTopicService = mock()
-    private val instanceFlowTemplate: InstanceFlowTemplate<InstanceObjectDto> = mock()
+    private val template: KafkaTemplate<String, InstanceObjectDto> = mock()
+    private val admin: Admin = mock()
+    private val topics: EventTopicService = mock()
+    private val topicNames: TopicNameService = mock()
+    private val headersMapper = InstanceFlowHeadersMapper(outboxObjectMapper())
+    private val event = outboxEvent()
     private lateinit var producer: InstanceRegisteredEventProducerService
 
     @BeforeEach
     fun setUp() {
-        whenever(instanceFlowTemplateFactory.createTemplate(InstanceObjectDto::class.java))
-            .thenReturn(instanceFlowTemplate)
-        producer =
-            InstanceRegisteredEventProducerService(
-                instanceFlowTemplateFactory,
-                eventTopicService,
-                Duration.ofDays(4),
+        whenever(topicNames.validateAndMapToTopicName(any())).thenReturn("instance-registered-test")
+        timestampType("CreateTime")
+        producer = createProducer()
+        whenever(template.send(any<ProducerRecord<String, InstanceObjectDto>>())).thenAnswer {
+            val record = it.getArgument<ProducerRecord<String, InstanceObjectDto>>(0)
+            CompletableFuture.completedFuture(
+                SendResult(record, RecordMetadata(TopicPartition(record.topic(), 0), 0, 0, record.timestamp(), 0, 0)),
             )
+        }
     }
 
     @Test
-    fun `creates DTO template and configures instance registered topic`() {
-        verify(instanceFlowTemplateFactory).createTemplate(InstanceObjectDto::class.java)
-
-        val topicCaptor = argumentCaptor<EventTopicNameParameters>()
-        val configurationCaptor = argumentCaptor<EventTopicConfiguration>()
-        verify(eventTopicService).createOrModifyTopic(topicCaptor.capture(), configurationCaptor.capture())
-
-        assertThat(topicCaptor.firstValue.eventName).isEqualTo("instance-registered")
-        assertThat(configurationCaptor.firstValue.partitions).isEqualTo(1)
-        assertThat(configurationCaptor.firstValue.retentionTime).isEqualTo(Duration.ofDays(4))
-        assertThat(configurationCaptor.firstValue.cleanupFrequency).isEqualTo(EventCleanupFrequency.NORMAL)
+    fun `preserves the registered topic configuration`() {
+        val names = argumentCaptor<EventTopicNameParameters>()
+        val configuration = argumentCaptor<EventTopicConfiguration>()
+        verify(topics).createOrModifyTopic(names.capture(), configuration.capture())
+        assertThat(names.firstValue.eventName).isEqualTo("instance-registered")
+        assertThat(configuration.firstValue.partitions).isEqualTo(1)
+        assertThat(configuration.firstValue.retentionTime).isEqualTo(Duration.ofDays(4))
     }
 
     @Test
-    fun `publish sends one record with unchanged headers and DTO`() {
-        val headers =
-            InstanceFlowHeaders
-                .builder()
-                .sourceApplicationId(1L)
-                .correlationId(UUID.fromString("2ee6f95e-44c3-11ed-b878-0242ac120002"))
-                .instanceId(123L)
-                .build()
-        val instance = InstanceObjectDto(id = 123L, valuePerKey = mutableMapOf("key" to "value"))
+    fun `publishes stored timestamp headers origin and DTO after acknowledgement`() {
+        producer.publish(event)
 
-        producer.publish(headers, instance)
+        val record = argumentCaptor<ProducerRecord<String, InstanceObjectDto>>()
+        verify(template).send(record.capture())
+        assertThat(record.firstValue.topic()).isEqualTo("instance-registered-test")
+        assertThat(record.firstValue.timestamp()).isEqualTo(event.timestamp.toEpochMilli())
+        assertThat(record.firstValue.key()).isNull()
+        assertThat(record.firstValue.value()).isSameAs(event.instance)
+        assertThat(headersMapper.getInstanceFlowHeaders(record.firstValue.headers())).isEqualTo(event.headers)
+        assertThat(
+            String(
+                record.firstValue
+                    .headers()
+                    .lastHeader(
+                        OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_RECORD_HEADER,
+                    ).value(),
+            ),
+        ).isEqualTo(event.applicationId)
+    }
 
-        val recordCaptor = argumentCaptor<InstanceFlowProducerRecord<InstanceObjectDto>>()
-        verify(instanceFlowTemplate).send(recordCaptor.capture())
-        val record = recordCaptor.firstValue
-        assertThat(record.instanceFlowHeaders).isSameAs(headers)
-        assertThat(record.value).isSameAs(instance)
-        val topicCaptor = argumentCaptor<EventTopicNameParameters>()
-        verify(eventTopicService).createOrModifyTopic(topicCaptor.capture(), any<EventTopicConfiguration>())
-        assertThat(record.topicNameParameters).isSameAs(topicCaptor.firstValue)
+    @Test
+    fun `a failed send future fails publication`() {
+        whenever(template.send(any<ProducerRecord<String, InstanceObjectDto>>()))
+            .thenReturn(CompletableFuture.failedFuture(IllegalStateException("broker rejected record")))
+        assertThatThrownBy { producer.publish(event) }.isInstanceOf(ExecutionException::class.java)
+    }
+
+    @Test
+    fun `an unacknowledged send times out`() {
+        whenever(template.send(any<ProducerRecord<String, InstanceObjectDto>>())).thenReturn(CompletableFuture())
+        assertThatThrownBy { producer.publish(event) }.isInstanceOf(TimeoutException::class.java)
+    }
+
+    @Test
+    fun `CreateTime is verified only at startup`() {
+        producer.publish(event)
+        producer.publish(event)
+
+        verify(admin).describeConfigs(any<Collection<ConfigResource>>())
+        verify(admin).close()
+        verify(template, times(2)).send(any<ProducerRecord<String, InstanceObjectDto>>())
+    }
+
+    @Test
+    fun `LogAppendTime prevents producer startup`() {
+        timestampType("LogAppendTime")
+        assertThatThrownBy { createProducer() }.hasMessage("instance-registered must use CreateTime")
+        verify(admin, times(2)).close()
+        verifyNoInteractions(template)
+    }
+
+    @Test
+    fun `an unresponsive topic configuration lookup times out at startup`() {
+        val result: DescribeConfigsResult = mock()
+        whenever(admin.describeConfigs(any<Collection<ConfigResource>>())).thenReturn(result)
+        whenever(result.all()).thenReturn(KafkaFutureImpl())
+
+        assertThatThrownBy { createProducer() }.isInstanceOf(TimeoutException::class.java)
+        verify(admin, times(2)).close()
+        verifyNoInteractions(template)
+    }
+
+    private fun createProducer(): InstanceRegisteredEventProducerService =
+        InstanceRegisteredEventProducerService(
+            template,
+            { admin },
+            headersMapper,
+            topicNames,
+            topics,
+            InstanceRegisteredOutboxProperties(sendTimeout = Duration.ofMillis(100)),
+            Duration.ofDays(4),
+        )
+
+    private fun timestampType(value: String) {
+        val result: DescribeConfigsResult = mock()
+        val resource = ConfigResource(ConfigResource.Type.TOPIC, "instance-registered-test")
+        whenever(admin.describeConfigs(any<Collection<ConfigResource>>())).thenReturn(result)
+        whenever(result.all()).thenReturn(
+            KafkaFuture.completedFuture(
+                mapOf(resource to Config(listOf(ConfigEntry(TopicConfig.MESSAGE_TIMESTAMP_TYPE_CONFIG, value)))),
+            ),
+        )
     }
 }

@@ -199,10 +199,11 @@ It does not load or recreate an instance graph or add history, even after instan
 
 A new record must supply the expected preceding position. If this differs from the stored
 `next_offset`, processing fails without advancing the position. After instance and INFO history
-are saved, a conditional update sets `next_offset` to the record offset plus one, matching the
-locked position and generation. Position, instance graph, and INFO history commit or roll back
-together with the existing transaction manager and REQUIRED propagation. An enclosing transaction
-can also roll back all three. The result for a new record is `InstanceRegistrationOutcome.Registered`
+are saved, an outbox snapshot is inserted and a conditional update sets `next_offset` to the record
+offset plus one, matching the locked position and generation. Position, instance graph, INFO
+history, and outbox snapshot commit or roll back together with the existing transaction manager
+and REQUIRED propagation. An enclosing transaction can also roll back all four. The result for
+a new record is `InstanceRegistrationOutcome.Registered`
 containing the saved DTO. There is no registration overload bypassing the position checks;
 `InstanceService.save` remains the lower-level persistence operation.
 
@@ -231,20 +232,24 @@ record, which is a different event from `instance-received`. The configured `fin
 identifies history-service as the service performing registration after the takeover; copying the
 incoming record's origin would instead attribute registration to the producer of `instance-received`.
 
-When reliable publication is implemented, determine the registration timestamp once and preserve
-that same timestamp in both local history and the outgoing `instance-registered` record, including
-publication retries. The outgoing origin application ID must match the application ID stored in
-local registration history. This metadata must be persisted with the pending publication so it
-survives restarts. This publication requirement is not implemented by the registration service yet.
+Registration determines its timestamp once from the injected clock, truncated to milliseconds.
+Both local INFO history and the outbox snapshot use that timestamp and the configured application
+ID. Kafka publication uses the stored values on every attempt, including after restarts. The
+registered-event producer verifies `CreateTime` once at startup, after topic creation. A topic
+using `LogAppendTime` prevents startup when the feature is enabled. Publication performs no topic
+configuration lookup or acknowledged-timestamp comparison per record. The dedicated Admin client
+is closed after the startup check, including when the check fails.
 
-The registration service has no Kafka dependencies and does not call the existing registered-event
-producer. Consumers, broker metadata lookup and refresh, offset handover, and reliable publication
-remain later work. When publication is added, its durable pending record must be written inside
-the registration transaction for new records only. Deduplication alone does not guarantee delivery
-of `instance-registered`. The integration tests verify registration, redelivery, generation changes,
-partition locking, rollback, retries, expected position checks, valid offset gaps, and progress
-retained after instance deletion. The migration test verifies that upgrading V9 preserves progress
-without fabricating topic identity.
+The registration service has no direct Kafka publication. V11 creates `instance_registered_outbox`
+in the history schema, with a unique source message identity and no foreign key to the instance
+graph. Headers and the complete saved DTO graph are stored as JSON snapshots. An internal snapshot
+model preserves generated IDs when reading the queue while the public DTO retains its existing
+read-only ID deserialization contract. Publication never reloads the instance graph.
+
+The incoming consumer, broker identity lookup and refresh, and offset handover remain later work.
+The outbox does not activate that consumer or initialize processing positions. Kafka and PostgreSQL
+integration tests cover atomic registration, queue reservations, retries, restart recovery, broker
+metadata, and existing registration rollback behavior.
 
 `InstanceRegistrationHandler.handle(messageId, expectedNextOffset, headers, instance)` is controlled
 by the same master flag. It requires no active transaction (`Propagation.NEVER`), allowing the
@@ -263,6 +268,66 @@ it starts a transaction because the handler has none. The original exception is 
 if error recording also fails, that exception is added as suppressed on the original exception.
 Successful error recording does not advance the processing position. Repeated failed attempts may
 still create repeated ERROR history. Calls with an active outer transaction remain rejected.
+
+### Instance registration outbox
+
+`InstanceRegisteredOutboxPublisher` is protected by the existing master flag and runs on its own
+scheduler. Each bounded run reserves eligible work in short database transactions using row locks
+and `SKIP LOCKED`, then waits for Kafka outside a database transaction. A fresh UUID token fences
+completion and failure updates; an expired reservation can be taken over after a crash. Reservation
+and retry times use the database clock rather than pod clocks.
+
+Eligible outbox rows can be published independently, including rows from the same source partition.
+A leased row or a row waiting for retry does not block other eligible rows. Publication does not
+guarantee the order of incoming records; the incoming consumer must still process its records
+sequentially per partition. Confirmed rows are deleted only after the broker acknowledges
+publication. Failed or unconfirmed rows remain with capped exponential backoff and a technical
+error type; there is no attempt limit that discards data. A stale owner cannot delete or change
+a row claimed by another publisher. If deletion fails after Kafka acknowledgement, the row remains
+reserved until its lease expires and can then be delivered again. This database cleanup failure
+is logged separately and does not increment the publication failure counter.
+
+Delivery is at least once. If Kafka accepts a record but the acknowledgement is lost, or the
+process stops before the queue deletion commits, the same event can be published again. A lease
+expiry can also produce duplicate sends. Stored headers, instance IDs, payload, timestamp, and
+origin remain unchanged, but readers must tolerate repeated events; producer idempotence alone
+does not deduplicate application-level resends across restarts. Confirm reader behavior before
+activation. Controlled topic-generation transitions must account for outstanding queue entries.
+
+The dedicated producer inherits the existing connection and serialization configuration, uses
+`acks=all` and idempotence, and retains the existing null record key and topic naming. Its own
+origin interceptor is excluded so the stored origin header is not replaced by the current runtime
+application ID. The adapter uses the shared instance-flow header mapper and DTO JSON serializer.
+Kafka send failures also reach the existing `ProducerFailureTracker` when available. The forwarded
+record contains only the topic, and the forwarded exception contains only its technical type,
+without the original message, payload, or cause.
+
+Its Kafka clients and scheduler are qualified, non-default beans so other Kafka components and
+scheduled jobs keep their existing configuration. Configure `message.timestamp.type=CreateTime`
+on the topic or broker before activation. The startup check validates this prerequisite without
+changing topic settings.
+
+Configuration under `novari.flyt.instance.outbox`:
+
+| Property              | Default | Purpose                                                                                                                                          |
+| --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `poll-delay`          | `1s`    | Delay between completed runs.                                                                                                                    |
+| `max-records-per-run` | `100`   | Maximum attempts during one run.                                                                                                                 |
+| `send-timeout`        | `30s`   | Timeout for the startup topic check and each acknowledgement wait. Producer metadata/buffer blocking is bounded separately by the same duration. |
+| `claim-duration`      | `2m`    | Reservation lifetime; must exceed twice `send-timeout`.                                                                                          |
+| `retry-initial-delay` | `5s`    | Delay after the first unresolved attempt.                                                                                                        |
+| `retry-max-delay`     | `5m`    | Maximum exponential retry delay.                                                                                                                 |
+
+Metrics are `flyt.instance.outbox.pending`, `flyt.instance.outbox.oldest.age.seconds`, and
+`flyt.instance.outbox.publish.failures`. Queue gauges refresh on each run; the failure counter is
+per running process and counts snapshot decoding or Kafka publication failures. Each pod reports
+the full queue gauges for its database. Aggregate gauges with `max` across replicas of the same
+organization and environment; summing them would count the same queue multiple times. The failure
+counters are local to each pod and can be summed across those replicas. Application logs contain
+technical IDs and error types, without snapshots or complete headers. Published rows and their
+payloads are removed; unresolved rows are retained for
+recovery and must be monitored. Serialization failures remain pending while other eligible rows
+continue. Repeated publication failures do not create business registration errors.
 
 Keep the master flag disabled in deployments until the complete processing flow is ready:
 enabling it already disables the Kafka history listener for `INSTANCE_REGISTERED`, while the

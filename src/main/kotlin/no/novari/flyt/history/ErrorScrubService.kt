@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional
 class ErrorScrubService(
     private val eventRepository: EventRepository,
     private val eventScrubber: EventScrubber,
-    @param:Value("\${novari.flyt.history-service.retention.scrub-batch-size}")
+    @param:Value($$"${novari.flyt.history-service.retention.scrub-batch-size}")
     private val scrubBatchSize: Int,
 ) {
     @Transactional

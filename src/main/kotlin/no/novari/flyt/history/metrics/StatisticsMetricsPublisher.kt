@@ -38,7 +38,7 @@ class StatisticsMetricsPublisher(
             .description("Current count of instance-flow statuses per source application (latest events).")
             .register(meterRegistry)
 
-    @Scheduled(fixedDelayString = "\${novari.flyt.history-service.metrics.refresh-ms:60000}")
+    @Scheduled(fixedDelayString = $$"${novari.flyt.history-service.metrics.refresh-ms:60000}")
     fun refreshMetrics() {
         try {
             publishInstanceTotals()
