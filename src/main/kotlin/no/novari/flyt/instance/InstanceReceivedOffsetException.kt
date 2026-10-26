@@ -2,4 +2,5 @@ package no.novari.flyt.instance
 
 class InstanceReceivedOffsetException(
     message: String,
-) : IllegalStateException(message)
+    cause: Throwable? = null,
+) : IllegalStateException(message, cause)

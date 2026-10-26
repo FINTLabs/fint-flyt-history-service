@@ -12,27 +12,16 @@ import java.util.UUID
 class InstanceReceivedOffsetRepository(
     private val jdbcTemplate: JdbcTemplate,
 ) {
+    @Transactional(readOnly = true)
+    fun find(
+        topic: String,
+        partition: Int,
+    ): InstanceReceivedPosition? = readPosition(topic, partition, false)
+
     @Transactional(propagation = Propagation.MANDATORY)
     fun lockNextOffset(messageId: InstanceReceivedMessageId): Long {
         val position =
-            jdbcTemplate
-                .query(
-                    """
-                    SELECT cluster_id, topic_id, next_offset
-                    FROM instance_received_offset
-                    WHERE topic_name = ? AND partition_id = ?
-                    FOR UPDATE
-                    """.trimIndent(),
-                    { resultSet, _ ->
-                        Position(
-                            resultSet.getString("cluster_id"),
-                            resultSet.getObject("topic_id", UUID::class.java),
-                            resultSet.getLong("next_offset"),
-                        )
-                    },
-                    messageId.topic,
-                    messageId.partition,
-                ).singleOrNull()
+            readPosition(messageId.topic, messageId.partition, true)
                 ?: throw InstanceReceivedOffsetException(
                     "No instance-received offset initialized for topic=${messageId.topic}, partition=${messageId.partition}",
                 )
@@ -49,6 +38,58 @@ class InstanceReceivedOffsetRepository(
             )
         }
         return position.nextOffset
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun initialize(request: InstanceReceivedPositionInitialization): InstanceReceivedPosition {
+        val desired =
+            InstanceReceivedPosition(
+                request.topic,
+                request.partition,
+                request.nextOffset,
+                request.clusterId,
+                request.topicId,
+            )
+        if (request.expectedPosition == ExpectedInstanceReceivedPosition.Missing) {
+            val inserted =
+                jdbcTemplate.update(
+                    """
+                    INSERT INTO instance_received_offset (topic_name, partition_id, next_offset, cluster_id, topic_id)
+                    VALUES (?, ?, ?, ?, ?) ON CONFLICT (topic_name, partition_id) DO NOTHING
+                    """.trimIndent(),
+                    request.topic,
+                    request.partition,
+                    request.nextOffset,
+                    request.clusterId,
+                    request.topicId,
+                )
+            if (inserted == 1) return desired
+        }
+        val actual = readPosition(request.topic, request.partition, true)
+        if (actual == desired) return actual
+        val expected = request.expectedPosition
+        if (actual != null && expected is ExpectedInstanceReceivedPosition.Legacy &&
+            actual.clusterId == null && actual.topicId == null &&
+            actual.nextOffset == expected.nextOffset && request.nextOffset == expected.nextOffset
+        ) {
+            val updated =
+                jdbcTemplate.update(
+                    """
+                    UPDATE instance_received_offset SET cluster_id = ?, topic_id = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE topic_name = ? AND partition_id = ? AND next_offset = ?
+                        AND cluster_id IS NULL AND topic_id IS NULL
+                    """.trimIndent(),
+                    request.clusterId,
+                    request.topicId,
+                    request.topic,
+                    request.partition,
+                    expected.nextOffset,
+                )
+            if (updated == 1) return desired
+        }
+        throw InstanceReceivedOffsetException(
+            "Instance-received position does not match the initialization basis for topic=${request.topic}, partition=${request.partition}",
+        )
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
@@ -79,9 +120,27 @@ class InstanceReceivedOffsetRepository(
         }
     }
 
-    private data class Position(
-        val clusterId: String?,
-        val topicId: UUID?,
-        val nextOffset: Long,
-    )
+    private fun readPosition(
+        topic: String,
+        partition: Int,
+        lock: Boolean,
+    ): InstanceReceivedPosition? =
+        jdbcTemplate
+            .query(
+                """
+                SELECT cluster_id, topic_id, next_offset
+                FROM instance_received_offset WHERE topic_name = ? AND partition_id = ?
+                """.trimIndent() + if (lock) " FOR UPDATE" else "",
+                { row, _ ->
+                    InstanceReceivedPosition(
+                        topic,
+                        partition,
+                        row.getLong("next_offset"),
+                        row.getString("cluster_id"),
+                        row.getObject("topic_id", UUID::class.java),
+                    )
+                },
+                topic,
+                partition,
+            ).singleOrNull()
 }

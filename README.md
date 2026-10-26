@@ -147,8 +147,9 @@ Useful commands:
 Flyway creates the local `fintlabs_no` history schema and the `instance_received_offset` table
 inside it when history-service starts. Each row identifies a topic and partition and stores the
 next offset to consume. V10 adds the Kafka cluster ID and topic ID to this existing table. Production
-initialization and the legacy writer remain later work; registration refuses missing positions or
-unverified topic generations. The existing instance tables remain in the instance-service schema; they are not
+cutover and the legacy writer remain later work. The explicit position service described below
+can validate and initialize positions; registration refuses missing positions or unverified topic
+generations. The existing instance tables remain in the instance-service schema; they are not
 copied into the history schema. In deployed environments both schemas belong to the same
 `fint-flyt` database. The separate local Postgres containers do not represent this topology.
 
@@ -217,8 +218,8 @@ allowed. Ownership changes must restore the database position before processing 
 
 There is one row per topic and partition, retained independently of instance cleanup. V10 no longer
 creates a per-message marker table. Both generation columns are nullable only to preserve existing
-V9 rows without inventing broker metadata; registration refuses unverified rows. The later handover
-work must initialize or bind each position using verified broker identity and the agreed next
+V9 rows without inventing broker metadata; registration refuses unverified rows. The controlled
+handover must initialize or bind each position using verified Kafka identity and the agreed next
 offset, with one active writer. Registration never guesses an initial offset or automatically binds
 a legacy row. A changed cluster or topic ID raises `InstanceReceivedOffsetException` and requires
 an explicit controlled transition; it never silently resets, adopts the new generation, or skips
@@ -246,8 +247,9 @@ graph. Headers and the complete saved DTO graph are stored as JSON snapshots. An
 model preserves generated IDs when reading the queue while the public DTO retains its existing
 read-only ID deserialization contract. Publication never reloads the instance graph.
 
-The incoming consumer, broker identity lookup and refresh, and offset handover remain later work.
-The outbox does not activate that consumer or initialize processing positions. Kafka and PostgreSQL
+The incoming consumer, its metadata refresh lifecycle, and operational offset handover remain
+later work. Metadata lookup and explicit position initialization are provided below. The outbox
+does not activate that consumer or initialize processing positions. Kafka and PostgreSQL
 integration tests cover atomic registration, queue reservations, retries, restart recovery, broker
 metadata, and existing registration rollback behavior.
 
@@ -268,6 +270,63 @@ it starts a transaction because the handler has none. The original exception is 
 if error recording also fails, that exception is added as suppressed on the original exception.
 Successful error recording does not advance the processing position. Repeated failed attempts may
 still create repeated ERROR history. Calls with an active outer transaction remain rejected.
+
+### Instance-received identity and position handover
+
+`InstanceReceivedKafkaMetadataService.read()` resolves the `instance-received` topic through
+`TopicNameService.validateAndMapToTopicName`, using the same application-default organization and
+domain prefix as `EventListenerConfiguration`. It reads the cluster ID with
+`describeCluster().clusterId()`, the topic ID, partitions, and earliest/end offsets. The cluster ID
+identifies the Kafka deployment; it is not the numeric ID of an individual broker. Topic IDs are
+converted from Kafka `Uuid` using their two 64-bit values, without parsing the base64 string.
+
+Metadata reads use a qualified, non-default `Supplier<Admin>` built from the shared
+`ProducerConfig` connection and security settings. A fresh client is closed with `use` after each
+lookup, including failures. `novari.flyt.instance.kafka.metadata-timeout` defaults to `10s` and
+bounds each request/future wait independently of the outbox send timeout. The offset requests use
+the isolation level from the actual shared `ConsumerConfig`. For `read_committed`, the upper
+bound is the last stable offset (LSO), so an open Kafka transaction cannot extend the accepted
+range beyond what the consumer can read. The future consumer must use the same isolation level;
+listener-specific overrides must also be reflected in this metadata lookup.
+
+`InstanceReceivedPositionService.getValidatedPosition(partition)` fetches current metadata and
+checks the stored position. Missing rows, unbound V9 rows, different cluster/topic IDs, absent
+partitions, and offsets outside the inclusive `[earliest, end]` range are technical
+`InstanceReceivedOffsetException`s. A position equal to `end` is valid and means caught up. Nothing
+is initialized, reset, or corrected as a side effect. No registration ERROR history is created.
+
+`InstanceReceivedPositionService.initialize(request)` is the internal entry point for the later
+controlled one-off handover job. This task adds no automatic startup call, admin endpoint, job
+runner, consumer, or environment activation. Each request explicitly supplies the resolved topic,
+partition, cluster ID, topic ID, next offset, and expected preceding database state:
+
+- `ExpectedInstanceReceivedPosition.Missing` allows inserting a missing row. `INSERT ... ON CONFLICT
+  DO NOTHING` handles concurrent creation; a conflict is read and compared instead of overwritten.
+- `ExpectedInstanceReceivedPosition.Legacy(nextOffset)` binds cluster/topic identity to an existing
+  V9 row only when its next offset matches the explicit expectation. Binding preserves the offset.
+- An already identical initialization is a no-op. Other existing states, including later progress
+  or another generation, are rejected. No generic reset/rewind operation is exposed.
+
+Both public position operations reject an outer database transaction. Kafka is read before the
+short database transaction; binding uses a row lock and a conditional update. The existing
+registration path continues to check and lock positions in its own transaction.
+
+The planned legacy writer in instance-service must persist verified completed progress in
+`instance_received_offset`; implementing that writer and its permissions remains cutover work.
+Those identity-less V9 rows form the normal handover basis: history-service validates their
+explicit next offsets and assigns the actual Kafka identity. A missing row requires a separately
+verified explicit basis. Kafka consumer group commits are not adopted automatically. If an
+approved handover basis uses a committed Kafka offset, it is already the next offset and must not
+be incremented again.
+
+Stop the old writer and drain in-flight work before capturing the final basis. Initialize or bind
+all required partitions before starting the new consumer, with one active processing owner.
+Metadata and retention boundaries are snapshots, not an atomic transaction with Kafka: retention
+or topic recreation can occur after validation. The future consumer must refresh identity on
+assignment, restore the validated database position, use `auto.offset.reset=none`, and stop on
+`OffsetOutOfRange` or identity changes instead of falling back to earliest/latest. That consumer
+behavior and the operational stop/start procedure are implemented in later tasks. No existing
+listener settings or consumer group offsets are changed here.
 
 ### Instance registration outbox
 
