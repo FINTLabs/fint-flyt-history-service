@@ -112,6 +112,7 @@ class InstanceRegisteredEventProducerServiceTest {
         producer.publish(event)
 
         verify(admin).describeConfigs(any<Collection<ConfigResource>>())
+        verify(admin).close()
         verify(template, times(2)).send(any<ProducerRecord<String, InstanceObjectDto>>())
     }
 
@@ -119,6 +120,7 @@ class InstanceRegisteredEventProducerServiceTest {
     fun `LogAppendTime prevents producer startup`() {
         timestampType("LogAppendTime")
         assertThatThrownBy { createProducer() }.hasMessage("instance-registered must use CreateTime")
+        verify(admin, times(2)).close()
         verifyNoInteractions(template)
     }
 
@@ -129,13 +131,14 @@ class InstanceRegisteredEventProducerServiceTest {
         whenever(result.all()).thenReturn(KafkaFutureImpl())
 
         assertThatThrownBy { createProducer() }.isInstanceOf(TimeoutException::class.java)
+        verify(admin, times(2)).close()
         verifyNoInteractions(template)
     }
 
     private fun createProducer(): InstanceRegisteredEventProducerService =
         InstanceRegisteredEventProducerService(
             template,
-            admin,
+            { admin },
             headersMapper,
             topicNames,
             topics,

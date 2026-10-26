@@ -26,16 +26,18 @@ import org.mockito.kotlin.whenever
 import org.springframework.boot.convert.ApplicationConversionService
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.kafka.core.KafkaTemplate
+import java.util.function.Supplier
 
 class InstanceRegisteredEventProducerServiceContextTest {
     private val template: KafkaTemplate<String, InstanceObjectDto> = mock()
     private val admin: Admin = mock()
+    private val adminSupplier: Supplier<Admin> = mock()
     private val topics: EventTopicService = mock()
     private val names: TopicNameService = mock()
     private val runner =
         ApplicationContextRunner()
             .withBean("instanceRegisteredOutboxKafkaTemplate", KafkaTemplate::class.java, { template })
-            .withBean("instanceRegisteredOutboxAdmin", Admin::class.java, { admin })
+            .withBean("instanceRegisteredOutboxAdminSupplier", Supplier::class.java, { adminSupplier })
             .withBean(EventTopicService::class.java, { topics })
             .withBean(TopicNameService::class.java, { names })
             .withBean(InstanceFlowHeadersMapper::class.java, { InstanceFlowHeadersMapper(outboxObjectMapper()) })
@@ -48,7 +50,7 @@ class InstanceRegisteredEventProducerServiceContextTest {
     fun `missing flag does not create a producer or contact Kafka`() {
         runner.run {
             assertThat(it).doesNotHaveBean(InstanceRegisteredEventProducerService::class.java)
-            verifyNoInteractions(admin, topics, names)
+            verifyNoInteractions(adminSupplier, admin, topics, names)
             verify(template, never()).send(any<ProducerRecord<String, InstanceObjectDto>>())
         }
     }
@@ -57,7 +59,7 @@ class InstanceRegisteredEventProducerServiceContextTest {
     fun `false flag does not create a producer or contact Kafka`() {
         runner.withPropertyValues("novari.flyt.instance-functionality.enabled=false").run {
             assertThat(it).doesNotHaveBean(InstanceRegisteredEventProducerService::class.java)
-            verifyNoInteractions(admin, topics, names)
+            verifyNoInteractions(adminSupplier, admin, topics, names)
             verify(template, never()).send(any<ProducerRecord<String, InstanceObjectDto>>())
         }
     }
@@ -65,6 +67,7 @@ class InstanceRegisteredEventProducerServiceContextTest {
     @Test
     fun `true flag registers the producer with the existing topic name`() {
         whenever(names.validateAndMapToTopicName(any())).thenReturn("registered-test")
+        whenever(adminSupplier.get()).thenReturn(admin)
         val resource = ConfigResource(ConfigResource.Type.TOPIC, "registered-test")
         val result: DescribeConfigsResult = mock()
         whenever(admin.describeConfigs(any<Collection<ConfigResource>>())).thenReturn(result)
@@ -76,6 +79,7 @@ class InstanceRegisteredEventProducerServiceContextTest {
         runner.withPropertyValues("novari.flyt.instance-functionality.enabled=true").run {
             assertThat(it).hasSingleBean(InstanceRegisteredEventProducerService::class.java)
             verify(topics).createOrModifyTopic(any<EventTopicNameParameters>(), any())
+            verify(admin).close()
         }
     }
 }

@@ -9,7 +9,6 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 @Service
@@ -22,7 +21,6 @@ class InstanceRegisteredOutboxPublisher(
     meterRegistry: MeterRegistry,
 ) {
     private val logger = KotlinLogging.logger {}
-    private val running = AtomicBoolean(false)
     private val statistics = AtomicReference(InstanceRegisteredOutboxStatistics(0, 0.0))
     private val failures = meterRegistry.counter("flyt.instance.outbox.publish.failures")
 
@@ -45,18 +43,12 @@ class InstanceRegisteredOutboxPublisher(
     )
     @Transactional(propagation = Propagation.NEVER)
     fun publishPending() {
-        if (!running.compareAndSet(false, true)) return
         try {
             var processed = 0
             while (processed++ < properties.maxRecordsPerRun && !Thread.currentThread().isInterrupted) {
                 val claim = outboxService.claimNext() ?: break
                 try {
                     producer.publish(codec.decode(claim))
-                    if (!outboxService.complete(claim)) {
-                        logger.info {
-                            "Outbox completion ignored for stale claim: id=${claim.id}, token=${claim.token}"
-                        }
-                    }
                 } catch (failure: Exception) {
                     if (failure is InterruptedException) Thread.currentThread().interrupt()
                     failures.increment()
@@ -67,9 +59,18 @@ class InstanceRegisteredOutboxPublisher(
                             "partition=${claim.messageId.partition}, offset=${claim.messageId.offset}, " +
                             "attempt=${claim.attempts}, errorType=$errorType"
                     }
-                    if (failure is InterruptedException) {
-                        Thread.currentThread().interrupt()
-                        break
+                    continue
+                }
+                try {
+                    if (!outboxService.complete(claim)) {
+                        logger.info {
+                            "Outbox completion ignored for stale claim: id=${claim.id}, token=${claim.token}"
+                        }
+                    }
+                } catch (failure: Exception) {
+                    logger.error {
+                        "Outbox cleanup failed after Kafka acknowledgement: id=${claim.id}, " +
+                            "errorType=${failure.javaClass.name}"
                     }
                 }
             }
@@ -81,7 +82,6 @@ class InstanceRegisteredOutboxPublisher(
             } catch (failure: Exception) {
                 logger.error { "Outbox metrics refresh failed: errorType=${failure.javaClass.name}" }
             }
-            running.set(false)
         }
     }
 }

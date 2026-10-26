@@ -63,7 +63,7 @@ class InstanceRegisteredEventKafkaIntegrationTest {
         val factory = configuration.instanceRegisteredOutboxProducerFactory(sharedConfig, mapper, properties)
         val template = configuration.instanceRegisteredOutboxKafkaTemplate(factory)
         try {
-            configuration.instanceRegisteredOutboxAdmin(sharedConfig, properties).use { admin ->
+            configuration.instanceRegisteredOutboxAdminSupplier(sharedConfig, properties).get().use { admin ->
                 val topic = "instance-registered-outbox-${UUID.randomUUID()}"
                 admin
                     .createTopics(
@@ -79,7 +79,7 @@ class InstanceRegisteredEventKafkaIntegrationTest {
                 val createProducer = {
                     InstanceRegisteredEventProducerService(
                         template,
-                        admin,
+                        configuration.instanceRegisteredOutboxAdminSupplier(sharedConfig, properties),
                         headersMapper,
                         names,
                         mock<EventTopicService>(),

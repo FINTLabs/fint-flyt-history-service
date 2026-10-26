@@ -4,9 +4,12 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.kafka.OriginHeaderProducerInterceptor
+import no.novari.kafka.health.ProducerFailureTracker
 import org.apache.kafka.clients.admin.Admin
 import org.apache.kafka.clients.admin.AdminClientConfig
 import org.apache.kafka.clients.producer.ProducerConfig
+import org.apache.kafka.clients.producer.ProducerRecord
+import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.serialization.StringSerializer
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
@@ -15,6 +18,7 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.support.ProducerListener
 import org.springframework.kafka.support.serializer.JsonSerializer
+import java.util.function.Supplier
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnInstanceFunctionality
@@ -56,16 +60,31 @@ class InstanceRegisteredOutboxKafkaConfiguration {
     fun instanceRegisteredOutboxKafkaTemplate(
         @Qualifier("instanceRegisteredOutboxProducerFactory")
         instanceRegisteredOutboxProducerFactory: DefaultKafkaProducerFactory<String, InstanceObjectDto>,
+        producerFailureTracker: ProducerFailureTracker? = null,
     ): KafkaTemplate<String, InstanceObjectDto> =
         KafkaTemplate(instanceRegisteredOutboxProducerFactory).apply {
-            setProducerListener(object : ProducerListener<String, InstanceObjectDto> {})
+            setProducerListener(
+                object : ProducerListener<String, InstanceObjectDto> {
+                    override fun onError(
+                        producerRecord: ProducerRecord<String, InstanceObjectDto>,
+                        recordMetadata: RecordMetadata?,
+                        exception: Exception,
+                    ) {
+                        producerFailureTracker?.onError(
+                            ProducerRecord<Any, Any>(producerRecord.topic(), null),
+                            recordMetadata,
+                            IllegalStateException(exception.javaClass.name),
+                        )
+                    }
+                },
+            )
         }
 
-    @Bean(destroyMethod = "close", defaultCandidate = false)
-    fun instanceRegisteredOutboxAdmin(
+    @Bean(defaultCandidate = false)
+    fun instanceRegisteredOutboxAdminSupplier(
         producerConfig: ProducerConfig,
         properties: InstanceRegisteredOutboxProperties,
-    ): Admin {
+    ): Supplier<Admin> {
         val configuration =
             producerConfig
                 .originals()
@@ -73,6 +92,6 @@ class InstanceRegisteredOutboxKafkaConfiguration {
                 .toMutableMap()
         configuration[AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG] = properties.sendTimeout.toMillis().toInt()
         configuration[AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG] = properties.sendTimeout.toMillis().toInt()
-        return Admin.create(configuration)
+        return Supplier { Admin.create(configuration) }
     }
 }

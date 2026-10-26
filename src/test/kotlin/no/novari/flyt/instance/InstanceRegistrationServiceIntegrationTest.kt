@@ -30,6 +30,7 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.junit.jupiter.params.provider.ValueSource
@@ -47,9 +48,12 @@ import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
+import org.springframework.dao.DataAccessResourceFailureException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ContextConfiguration
@@ -109,7 +113,7 @@ import java.util.concurrent.TimeoutException
 )
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class InstanceRegistrationServiceIntegrationTest {
-    @Autowired
+    @MockitoSpyBean
     lateinit var outboxService: InstanceRegisteredOutboxService
 
     @MockitoSpyBean
@@ -848,6 +852,64 @@ class InstanceRegistrationServiceIntegrationTest {
         assertNextOffset(1)
         assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
         assertThat(rowCount("$HISTORY_SCHEMA.error")).isZero()
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension::class)
+    fun `cleanup failure after Kafka acknowledgement preserves the row and metrics`(output: CapturedOutput) {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        doThrow(DataAccessResourceFailureException("database unavailable"))
+            .doCallRealMethod()
+            .whenever(outboxService)
+            .complete(any())
+        val producer: InstanceRegisteredEventProducerService = mock()
+        withMeterRegistry { registry ->
+            val publisher = publisher(producer, registry)
+            publisher.publishPending()
+
+            assertThat(outboxService.statistics().pending).isEqualTo(1)
+            assertThat(outboxService.claimNext()).isNull()
+            assertThat(registry.get("flyt.instance.outbox.publish.failures").counter().count()).isZero()
+            val row =
+                jdbcTemplate.queryForMap(
+                    "SELECT id, claim_token, last_error_type FROM $HISTORY_SCHEMA.instance_registered_outbox",
+                )
+            assertThat(row["claim_token"]).isNotNull()
+            assertThat(row["last_error_type"]).isNull()
+            assertThat(output.all).contains("Outbox cleanup failed after Kafka acknowledgement")
+            assertThat(output.all).doesNotContain("Outbox publication unresolved")
+
+            expireClaim(row["id"] as UUID)
+            publisher.publishPending()
+            assertThat(outboxService.statistics().pending).isZero()
+            assertThat(registry.get("flyt.instance.outbox.publish.failures").counter().count()).isZero()
+        }
+        val sent = argumentCaptor<InstanceRegisteredOutboxEvent>()
+        verify(producer, times(2)).publish(sent.capture())
+        assertThat(sent.allValues[1]).isEqualTo(sent.allValues[0])
+        assertNextOffset(1)
+        assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+        assertThat(rowCount("$HISTORY_SCHEMA.error")).isZero()
+    }
+
+    @Test
+    fun `interrupted publication preserves interruption and stops before the next row`() {
+        registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+        registrationHandler.handle(MESSAGE_ID.copy(offset = 1), 1, instanceFlowHeaders(), instanceGraph())
+        val producer: InstanceRegisteredEventProducerService = mock()
+        doAnswer { throw InterruptedException("stopping") }.whenever(producer).publish(any())
+        try {
+            withMeterRegistry { registry ->
+                publisher(producer, registry, maxRecordsPerRun = 2).publishPending()
+                assertThat(Thread.currentThread().isInterrupted).isTrue()
+                assertThat(registry.get("flyt.instance.outbox.publish.failures").counter().count()).isEqualTo(1.0)
+            }
+        } finally {
+            Thread.interrupted()
+        }
+        verify(producer).publish(any())
+        assertThat(outboxService.statistics().pending).isEqualTo(2)
+        assertNextOffset(2)
     }
 
     @Test

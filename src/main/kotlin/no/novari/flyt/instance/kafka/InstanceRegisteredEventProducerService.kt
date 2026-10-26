@@ -23,14 +23,15 @@ import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Service
 import java.time.Duration
 import java.util.concurrent.TimeUnit
+import java.util.function.Supplier
 
 @Service
 @ConditionalOnInstanceFunctionality
 class InstanceRegisteredEventProducerService(
     @param:Qualifier("instanceRegisteredOutboxKafkaTemplate")
     private val kafkaTemplate: KafkaTemplate<String, InstanceObjectDto>,
-    @param:Qualifier("instanceRegisteredOutboxAdmin")
-    private val admin: Admin,
+    @Qualifier("instanceRegisteredOutboxAdminSupplier")
+    adminSupplier: Supplier<Admin>,
     private val headersMapper: InstanceFlowHeadersMapper,
     private val topicNameService: TopicNameService,
     eventTopicService: EventTopicService,
@@ -61,13 +62,17 @@ class InstanceRegisteredEventProducerService(
                 .cleanupFrequency(EventCleanupFrequency.NORMAL)
                 .build(),
         )
-        val resource = ConfigResource(ConfigResource.Type.TOPIC, topicName)
-        val configuration =
-            admin.describeConfigs(listOf(resource)).all().get(properties.sendTimeout.toMillis(), TimeUnit.MILLISECONDS)
-        check(
-            configuration.getValue(resource).get(TopicConfig.MESSAGE_TIMESTAMP_TYPE_CONFIG)?.value() == "CreateTime",
-        ) {
-            "instance-registered must use CreateTime"
+        adminSupplier.get().use { admin ->
+            val resource = ConfigResource(ConfigResource.Type.TOPIC, topicName)
+            val configuration =
+                admin
+                    .describeConfigs(listOf(resource))
+                    .all()
+                    .get(properties.sendTimeout.toMillis(), TimeUnit.MILLISECONDS)
+            val timestampType = configuration.getValue(resource).get(TopicConfig.MESSAGE_TIMESTAMP_TYPE_CONFIG)?.value()
+            check(timestampType == "CreateTime") {
+                "instance-registered must use CreateTime"
+            }
         }
     }
 
