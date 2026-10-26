@@ -64,6 +64,7 @@ class InstanceFlowSummaryMappingServiceTest {
                     .latestInstanceId(100L)
                     .latestUpdate(OffsetDateTime.of(2024, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
                     .latestStatusEventName("testStatusEventName")
+                    .latestStatusEventComment("Manuelt behandlet")
                     .latestStorageStatusEventName("testStorageStatusEventName")
                     .destinationInstanceIds("testDestinationId")
                     .build(),
@@ -84,6 +85,7 @@ class InstanceFlowSummaryMappingServiceTest {
                     .latestInstanceId(100L)
                     .latestUpdate(OffsetDateTime.of(2024, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC))
                     .status(InstanceStatus.IN_PROGRESS)
+                    .comment("Manuelt behandlet")
                     .intermediateStorageStatus(InstanceStorageStatus.STORED)
                     .destinationInstanceIds("testDestinationId")
                     .build(),

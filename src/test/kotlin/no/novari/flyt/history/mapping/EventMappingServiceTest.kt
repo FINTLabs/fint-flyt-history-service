@@ -16,6 +16,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.NullAndEmptySource
+import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
@@ -295,6 +298,19 @@ class EventMappingServiceTest {
 
         assertThat(json).contains("\"isScrubbed\":false")
         assertThat(json).doesNotContain("\"scrubbed\"")
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = ["Manuelt behandlet", "  Behold mellomrom  ", "<b>Ren tekst</b>"])
+    fun `comment is mapped both ways and included in event pages`(comment: String?) {
+        val event = Event.builder().comment(comment).build()
+        val entity = EventEntity.builder().comment(comment).build()
+
+        assertThat(eventMappingService.toEventEntity(event).comment).isEqualTo(comment)
+        assertThat(eventMappingService.toEvent(entity).comment).isEqualTo(comment)
+        val pageEvent = eventMappingService.toEventPage(PageImpl(listOf(entity))).content.single()
+        assertThat(pageEvent.comment).isEqualTo(comment)
     }
 
     private fun withAudit(

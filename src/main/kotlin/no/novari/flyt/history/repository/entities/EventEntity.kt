@@ -52,6 +52,8 @@ class EventEntity(
     @field:OneToMany(cascade = [CascadeType.ALL], orphanRemoval = true)
     @field:JoinColumn(name = "event_id")
     var errors: MutableCollection<ErrorEntity> = mutableListOf(),
+    @field:Column(length = 250)
+    var comment: String? = null,
 ) : CreatedAuditedEntity() {
     companion object {
         @JvmStatic
@@ -68,6 +70,7 @@ class EventEntity(
         private var type: EventType? = null
         private var applicationId: String? = null
         private var errors: MutableCollection<ErrorEntity> = mutableListOf()
+        private var comment: String? = null
 
         fun id(id: Long) = apply { this.id = id }
 
@@ -93,6 +96,8 @@ class EventEntity(
                 this.errors = errors?.toMutableList() ?: mutableListOf()
             }
 
+        fun comment(comment: String?) = apply { this.comment = comment }
+
         fun build() =
             EventEntity(
                 id = id,
@@ -104,6 +109,7 @@ class EventEntity(
                 type = type,
                 applicationId = applicationId,
                 errors = errors,
+                comment = comment,
             )
     }
 }

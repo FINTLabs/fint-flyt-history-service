@@ -25,6 +25,7 @@ class InstanceFlowSummaryMappingService(
                 projection.latestStorageStatusEventName?.let(eventCategorizationService::getStorageStatusByEventName)
                     ?: InstanceStorageStatus.NEVER_STORED,
             destinationInstanceIds = projection.destinationInstanceIds,
+            comment = projection.latestStatusEventComment,
         )
     }
 }

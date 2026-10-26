@@ -1,6 +1,7 @@
 package no.novari.flyt.history.model.event
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import io.swagger.v3.oas.annotations.media.Schema
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.history.repository.entities.ErrorEntity
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
@@ -23,6 +24,12 @@ data class Event(
     val createdBy: String? = null,
     @field:JsonProperty(access = JsonProperty.Access.READ_ONLY)
     val createdByActor: Actor? = null,
+    @field:Schema(
+        description = "Optional plain-text comment registered on this manual status event.",
+        maxLength = 250,
+        nullable = true,
+    )
+    val comment: String? = null,
 ) {
     companion object {
         @JvmStatic
@@ -37,6 +44,7 @@ data class Event(
         private var type: EventType? = null
         private var applicationId: String? = null
         private var errors: Collection<ErrorEntity> = emptyList()
+        private var comment: String? = null
 
         fun instanceFlowHeaders(instanceFlowHeaders: InstanceFlowHeaders?) =
             apply {
@@ -73,6 +81,8 @@ data class Event(
                 this.errors = errors ?: emptyList()
             }
 
+        fun comment(comment: String?) = apply { this.comment = comment }
+
         fun build() =
             Event(
                 instanceFlowHeaders = instanceFlowHeaders,
@@ -82,6 +92,7 @@ data class Event(
                 type = type,
                 applicationId = applicationId,
                 errors = errors,
+                comment = comment,
             )
     }
 }

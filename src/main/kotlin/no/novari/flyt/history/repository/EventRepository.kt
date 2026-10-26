@@ -196,6 +196,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                      statusEvent.instance_id                       AS latestInstanceId,
                      statusEvent.timestamp                         AS latestUpdate,
                      statusEvent.name                              AS latestStatusEventName,
+                     statusEvent.comment                           AS latestStatusEventComment,
                      storageEvent.name                             AS latestStorageStatusEventName,
                      array_to_string(nameAndArchiveInstanceIdAgg.archiveInstanceIds, '||') AS destinationInstanceIds
              FROM event statusEvent
@@ -320,6 +321,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                      statusEvent.instance_id                       AS latestInstanceId,
                      statusEvent.timestamp                         AS latestUpdate,
                      statusEvent.name                              AS latestStatusEventName,
+                     statusEvent.comment                           AS latestStatusEventComment,
                      storageEvent.name                             AS latestStorageStatusEventName,
                      array_to_string(nameAndArchiveInstanceIdAgg.archiveInstanceIds, '||') AS destinationInstanceIds
              FROM event statusEvent
@@ -538,6 +540,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                         "latestUpdate was null for sourceApplicationInstanceId=${nativeProjection.getSourceApplicationInstanceId()}"
                     }.atOffset(ZoneOffset.UTC),
                 ).latestStatusEventName(nativeProjection.getLatestStatusEventName())
+                .latestStatusEventComment(nativeProjection.getLatestStatusEventComment())
                 .latestStorageStatusEventName(nativeProjection.getLatestStorageStatusEventName())
                 .destinationInstanceIds(
                     nativeProjection

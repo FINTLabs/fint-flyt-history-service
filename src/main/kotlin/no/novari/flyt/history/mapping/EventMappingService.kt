@@ -35,6 +35,7 @@ class EventMappingService(
             createdAt = eventEntity.createdAt,
             createdBy = eventEntity.createdBy?.let { displays[it] },
             createdByActor = eventEntity.createdBy,
+            comment = eventEntity.comment,
         )
     }
 
@@ -56,6 +57,7 @@ class EventMappingService(
             type = event.type,
             applicationId = event.applicationId,
             errors = event.errors.toMutableList(),
+            comment = event.comment,
         )
     }
 

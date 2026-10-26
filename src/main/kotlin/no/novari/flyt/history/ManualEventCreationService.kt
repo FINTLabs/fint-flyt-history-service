@@ -27,6 +27,7 @@ class ManualEventCreationService(
             sourceApplicationAggregateInstanceId = manuallyProcessedEventAction,
             eventCategory = EventCategory.INSTANCE_MANUALLY_PROCESSED,
             archiveInstanceId = manuallyProcessedEventAction.archiveInstanceId,
+            comment = manuallyProcessedEventAction.comment,
         )
     }
 
@@ -35,6 +36,7 @@ class ManualEventCreationService(
             sourceApplicationAggregateInstanceId = manuallyRejectedEventAction,
             eventCategory = EventCategory.INSTANCE_MANUALLY_REJECTED,
             archiveInstanceId = null,
+            comment = manuallyRejectedEventAction.comment,
         )
     }
 
@@ -45,6 +47,7 @@ class ManualEventCreationService(
             sourceApplicationAggregateInstanceId = instanceStatusTransferredOverrideAction,
             eventCategory = EventCategory.INSTANCE_STATUS_OVERRIDDEN_AS_TRANSFERRED,
             archiveInstanceId = null,
+            comment = instanceStatusTransferredOverrideAction.comment,
         )
     }
 
@@ -52,6 +55,7 @@ class ManualEventCreationService(
         sourceApplicationAggregateInstanceId: SourceApplicationAggregateInstanceId,
         eventCategory: EventCategory,
         archiveInstanceId: String?,
+        comment: String? = null,
     ): Event {
         val latestStatusEvent =
             eventService
@@ -83,6 +87,7 @@ class ManualEventCreationService(
                 timestamp = OffsetDateTime.now(clock),
                 type = eventCategory.type,
                 applicationId = applicationId,
+                comment = comment?.takeUnless(String::isBlank),
             ),
         )
     }

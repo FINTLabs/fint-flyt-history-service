@@ -17,6 +17,8 @@ interface InstanceFlowSummaryNativeProjection {
 
     fun getLatestStatusEventName(): String?
 
+    fun getLatestStatusEventComment(): String?
+
     fun getLatestStorageStatusEventName(): String?
 
     fun getDestinationInstanceIds(): String?

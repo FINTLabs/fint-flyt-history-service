@@ -1,5 +1,6 @@
 package no.novari.flyt.history.model.instance
 
+import io.swagger.v3.oas.annotations.media.Schema
 import java.time.OffsetDateTime
 
 data class InstanceFlowSummary(
@@ -12,6 +13,12 @@ data class InstanceFlowSummary(
     val status: InstanceStatus? = null,
     val intermediateStorageStatus: InstanceStorageStatus? = null,
     val destinationInstanceIds: String? = null,
+    @field:Schema(
+        description = "Optional plain-text comment on the latest status event, not on any earlier status.",
+        maxLength = 250,
+        nullable = true,
+    )
+    val comment: String? = null,
 ) {
     companion object {
         @JvmStatic
@@ -28,6 +35,7 @@ data class InstanceFlowSummary(
         private var status: InstanceStatus? = null
         private var intermediateStorageStatus: InstanceStorageStatus? = null
         private var destinationInstanceIds: String? = null
+        private var comment: String? = null
 
         fun sourceApplicationId(sourceApplicationId: Long?) = apply { this.sourceApplicationId = sourceApplicationId }
 
@@ -59,6 +67,8 @@ data class InstanceFlowSummary(
                 this.destinationInstanceIds = destinationInstanceIds
             }
 
+        fun comment(comment: String?) = apply { this.comment = comment }
+
         fun build() =
             InstanceFlowSummary(
                 sourceApplicationId = sourceApplicationId,
@@ -70,6 +80,7 @@ data class InstanceFlowSummary(
                 status = status,
                 intermediateStorageStatus = intermediateStorageStatus,
                 destinationInstanceIds = destinationInstanceIds,
+                comment = comment,
             )
     }
 }

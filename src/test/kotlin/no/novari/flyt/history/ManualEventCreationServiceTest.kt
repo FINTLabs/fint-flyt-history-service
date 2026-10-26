@@ -117,6 +117,7 @@ class ManualEventCreationServiceTest {
                 sourceApplicationAggregateInstanceId,
                 EventCategory.INSTANCE_MANUALLY_PROCESSED,
                 "testArchiveInstanceId",
+                comment = "Manuelt behandlet",
             )
 
         verify(eventService, times(1))
@@ -154,6 +155,7 @@ class ManualEventCreationServiceTest {
             event.category == EventCategory.INSTANCE_MANUALLY_PROCESSED &&
             event.timestamp!!.isEqual(OffsetDateTime.now(clock)) &&
             event.type == EventType.INFO &&
-            event.applicationId == "testApplicationId"
+            event.applicationId == "testApplicationId" &&
+            event.comment == "Manuelt behandlet"
     }
 }

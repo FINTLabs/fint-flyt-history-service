@@ -65,11 +65,21 @@ Manual action payloads:
   "sourceApplicationId": 123,
   "sourceApplicationIntegrationId": "integration-42",
   "sourceApplicationInstanceId": "instance-007",
-  "archiveInstanceId": "ark-abc-123"
+  "archiveInstanceId": "ark-abc-123",
+  "comment": "Processed manually in the archive system."
 }
 ```
 
 `archiveInstanceId` is only required for manually processed events.
+
+All three manual status endpoints accept an optional `comment` of at most 250 characters (SERVICE-1784).
+Omitting it or sending `null`, empty text, or whitespace-only text stores `null`. Nonblank text is preserved
+unchanged. Longer comments return the existing HTTP 422 validation response. Comments cannot be edited.
+
+The created event and the `/events` timeline include `comment`; older events return `null`.
+`/summaries` also includes `comment`, taken only from the latest status event. A subsequent status never
+inherits an earlier comment. Clients must display comments as plain text, not HTML. Frontend changes are
+outside this repository.
 
 Validation failures respond with 422 Unprocessable Entity using the shared formatting service.
 
