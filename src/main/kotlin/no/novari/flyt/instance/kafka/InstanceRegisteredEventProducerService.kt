@@ -20,7 +20,7 @@ import java.time.Duration
 class InstanceRegisteredEventProducerService(
     instanceFlowTemplateFactory: InstanceFlowTemplateFactory,
     eventTopicService: EventTopicService,
-    @Value("\${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
+    @Value($$"${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
     retentionTime: Duration,
 ) {
     private val instanceFlowTemplate: InstanceFlowTemplate<InstanceObjectDto> =
