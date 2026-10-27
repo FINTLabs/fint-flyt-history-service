@@ -2,6 +2,8 @@ package no.novari.flyt.instance
 
 import no.novari.flyt.history.Application
 import no.novari.flyt.instance.kafka.InstanceReceivedKafkaMetadataService
+import no.novari.flyt.instance.kafka.InstanceReceivedMetadataException
+import no.novari.flyt.instance.kafka.InstanceReceivedPartitionOffsets
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
@@ -10,6 +12,7 @@ import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 import org.junit.jupiter.params.provider.MethodSource
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
@@ -93,6 +96,52 @@ class InstanceReceivedPositionIntegrationTest {
     }
 
     @Test
+    fun `batch validation reads broker metadata once for all assigned partitions`() {
+        val first = InstanceReceivedPosition(RECEIVED_TOPIC, 0, 10, RECEIVED_CLUSTER, RECEIVED_TOPIC_ID)
+        val second = first.copy(partition = 1, nextOffset = 20)
+        insert(first)
+        insert(second)
+        whenever(metadataService.read()).thenAnswer {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
+            receivedMetadata().copy(
+                partitions =
+                    mapOf(
+                        0 to InstanceReceivedPartitionOffsets(0, 20),
+                        1 to InstanceReceivedPartitionOffsets(5, 20),
+                    ),
+            )
+        }
+
+        assertThat(positions.getValidatedPositions(setOf(0, 1))).containsExactlyInAnyOrderEntriesOf(
+            mapOf(
+                0 to first,
+                1 to second,
+            ),
+        )
+        verify(metadataService).read()
+    }
+
+    @Test
+    fun `an empty assignment needs no broker lookup`() {
+        assertThat(positions.getValidatedPositions(emptySet())).isEmpty()
+        verifyNoInteractions(metadataService)
+    }
+
+    @Test
+    fun `metadata failure remains distinct from position failure and leaves positions unchanged`() {
+        val position = InstanceReceivedPosition(RECEIVED_TOPIC, 0, 10, RECEIVED_CLUSTER, RECEIVED_TOPIC_ID)
+        insert(position)
+        val failure = InstanceReceivedMetadataException("metadata timed out")
+        whenever(metadataService.read()).thenThrow(failure)
+
+        assertThat(assertThrows<InstanceReceivedMetadataException> { positions.getValidatedPositions(setOf(0)) })
+            .isSameAs(failure)
+        assertThat(assertThrows<InstanceReceivedMetadataException> { positions.initialize(positionInitialization()) })
+            .isSameAs(failure)
+        assertThat(repository.find(RECEIVED_TOPIC, 0)).isEqualTo(position)
+    }
+
+    @Test
     fun `a missing position is rejected without choosing a start offset`() {
         assertThrows<InstanceReceivedOffsetException> { positions.getValidatedPosition(0) }
         assertThat(repository.find(RECEIVED_TOPIC, 0)).isNull()
@@ -101,7 +150,7 @@ class InstanceReceivedPositionIntegrationTest {
     @Test
     fun `binding identity preserves the explicit legacy position`() {
         insert(InstanceReceivedPosition(RECEIVED_TOPIC, 0, 10, null, null))
-        val request = positionInitialization().copy(expectedPosition = ExpectedInstanceReceivedPosition.Legacy(10))
+        val request = positionInitialization().copy(expectedPosition = ExpectedInstanceReceivedPosition.Legacy)
 
         val bound = positions.initialize(request)
 
@@ -124,7 +173,7 @@ class InstanceReceivedPositionIntegrationTest {
     @Test
     fun `legacy binding is idempotent after identity was assigned`() {
         insert(InstanceReceivedPosition(RECEIVED_TOPIC, 0, 10, null, null))
-        val request = positionInitialization().copy(expectedPosition = ExpectedInstanceReceivedPosition.Legacy(10))
+        val request = positionInitialization().copy(expectedPosition = ExpectedInstanceReceivedPosition.Legacy)
         val initialized = positions.initialize(request)
 
         assertThat(positions.initialize(request)).isEqualTo(initialized)
@@ -144,22 +193,25 @@ class InstanceReceivedPositionIntegrationTest {
     fun `initialization rejects invalid broker identity partitions and offsets without writing`() {
         val base = positionInitialization()
         val invalid =
-            listOf(
-                base.copy(topic = "other-topic"),
-                base.copy(clusterId = "other-cluster"),
-                base.copy(topicId = UUID.randomUUID()),
-                base.copy(topicId = UUID(0, 0)),
-                base.copy(partition = 1),
-                base.copy(nextOffset = -1),
-                base.copy(nextOffset = 21),
+            listOf<() -> InstanceReceivedPositionInitialization>(
+                { base.copy(topic = "") },
+                { base.copy(topic = "other-topic") },
+                { base.copy(clusterId = "") },
+                { base.copy(clusterId = "other-cluster") },
+                { base.copy(topicId = UUID.randomUUID()) },
+                { base.copy(topicId = UUID(0, 0)) },
+                { base.copy(partition = -1) },
+                { base.copy(partition = 1) },
+                { base.copy(nextOffset = -1) },
+                { base.copy(nextOffset = 21) },
             )
-        invalid.forEach { request -> assertThrows<InstanceReceivedOffsetException> { positions.initialize(request) } }
+        invalid.forEach { request -> assertThrows<InstanceReceivedOffsetException> { positions.initialize(request()) } }
         assertThat(repository.find(RECEIVED_TOPIC, 0)).isNull()
     }
 
     @Test
     fun `legacy binding refuses a missing row or a different expected offset`() {
-        val request = positionInitialization().copy(expectedPosition = ExpectedInstanceReceivedPosition.Legacy(10))
+        val request = positionInitialization().copy(expectedPosition = ExpectedInstanceReceivedPosition.Legacy)
         assertThrows<InstanceReceivedOffsetException> { positions.initialize(request) }
         insert(InstanceReceivedPosition(RECEIVED_TOPIC, 0, 11, null, null))
 
@@ -167,7 +219,7 @@ class InstanceReceivedPositionIntegrationTest {
         assertThrows<InstanceReceivedOffsetException> { positions.initialize(positionInitialization(11)) }
         assertThrows<InstanceReceivedOffsetException> {
             positions.initialize(
-                request.copy(nextOffset = 12, expectedPosition = ExpectedInstanceReceivedPosition.Legacy(11)),
+                request.copy(nextOffset = 12, expectedPosition = ExpectedInstanceReceivedPosition.Legacy),
             )
         }
         assertThat(
@@ -204,6 +256,7 @@ class InstanceReceivedPositionIntegrationTest {
         TransactionTemplate(transactionManager).executeWithoutResult {
             assertThrows<IllegalTransactionStateException> { positions.initialize(positionInitialization()) }
             assertThrows<IllegalTransactionStateException> { positions.getValidatedPosition(0) }
+            assertThrows<IllegalTransactionStateException> { positions.getValidatedPositions(setOf(0, 1)) }
         }
         verifyNoInteractions(metadataService)
         assertThat(repository.find(RECEIVED_TOPIC, 0)).isNull()
@@ -228,7 +281,7 @@ class InstanceReceivedPositionIntegrationTest {
     @Test
     fun `concurrent legacy bindings preserve the existing offset`() {
         insert(InstanceReceivedPosition(RECEIVED_TOPIC, 0, 10, null, null))
-        val request = positionInitialization().copy(expectedPosition = ExpectedInstanceReceivedPosition.Legacy(10))
+        val request = positionInitialization().copy(expectedPosition = ExpectedInstanceReceivedPosition.Legacy)
 
         val results = concurrently(listOf(request, request))
 

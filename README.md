@@ -275,25 +275,41 @@ still create repeated ERROR history. Calls with an active outer transaction rema
 
 `InstanceReceivedKafkaMetadataService.read()` resolves the `instance-received` topic through
 `TopicNameService.validateAndMapToTopicName`, using the same application-default organization and
-domain prefix as `EventListenerConfiguration`. It reads the cluster ID with
+domain prefix as `EventListenerConfiguration`. Both use the shared `eventTopicNameParameters`
+function, so the received-event name and prefix have one definition. It reads the cluster ID with
 `describeCluster().clusterId()`, the topic ID, partitions, and earliest/end offsets. The cluster ID
 identifies the Kafka deployment; it is not the numeric ID of an individual broker. Topic IDs are
 converted from Kafka `Uuid` using their two 64-bit values, without parsing the base64 string.
 
 Metadata reads use a qualified, non-default `Supplier<Admin>` built from the shared
-`ProducerConfig` connection and security settings. A fresh client is closed with `use` after each
-lookup, including failures. `novari.flyt.instance.kafka.metadata-timeout` defaults to `10s` and
-bounds each request/future wait independently of the outbox send timeout. The offset requests use
-the isolation level from the actual shared `ConsumerConfig`. For `read_committed`, the upper
+`ProducerConfig` connection and security settings. Metadata and outbox suppliers share the same
+client-construction helper while keeping separate timeout properties. A fresh metadata client is
+closed after each lookup, including failures. `novari.flyt.instance.kafka.metadata-timeout`
+defaults to `10s` and supplies one monotonic waiting budget shared by all futures and client
+closing. Each wait receives only the remaining budget; closing receives zero when it is exhausted.
+The deadline starts before client creation, but it cannot interrupt synchronous client construction
+or DNS resolution. The property remains independent of the outbox send timeout. The offset
+requests use the isolation level from the actual shared `ConsumerConfig`. For `read_committed`, the upper
 bound is the last stable offset (LSO), so an open Kafka transaction cannot extend the accepted
 range beyond what the consumer can read. The future consumer must use the same isolation level;
 listener-specific overrides must also be reflected in this metadata lookup.
 
-`InstanceReceivedPositionService.getValidatedPosition(partition)` fetches current metadata and
-checks the stored position. Missing rows, unbound V9 rows, different cluster/topic IDs, absent
-partitions, and offsets outside the inclusive `[earliest, end]` range are technical
+`InstanceReceivedPositionService.getValidatedPositions(partitions)` fetches one fresh metadata
+snapshot for all assigned partitions and checks their stored positions. An empty assignment
+returns an empty map without contacting Kafka. The single-partition method delegates to this
+batch operation; there is no long-lived metadata cache. Missing rows, unbound V9 rows, different
+cluster/topic IDs, absent partitions, and offsets outside the inclusive `[earliest, end]` range are
+technical
 `InstanceReceivedOffsetException`s. A position equal to `end` is valid and means caught up. Nothing
 is initialized, reset, or corrected as a side effect. No registration ERROR history is created.
+
+Metadata failures use the separate `InstanceReceivedMetadataException`. Its message identifies
+timeouts, unavailable brokers, missing topics, or authorization failures, and its cause is the
+underlying Kafka failure rather than an `ExecutionException`/`CompletionException` wrapper.
+Malformed metadata also uses this type; invalid persisted positions and generation mismatches
+remain `InstanceReceivedOffsetException`. The future consumer must distinguish retryable broker
+failures from configuration/access problems; not every metadata failure should be retried.
+Metadata lookup occurs before registration and does not pass through the registration handler.
 
 `InstanceReceivedPositionService.initialize(request)` is the internal entry point for the later
 controlled one-off handover job. This task adds no automatic startup call, admin endpoint, job
@@ -302,12 +318,15 @@ partition, cluster ID, topic ID, next offset, and expected preceding database st
 
 - `ExpectedInstanceReceivedPosition.Missing` allows inserting a missing row. `INSERT ... ON CONFLICT
   DO NOTHING` handles concurrent creation; a conflict is read and compared instead of overwritten.
-- `ExpectedInstanceReceivedPosition.Legacy(nextOffset)` binds cluster/topic identity to an existing
-  V9 row only when its next offset matches the explicit expectation. Binding preserves the offset.
+- `ExpectedInstanceReceivedPosition.Legacy` binds cluster/topic identity to an existing V9 row
+  only when its next offset matches `request.nextOffset`. That value is both the expected and
+  preserved offset, so a request cannot specify a different desired offset. Request fields are
+  validated at construction with `InstanceReceivedOffsetException`, including for direct
+  repository calls.
 - An already identical initialization is a no-op. Other existing states, including later progress
   or another generation, are rejected. No generic reset/rewind operation is exposed.
 
-Both public position operations reject an outer database transaction. Kafka is read before the
+All public position operations reject an outer database transaction. Kafka is read before the
 short database transaction; binding uses a row lock and a conditional update. The existing
 registration path continues to check and lock positions in its own transaction.
 

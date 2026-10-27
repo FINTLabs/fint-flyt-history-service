@@ -2,11 +2,11 @@ package no.novari.flyt.instance.outbox
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
+import no.novari.flyt.instance.kafka.kafkaAdminSupplier
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.kafka.OriginHeaderProducerInterceptor
 import no.novari.kafka.health.ProducerFailureTracker
 import org.apache.kafka.clients.admin.Admin
-import org.apache.kafka.clients.admin.AdminClientConfig
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.clients.producer.RecordMetadata
@@ -84,14 +84,5 @@ class InstanceRegisteredOutboxKafkaConfiguration {
     fun instanceRegisteredOutboxAdminSupplier(
         producerConfig: ProducerConfig,
         properties: InstanceRegisteredOutboxProperties,
-    ): Supplier<Admin> {
-        val configuration =
-            producerConfig
-                .originals()
-                .filterKeys { it in AdminClientConfig.configNames() }
-                .toMutableMap()
-        configuration[AdminClientConfig.DEFAULT_API_TIMEOUT_MS_CONFIG] = properties.sendTimeout.toMillis().toInt()
-        configuration[AdminClientConfig.REQUEST_TIMEOUT_MS_CONFIG] = properties.sendTimeout.toMillis().toInt()
-        return Supplier { Admin.create(configuration) }
-    }
+    ): Supplier<Admin> = kafkaAdminSupplier(producerConfig, properties.sendTimeout)
 }

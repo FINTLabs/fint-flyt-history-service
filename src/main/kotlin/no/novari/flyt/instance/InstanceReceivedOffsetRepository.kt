@@ -67,10 +67,8 @@ class InstanceReceivedOffsetRepository(
         }
         val actual = readPosition(request.topic, request.partition, true)
         if (actual == desired) return actual
-        val expected = request.expectedPosition
-        if (actual != null && expected is ExpectedInstanceReceivedPosition.Legacy &&
-            actual.clusterId == null && actual.topicId == null &&
-            actual.nextOffset == expected.nextOffset && request.nextOffset == expected.nextOffset
+        if (actual != null && request.expectedPosition == ExpectedInstanceReceivedPosition.Legacy &&
+            actual.clusterId == null && actual.topicId == null && actual.nextOffset == request.nextOffset
         ) {
             val updated =
                 jdbcTemplate.update(
@@ -83,7 +81,7 @@ class InstanceReceivedOffsetRepository(
                     request.topicId,
                     request.topic,
                     request.partition,
-                    expected.nextOffset,
+                    request.nextOffset,
                 )
             if (updated == 1) return desired
         }

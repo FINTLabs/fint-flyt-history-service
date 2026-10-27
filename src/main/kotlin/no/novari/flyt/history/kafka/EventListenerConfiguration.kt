@@ -16,7 +16,6 @@ import no.novari.kafka.consuming.ErrorHandlerConfiguration
 import no.novari.kafka.consuming.ErrorHandlerFactory
 import no.novari.kafka.consuming.ListenerConfiguration
 import no.novari.kafka.topic.name.ErrorEventTopicNameParameters
-import no.novari.kafka.topic.name.EventTopicNameParameters
 import no.novari.kafka.topic.name.TopicNamePrefixParameters
 import org.apache.kafka.common.header.Headers
 import org.springframework.beans.factory.annotation.Value
@@ -98,11 +97,7 @@ class EventListenerConfiguration(
                         .build(),
                 ),
             ).createContainer(
-                EventTopicNameParameters
-                    .builder()
-                    .eventName(category.eventName)
-                    .topicNamePrefixParameters(topicNamePrefixParameters())
-                    .build(),
+                eventTopicNameParameters(category),
             )
     }
 
