@@ -1,0 +1,214 @@
+package no.novari.flyt.instance.kafka
+
+import no.novari.flyt.instance.InstanceReceivedOffsetException
+import no.novari.flyt.instance.RECEIVED_CLUSTER
+import no.novari.flyt.instance.RECEIVED_TOPIC
+import no.novari.flyt.instance.RECEIVED_TOPIC_ID
+import no.novari.flyt.instance.receivedConsumerConfig
+import no.novari.kafka.topic.name.TopicNameService
+import org.apache.kafka.clients.admin.Admin
+import org.apache.kafka.clients.admin.DescribeClusterResult
+import org.apache.kafka.clients.admin.DescribeTopicsResult
+import org.apache.kafka.clients.admin.ListOffsetsOptions
+import org.apache.kafka.clients.admin.ListOffsetsResult
+import org.apache.kafka.clients.admin.OffsetSpec
+import org.apache.kafka.clients.admin.TopicDescription
+import org.apache.kafka.common.IsolationLevel
+import org.apache.kafka.common.KafkaFuture
+import org.apache.kafka.common.Node
+import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.TopicPartitionInfo
+import org.apache.kafka.common.Uuid
+import org.apache.kafka.common.errors.NetworkException
+import org.apache.kafka.common.errors.TopicAuthorizationException
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException
+import org.apache.kafka.common.internals.KafkaFutureImpl
+import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+import java.time.Duration
+import java.util.Optional
+import java.util.concurrent.TimeoutException
+
+class InstanceReceivedKafkaMetadataServiceTest {
+    private val admin: Admin = mock()
+    private val cluster: DescribeClusterResult = mock()
+    private val names: TopicNameService = mock()
+    private val partition = TopicPartition(RECEIVED_TOPIC, 0)
+
+    @BeforeEach
+    fun metadata() {
+        whenever(names.validateAndMapToTopicName(any())).thenReturn(RECEIVED_TOPIC)
+        whenever(admin.describeCluster()).thenReturn(cluster)
+        whenever(cluster.clusterId()).thenReturn(KafkaFuture.completedFuture(RECEIVED_CLUSTER))
+        describe(Uuid(RECEIVED_TOPIC_ID.mostSignificantBits, RECEIVED_TOPIC_ID.leastSignificantBits))
+        whenever(admin.listOffsets(any<Map<TopicPartition, OffsetSpec>>(), any<ListOffsetsOptions>())).thenAnswer {
+            val request = it.getArgument<Map<TopicPartition, OffsetSpec>>(0)
+            val offset = if (request.values.first().javaClass == OffsetSpec.earliest().javaClass) 5L else 20L
+            ListOffsetsResult(
+                mapOf(
+                    partition to
+                        KafkaFuture.completedFuture(
+                            ListOffsetsResult.ListOffsetsResultInfo(offset, -1, Optional.empty()),
+                        ),
+                ),
+            )
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = ["read_committed", "read_uncommitted"])
+    fun `metadata uses the topic generation and consumer isolation and closes the client`(isolation: String) {
+        val metadata = service(isolation).read()
+
+        assertThat(metadata.clusterId).isEqualTo(RECEIVED_CLUSTER)
+        assertThat(metadata.topicId).isEqualTo(RECEIVED_TOPIC_ID)
+        assertThat(metadata.partitions).containsEntry(0, InstanceReceivedPartitionOffsets(5, 20))
+        val options = argumentCaptor<ListOffsetsOptions>()
+        verify(admin, times(2)).listOffsets(any<Map<TopicPartition, OffsetSpec>>(), options.capture())
+        val expected =
+            if (isolation ==
+                "read_committed"
+            ) {
+                IsolationLevel.READ_COMMITTED
+            } else {
+                IsolationLevel.READ_UNCOMMITTED
+            }
+        assertThat(options.allValues.map { it.isolationLevel() }).containsOnly(expected)
+        verify(admin).close(any<Duration>())
+    }
+
+    @Test
+    fun `authorization failure preserves its Kafka cause and closes the client`() {
+        val failure = KafkaFutureImpl<String>()
+        failure.completeExceptionally(TopicAuthorizationException("access denied"))
+        whenever(cluster.clusterId()).thenReturn(failure)
+
+        assertThatThrownBy { service().read() }
+            .isInstanceOf(InstanceReceivedMetadataException::class.java)
+            .hasCauseInstanceOf(TopicAuthorizationException::class.java)
+            .hasMessageContaining("Not authorized")
+            .isNotInstanceOf(InstanceReceivedOffsetException::class.java)
+        verify(admin).close(any<Duration>())
+    }
+
+    @Test
+    fun `metadata lookup is bounded and a timeout closes the client`() {
+        whenever(cluster.clusterId()).thenReturn(KafkaFutureImpl())
+
+        assertThatThrownBy { service(timeout = Duration.ofMillis(50)).read() }
+            .isInstanceOf(InstanceReceivedMetadataException::class.java)
+            .hasCauseInstanceOf(TimeoutException::class.java)
+            .hasMessageContaining("timed out")
+        verify(admin).close(any<Duration>())
+    }
+
+    @Test
+    fun `a missing topic is rejected without creating it`() {
+        whenever(admin.describeTopics(any<Collection<String>>())).thenThrow(UnknownTopicOrPartitionException("missing"))
+        assertThatThrownBy { service().read() }
+            .isInstanceOf(InstanceReceivedMetadataException::class.java)
+            .hasCauseInstanceOf(UnknownTopicOrPartitionException::class.java)
+            .hasMessageContaining("Topic is missing or unavailable")
+        verify(admin).close(any<Duration>())
+    }
+
+    @Test
+    fun `missing partition bounds are rejected`() {
+        whenever(admin.listOffsets(any<Map<TopicPartition, OffsetSpec>>(), any<ListOffsetsOptions>()))
+            .thenReturn(ListOffsetsResult(emptyMap()))
+        assertThatThrownBy { service().read() }.isInstanceOf(InstanceReceivedMetadataException::class.java)
+        verify(admin).close(any<Duration>())
+    }
+
+    @Test
+    fun `temporary broker failure remains distinguishable by its underlying type`() {
+        val failure = NetworkException("disconnected")
+        val future = KafkaFutureImpl<String>()
+        future.completeExceptionally(failure)
+        whenever(cluster.clusterId()).thenReturn(future)
+
+        assertThatThrownBy { service().read() }
+            .isInstanceOf(InstanceReceivedMetadataException::class.java)
+            .hasCause(failure)
+            .hasMessageContaining("temporarily unavailable")
+    }
+
+    @Test
+    fun `client closing uses only the remaining lookup budget`() {
+        service().read()
+
+        val timeout = argumentCaptor<Duration>()
+        verify(admin).close(timeout.capture())
+        assertThat(timeout.firstValue).isBetween(Duration.ZERO, Duration.ofSeconds(1))
+    }
+
+    @Test
+    fun `interrupted lookup preserves interruption and closes the client`() {
+        whenever(cluster.clusterId()).thenReturn(KafkaFutureImpl())
+        Thread.currentThread().interrupt()
+        try {
+            assertThatThrownBy { service().read() }
+                .isInstanceOf(InstanceReceivedMetadataException::class.java)
+                .hasCauseInstanceOf(InterruptedException::class.java)
+                .hasMessageContaining("interrupted")
+            assertThat(Thread.currentThread().isInterrupted).isTrue()
+            verify(admin).close(any<Duration>())
+        } finally {
+            Thread.interrupted()
+        }
+    }
+
+    @Test
+    fun `unknown topic identity is rejected`() {
+        describe(Uuid.ZERO_UUID)
+        assertThatThrownBy { service().read() }.isInstanceOf(InstanceReceivedMetadataException::class.java)
+        verify(admin).close(any<Duration>())
+    }
+
+    @Test
+    fun `missing cluster identity is rejected`() {
+        whenever(cluster.clusterId()).thenReturn(KafkaFuture.completedFuture(" "))
+        assertThatThrownBy { service().read() }.isInstanceOf(InstanceReceivedMetadataException::class.java)
+        verify(admin).close(any<Duration>())
+    }
+
+    private fun service(
+        isolation: String = "read_uncommitted",
+        timeout: Duration = Duration.ofSeconds(1),
+    ): InstanceReceivedKafkaMetadataService =
+        InstanceReceivedKafkaMetadataService(
+            { admin },
+            names,
+            InstanceReceivedKafkaProperties(timeout),
+            receivedConsumerConfig(isolation),
+        )
+
+    private fun describe(id: Uuid) {
+        val result: DescribeTopicsResult = mock()
+        whenever(admin.describeTopics(any<Collection<String>>())).thenReturn(result)
+        whenever(result.allTopicNames()).thenReturn(
+            KafkaFuture.completedFuture(
+                mapOf(
+                    RECEIVED_TOPIC to
+                        TopicDescription(
+                            RECEIVED_TOPIC,
+                            false,
+                            listOf(TopicPartitionInfo(0, Node(1, "localhost", 9092), emptyList(), emptyList())),
+                            emptySet(),
+                            id,
+                        ),
+                ),
+            ),
+        )
+    }
+}
