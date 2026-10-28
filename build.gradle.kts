@@ -4,7 +4,6 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 buildscript {
-    configurations.classpath { resolutionStrategy.activateDependencyLocking() }
     repositories {
         gradlePluginPortal()
     }
