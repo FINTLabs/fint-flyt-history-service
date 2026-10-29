@@ -134,7 +134,7 @@ class InstanceRegistrationServiceIntegrationTest {
     @Autowired
     lateinit var registrationService: InstanceRegistrationService
 
-    @Autowired
+    @MockitoSpyBean
     lateinit var instanceService: InstanceService
 
     @Autowired
@@ -220,7 +220,7 @@ class InstanceRegistrationServiceIntegrationTest {
     }
 
     @Test
-    fun `a nested instance database failure leaves no graph or registration history`() {
+    fun `a nested invalid key is rejected before saving graph or registration history`() {
         val invalidChild = InstanceObjectDto(valuePerKey = mutableMapOf("x".repeat(256) to "too long key"))
         val root =
             InstanceObjectDto(
@@ -228,7 +228,7 @@ class InstanceRegistrationServiceIntegrationTest {
                 objectCollectionPerKey = mutableMapOf("children" to listOf(invalidChild)),
             )
         assertThatThrownBy { registrationService.register(MESSAGE_ID, 0, instanceFlowHeaders(), root) }
-            .isInstanceOf(DataIntegrityViolationException::class.java)
+            .isInstanceOf(InstanceInputException::class.java)
         assertNoRegistrationData()
     }
 
@@ -271,7 +271,7 @@ class InstanceRegistrationServiceIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(booleans = [false, true])
-    fun `handler records a nested instance failure after rollback and preserves original headers`(
+    fun `handler rejects a nested input failure after rollback and preserves original headers`(
         withInstanceId: Boolean,
     ) {
         val headers = instanceFlowHeaders().toBuilder().instanceId(if (withInstanceId) 900001L else null).build()
@@ -280,8 +280,8 @@ class InstanceRegistrationServiceIntegrationTest {
         val invalidChild = invalidGraph.objectCollectionPerKey.getValue("children").single()
         invalidChild.valuePerKey["x".repeat(256)] = "invalid"
 
-        assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, headers, invalidGraph) }
-            .isInstanceOf(DataIntegrityViolationException::class.java)
+        assertThat(registrationHandler.handle(MESSAGE_ID, 0, headers, invalidGraph))
+            .isEqualTo(InstanceRegistrationOutcome.Rejected(InstanceInputErrorCode.KEY_TOO_LONG))
 
         assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
         assertNoInstanceData()
@@ -292,7 +292,19 @@ class InstanceRegistrationServiceIntegrationTest {
     }
 
     @Test
-    fun `handler records an info commit failure in a separate successful transaction`() {
+    fun `repeated transient registration failures leave no history or progress`() {
+        val failure = DataAccessResourceFailureException("temporarily unavailable")
+        doThrow(failure).whenever(instanceService).save(any())
+        repeat(2) {
+            assertThatThrownBy {
+                registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
+            }.isSameAs(failure)
+            assertNoRegistrationData()
+        }
+    }
+
+    @Test
+    fun `handler propagates an unknown info commit failure without business error history`() {
         val headers = instanceFlowHeaders().toBuilder().instanceId(null).build()
         withRejectedEvents(EventCategory.INSTANCE_REGISTERED) {
             assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph()) }
@@ -302,24 +314,17 @@ class InstanceRegistrationServiceIntegrationTest {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
             assertNoInstanceData()
             assertThat(headers.instanceId).isNull()
-            assertRegistrationError(headers)
+            assertNoRegistrationData()
         }
     }
 
     @Test
-    fun `handler preserves the registration commit failure when error commit also fails`() {
-        withRejectedEvents(EventCategory.INSTANCE_REGISTERED, EventCategory.INSTANCE_REGISTRATION_ERROR) {
-            val failure =
-                assertThrows<DataIntegrityViolationException> {
-                    registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph())
-                }
-            assertThat(failure.cause).hasStackTraceContaining("reject_instance_registered")
-            assertThat(failure.suppressed).hasSize(1)
-            assertThat(failure.suppressed.single())
+    fun `failed error history commit rolls back rejection and position`() {
+        val invalid = InstanceObjectDto(valuePerKey = mutableMapOf("x".repeat(256) to "invalid"))
+        withRejectedEvents(EventCategory.INSTANCE_REGISTRATION_ERROR) {
+            assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), invalid) }
                 .isInstanceOf(DataIntegrityViolationException::class.java)
                 .hasStackTraceContaining("reject_instance_registration_error")
-
-            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
             assertNoRegistrationData()
         }
     }
@@ -327,8 +332,14 @@ class InstanceRegistrationServiceIntegrationTest {
     @Test
     fun `handler rejects an enclosing transaction before registration or error recording`() {
         TransactionTemplate(transactionManager).executeWithoutResult {
-            assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()) }
-                .isInstanceOf(IllegalTransactionStateException::class.java)
+            assertThatThrownBy {
+                registrationHandler.handle(
+                    MESSAGE_ID,
+                    0,
+                    instanceFlowHeaders(),
+                    instanceGraph(),
+                )
+            }.isInstanceOf(IllegalTransactionStateException::class.java)
             entityManager.flush()
             assertNoRegistrationData()
         }
@@ -361,7 +372,9 @@ class InstanceRegistrationServiceIntegrationTest {
         }
         val expectedNextOffset = if (samePartition) 1L else 0L
         val second =
-            registeredInstance(registrationHandler.handle(otherMessageId, expectedNextOffset, headers, instanceGraph()))
+            registeredInstance(
+                registrationHandler.handle(otherMessageId, expectedNextOffset, headers, instanceGraph()),
+            )
 
         assertThat(first.id).isNotEqualTo(second.id)
         assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(6L)
@@ -375,7 +388,9 @@ class InstanceRegistrationServiceIntegrationTest {
     @Test
     fun `redelivery remains processed after the registered graph is deleted`() {
         val registered =
-            registeredInstance(registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()))
+            registeredInstance(
+                registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()),
+            )
         instanceRepository.deleteById(registered.id!!)
         assertNoInstanceData()
 
@@ -389,22 +404,29 @@ class InstanceRegistrationServiceIntegrationTest {
     }
 
     @Test
-    fun `a failed graph can be retried successfully with the same message identity`() {
+    fun `rejected redelivery creates no duplicates and the next record can register`() {
         val headers = instanceFlowHeaders()
         val invalid = InstanceObjectDto(valuePerKey = mutableMapOf("x".repeat(256) to "invalid"))
-        assertThrows<DataIntegrityViolationException> { registrationHandler.handle(MESSAGE_ID, 0, headers, invalid) }
-        assertNoInstanceData()
+        assertThat(registrationHandler.handle(MESSAGE_ID, 0, headers, invalid))
+            .isInstanceOf(InstanceRegistrationOutcome.Rejected::class.java)
+        assertRegistrationError(headers)
+        assertThat(registrationHandler.handle(MESSAGE_ID, 0, headers, invalid))
+            .isSameAs(InstanceRegistrationOutcome.AlreadyProcessed)
+        assertThat(registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph()))
+            .isSameAs(InstanceRegistrationOutcome.AlreadyProcessed)
         assertRegistrationError(headers)
 
-        registeredInstance(registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph()))
+        registeredInstance(
+            registrationHandler.handle(MESSAGE_ID.copy(offset = 1), 1, headers, instanceGraph()),
+        )
 
         assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(3L)
-        assertThat(eventRepository.findAll().map { it.name })
-            .containsExactlyInAnyOrder(
-                EventCategory.INSTANCE_REGISTRATION_ERROR.eventName,
-                EventCategory.INSTANCE_REGISTERED.eventName,
-            )
-        assertNextOffset(1)
+        assertThat(rowCount("$HISTORY_SCHEMA.instance_registered_outbox")).isEqualTo(1L)
+        assertThat(eventRepository.findAll().map { it.name }).containsExactlyInAnyOrder(
+            EventCategory.INSTANCE_REGISTRATION_ERROR.eventName,
+            EventCategory.INSTANCE_REGISTERED.eventName,
+        )
+        assertNextOffset(2)
     }
 
     @Test
@@ -415,17 +437,14 @@ class InstanceRegistrationServiceIntegrationTest {
                 registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph())
             }
             assertNoInstanceData()
-            assertRegistrationError(headers)
+            assertNoRegistrationData()
         }
 
         registeredInstance(registrationHandler.handle(MESSAGE_ID, 0, headers, instanceGraph()))
 
         assertThat(rowCount("$INSTANCE_SCHEMA.instance_object")).isEqualTo(3L)
         assertThat(eventRepository.findAll().map { it.name })
-            .containsExactlyInAnyOrder(
-                EventCategory.INSTANCE_REGISTRATION_ERROR.eventName,
-                EventCategory.INSTANCE_REGISTERED.eventName,
-            )
+            .containsExactly(EventCategory.INSTANCE_REGISTERED.eventName)
         assertNextOffset(1)
     }
 
@@ -521,8 +540,14 @@ class InstanceRegistrationServiceIntegrationTest {
         }
         val originalPosition = jdbcTemplate.queryForMap("SELECT * FROM $HISTORY_SCHEMA.instance_received_offset")
 
-        assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, -1, instanceFlowHeaders(), instanceGraph()) }
-            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+        assertThatThrownBy {
+            registrationHandler.handle(
+                MESSAGE_ID,
+                -1,
+                instanceFlowHeaders(),
+                instanceGraph(),
+            )
+        }.isInstanceOf(InstanceReceivedOffsetException::class.java)
             .hasMessage("Expected next offset must not be negative")
 
         if (alreadyRegistered) {
@@ -538,8 +563,14 @@ class InstanceRegistrationServiceIntegrationTest {
     fun `missing partition position is rejected without creating history or choosing a start offset`() {
         jdbcTemplate.execute("DELETE FROM $HISTORY_SCHEMA.instance_received_offset")
 
-        assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()) }
-            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+        assertThatThrownBy {
+            registrationHandler.handle(
+                MESSAGE_ID,
+                0,
+                instanceFlowHeaders(),
+                instanceGraph(),
+            )
+        }.isInstanceOf(InstanceReceivedOffsetException::class.java)
             .hasMessageContaining("No instance-received offset initialized")
 
         assertNoInstanceData()
@@ -556,8 +587,14 @@ class InstanceRegistrationServiceIntegrationTest {
             MESSAGE_ID.partition,
         )
 
-        assertThatThrownBy { registrationHandler.handle(MESSAGE_ID, 0, instanceFlowHeaders(), instanceGraph()) }
-            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+        assertThatThrownBy {
+            registrationHandler.handle(
+                MESSAGE_ID,
+                0,
+                instanceFlowHeaders(),
+                instanceGraph(),
+            )
+        }.isInstanceOf(InstanceReceivedOffsetException::class.java)
             .hasMessageContaining("Topic generation is not initialized")
 
         assertNoInstanceData()
@@ -571,7 +608,7 @@ class InstanceRegistrationServiceIntegrationTest {
     @Test
     fun `processing cannot advance past a failed record using the next expected position`() {
         val invalid = InstanceObjectDto(valuePerKey = mutableMapOf("x".repeat(256) to "invalid"))
-        assertThrows<DataIntegrityViolationException> {
+        assertThrows<InstanceInputException> {
             registrationService.register(MESSAGE_ID, 0, instanceFlowHeaders(), invalid)
         }
         assertNoRegistrationData()
@@ -974,6 +1011,120 @@ class InstanceRegistrationServiceIntegrationTest {
         assertNextOffset(1)
     }
 
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `invalid flow headers stop registration and rejection without history or progress`(rejectDirectly: Boolean) {
+        val headers = instanceFlowHeaders().toBuilder().sourceApplicationIntegrationId("x".repeat(256)).build()
+        val invalid = InstanceObjectDto(valuePerKey = mutableMapOf("x".repeat(256) to "invalid"))
+        assertThatThrownBy {
+            if (rejectDirectly) {
+                registrationService.reject(
+                    MESSAGE_ID,
+                    0,
+                    headers,
+                    InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG),
+                )
+            } else {
+                registrationHandler.handle(MESSAGE_ID, 0, headers, invalid)
+            }
+        }.isInstanceOf(IllegalArgumentException::class.java).hasMessage("Invalid instance flow headers")
+        assertNoRegistrationData()
+    }
+
+    @Test
+    fun `failed position advance rolls back rejection history`() {
+        jdbcTemplate.execute(
+            "ALTER TABLE $HISTORY_SCHEMA.instance_received_offset " +
+                "ADD CONSTRAINT reject_advance CHECK (next_offset = 0)",
+        )
+        try {
+            assertThatThrownBy {
+                registrationService.reject(
+                    MESSAGE_ID,
+                    0,
+                    instanceFlowHeaders(),
+                    InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG),
+                )
+            }.isInstanceOf(DataIntegrityViolationException::class.java)
+            assertNoRegistrationData()
+        } finally {
+            jdbcTemplate.execute("ALTER TABLE $HISTORY_SCHEMA.instance_received_offset DROP CONSTRAINT reject_advance")
+        }
+    }
+
+    @Test
+    fun `rejection validates position and generation before creating data`() {
+        val failure = InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG)
+        val changed = MESSAGE_ID.copy(topicId = UUID.randomUUID())
+        assertThatThrownBy { registrationService.reject(changed, 0, instanceFlowHeaders(), failure) }
+            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+        assertThatThrownBy { registrationService.reject(MESSAGE_ID, 1, instanceFlowHeaders(), failure) }
+            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+        assertThatThrownBy { registrationService.reject(MESSAGE_ID, -1, instanceFlowHeaders(), failure) }
+            .isInstanceOf(InstanceReceivedOffsetException::class.java)
+        assertNoRegistrationData()
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `concurrent rejection waits for commit or takes over after rollback`(firstRollsBack: Boolean) {
+        val firstReady = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val contenderPid = CompletableFuture<Int>()
+        val executor = Executors.newFixedThreadPool(2)
+        val failure = InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG)
+        try {
+            val first =
+                executor.submit<InstanceRegistrationOutcome> {
+                    TransactionTemplate(transactionManager).execute { status ->
+                        val outcome =
+                            registrationService.reject(
+                                MESSAGE_ID,
+                                0,
+                                instanceFlowHeaders(),
+                                failure,
+                            )
+                        entityManager.flush()
+                        firstReady.countDown()
+                        check(releaseFirst.await(20, TimeUnit.SECONDS))
+                        if (firstRollsBack) status.setRollbackOnly()
+                        outcome
+                    }!!
+                }
+            assertThat(firstReady.await(10, TimeUnit.SECONDS)).isTrue()
+            val contender =
+                executor.submit<InstanceRegistrationOutcome> {
+                    TransactionTemplate(transactionManager).execute {
+                        contenderPid.complete(jdbcTemplate.queryForObject("SELECT pg_backend_pid()", Int::class.java)!!)
+                        registrationService.reject(MESSAGE_ID, 0, instanceFlowHeaders(), failure)
+                    }!!
+                }
+            val pid = contenderPid.get(10, TimeUnit.SECONDS)
+            await().atMost(10, TimeUnit.SECONDS).until {
+                jdbcTemplate.queryForObject("SELECT cardinality(pg_blocking_pids(?)) > 0", Boolean::class.java, pid) ==
+                    true
+            }
+            releaseFirst.countDown()
+            assertThat(
+                first.get(10, TimeUnit.SECONDS),
+            ).isInstanceOf(InstanceRegistrationOutcome.Rejected::class.java)
+            val contenderOutcome = contender.get(10, TimeUnit.SECONDS)
+            if (firstRollsBack) {
+                assertThat(contenderOutcome).isInstanceOf(InstanceRegistrationOutcome.Rejected::class.java)
+            } else {
+                assertThat(contenderOutcome).isSameAs(InstanceRegistrationOutcome.AlreadyProcessed)
+            }
+            assertNextOffset(1)
+            assertNoInstanceData()
+            assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
+            assertThat(rowCount("$HISTORY_SCHEMA.error")).isEqualTo(1L)
+        } finally {
+            releaseFirst.countDown()
+            executor.shutdownNow()
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue()
+        }
+    }
+
     private fun withMeterRegistry(action: (SimpleMeterRegistry) -> Unit) {
         val registry = SimpleMeterRegistry()
         try {
@@ -1059,7 +1210,7 @@ class InstanceRegistrationServiceIntegrationTest {
 
     private fun assertRegistrationError(headers: InstanceFlowHeaders) {
         assertThat(rowCount("$HISTORY_SCHEMA.instance_registered_outbox")).isZero()
-        assertNextOffset(0)
+        assertNextOffset(1)
         val originalHeaders = headersMapper.toEmbeddable(headers)
         assertThat(rowCount("$HISTORY_SCHEMA.event")).isEqualTo(1L)
         assertThat(rowCount("$HISTORY_SCHEMA.error")).isEqualTo(1L)
@@ -1110,7 +1261,13 @@ class InstanceRegistrationServiceIntegrationTest {
     private fun assertNoRegistrationData() {
         assertNoInstanceData()
         assertNextOffset(0)
-        listOf("event", "file_id", "error", "error_args", "instance_registered_outbox").forEach { table ->
+        listOf(
+            "event",
+            "file_id",
+            "error",
+            "error_args",
+            "instance_registered_outbox",
+        ).forEach { table ->
             assertThat(rowCount("$HISTORY_SCHEMA.$table")).isZero()
         }
     }

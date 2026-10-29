@@ -253,23 +253,68 @@ does not activate that consumer or initialize processing positions. Kafka and Po
 integration tests cover atomic registration, queue reservations, retries, restart recovery, broker
 metadata, and existing registration rollback behavior.
 
-`InstanceRegistrationHandler.handle(messageId, expectedNextOffset, headers, instance)` is controlled
-by the same master flag. It requires no active transaction (`Propagation.NEVER`), allowing the
-registration transaction to finish before exceptions are caught, including commit failures.
-An invalid expected or persisted position, including a negative `expectedNextOffset`, or a topic
-generation mismatch raises `InstanceReceivedOffsetException`. It is logged as an ERROR and rethrown
-without creating business error history or advancing the position. The future consumer must stop
-the affected partition and require resolution instead of using its existing skip-failed-records policy.
+### Invalid instance-received input
 
-Other registration failures still record one `INSTANCE_REGISTRATION_ERROR` through the existing
-`InstanceErrorEventService` in a separate, subsequent transaction. This uses the original incoming
-headers, the injected clock, this service's `fint.application-id`, and
-`FINT_FLYT_INSTANCE_SERVICE_GENERAL_SYSTEM_ERROR` without arguments. A generated instance ID from
-a rolled-back registration is never attached. The error service retains REQUIRED propagation;
-it starts a transaction because the handler has none. The original exception is always rethrown;
-if error recording also fails, that exception is added as suppressed on the original exception.
-Successful error recording does not advance the processing position. Repeated failed attempts may
-still create repeated ERROR history. Calls with an active outer transaction remain rejected.
+`InstanceRegistrationHandler.handle(messageId, expectedNextOffset, headers, instance)` is controlled
+by the instance master flag and rejects an active database transaction (`Propagation.NEVER`). The
+registration transaction has therefore committed or rolled back before exceptions are handled.
+
+Registration explicitly validates known instance-schema constraints after locking and checking the
+position, before saving: value-map and collection-map keys are at most 255 Unicode codepoints,
+matching the existing `varchar(255)` columns. Text values have no 255-character limit. Keys and
+values cannot contain the null character unsupported by PostgreSQL text columns. Validation walks
+the complete graph. These failures use `InstanceInputException` with a stable technical error code.
+
+After a known graph input failure rolls back registration, the handler calls
+`InstanceRegistrationService.reject` in a separate transaction. This locks and verifies source
+generation and expected preceding position with the same controls as registration, records one
+`INSTANCE_REGISTRATION_ERROR`, and advances `next_offset` to the record offset plus one. History
+and position commit or roll back together. History uses the original flow headers, the injected
+clock, this service's configured application ID and the existing
+`FINT_FLYT_INSTANCE_SERVICE_GENERAL_SYSTEM_ERROR` code without arguments. A generated instance ID
+from rolled-back registration is never attached. Rejection creates no instance graph, registration
+INFO or outbox row. Redelivery and concurrent attempts recheck the locked position and return
+`AlreadyProcessed` without adding history when the record has already been handled.
+
+Position checks and duplicate handling are shared privately by `register` and `reject`; the offset
+repository handles database reads, locks and writes. The handler logs position failures from both
+paths with their exception message and stack trace, including stored and expected offsets.
+
+The handler returns `Rejected` only after the rejection transaction commits. Rejections are logged
+with source identity and technical error code after commit. No payload, complete headers or field
+values are logged. Missing required flow headers must stop processing before calling the handler;
+the handler requires a decoded `InstanceFlowHeaders`. Header strings are validated against the
+history schema's length and null-character restrictions in both registration and rejection.
+Invalid headers throw `IllegalArgumentException` without creating history or advancing the position.
+Headers and history are never fabricated.
+
+Generic `IllegalArgumentException`, `DataIntegrityViolationException`, other SQL errors, metadata
+failures and programming errors are not classified as known graph input errors. They propagate
+without new registration ERROR history or position advancement, so repeated technical failures do
+not fill history with repeated errors.
+
+The future consumer must follow this contract:
+
+| Result or failure                                  | Processing                                         |
+| -------------------------------------------------- | -------------------------------------------------- |
+| `Registered`                                       | Continue from the persisted database position.     |
+| `AlreadyProcessed`                                 | Continue from the persisted database position.     |
+| `Rejected`                                         | Error history and position committed; continue.    |
+| Error history or position write failure            | Retain position; retry or stop the partition.      |
+| Transient technical failure                        | Bounded retries, then pause or stop the partition. |
+| Position error or changed topic generation         | Stop and require resolution.                       |
+| Unknown failure                                    | Retain position and stop pending investigation.    |
+| Unreadable message or invalid/missing flow headers | Retain position and stop for resolution.           |
+
+Task 20 must make an unresolved consumer failure visible to existing operational monitoring: the
+consumer stops without advancing the database position and exposes a failed/stopped status through
+the existing health or monitoring mechanism. An ERROR log alone is insufficient. Consumer tests
+must verify that failure status together with the preserved position.
+
+No separate archive of failed original messages is maintained, and this handling needs no new
+database table or migration. Resubmission or replay must use the source or messages still retained
+by the Kafka broker. The consumer, retry scheduling, deserialization error handling and environment
+activation remain later work.
 
 ### Instance-received identity and position handover
 

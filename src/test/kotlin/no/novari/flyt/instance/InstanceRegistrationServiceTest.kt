@@ -1,5 +1,6 @@
 package no.novari.flyt.instance
 
+import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
@@ -37,6 +38,7 @@ class InstanceRegistrationServiceTest {
             InstanceRegistrationService(
                 instanceService,
                 infoEventService,
+                mock<InstanceErrorEventService>(),
                 offsetRepository,
                 outboxRepository,
                 Clock.fixed(Instant.parse("2026-10-21T10:20:30Z"), ZoneOffset.UTC),
@@ -72,6 +74,7 @@ class InstanceRegistrationServiceTest {
             InstanceRegistrationService(
                 instanceService,
                 info,
+                mock<InstanceErrorEventService>(),
                 offsets,
                 outbox,
                 Clock.fixed(now, ZoneOffset.UTC),
