@@ -1,7 +1,5 @@
 package no.novari.flyt.instance
 
-import no.novari.flyt.history.InstanceErrorEventService
-import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import org.assertj.core.api.Assertions.assertThat
@@ -9,85 +7,64 @@ import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doThrow
-import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
-import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
-import java.time.Clock
-import java.time.Instant
-import java.time.ZoneOffset
+import org.springframework.dao.DataAccessResourceFailureException
+import org.springframework.dao.DataIntegrityViolationException
 import java.util.UUID
 
 class InstanceRegistrationHandlerTest {
     private val registrationService: InstanceRegistrationService = mock()
-    private val errorEventService: InstanceErrorEventService = mock()
-    private val timestamp = Instant.parse("2026-10-22T10:20:30Z")
-    private val service =
-        InstanceRegistrationHandler(
-            registrationService,
-            errorEventService,
-            Clock.fixed(timestamp, ZoneOffset.UTC),
-            "registration-test-app",
-        )
+    private val handler = InstanceRegistrationHandler(registrationService)
     private val headers =
         InstanceFlowHeaders
             .builder()
             .sourceApplicationId(1L)
             .sourceApplicationIntegrationId("integration-1")
             .sourceApplicationInstanceId("source-instance-1")
-            .correlationId(UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333"))
+            .correlationId(UUID.randomUUID())
             .build()
     private val instance = InstanceObjectDto()
-    private val messageId =
-        InstanceReceivedMessageId(
-            "instance-received-test",
-            0,
-            0,
-            "test-cluster",
-            UUID.fromString("d254590e-616f-4e52-ac28-f84d55bb4281"),
-        )
+    private val messageId = InstanceReceivedMessageId("instance-received-test", 0, 0, "test-cluster", UUID.randomUUID())
 
     @Test
-    fun `invalid persisted position stops without recording a registration error`() {
-        val failure = InstanceReceivedOffsetException("Topic generation mismatch")
-        whenever(registrationService.register(messageId, 0, headers, instance)).thenThrow(failure)
-
-        assertThatThrownBy { service.handle(messageId, 0, headers, instance) }.isSameAs(failure)
-
-        verifyNoInteractions(errorEventService)
+    fun `technical and unknown failures propagate without rejection or business error history`() {
+        val failures =
+            listOf(
+                InstanceReceivedOffsetException("generation mismatch"),
+                IllegalArgumentException("unknown argument failure"),
+                IllegalStateException("programming failure"),
+                DataIntegrityViolationException("unknown constraint"),
+                DataAccessResourceFailureException("database unavailable"),
+            )
+        failures.forEach { failure ->
+            doThrow(failure).whenever(registrationService).register(messageId, 0, headers, instance)
+            repeat(2) {
+                assertThatThrownBy { handler.handle(messageId, 0, headers, instance) }.isSameAs(failure)
+            }
+        }
+        verify(registrationService, never()).reject(any(), any(), any(), any())
     }
 
     @Test
-    fun `successful error recording still rethrows the original registration exception`() {
-        val failure = IllegalStateException("registration failed")
-        whenever(registrationService.register(messageId, 0, headers, instance)).thenThrow(failure)
+    fun `known input failure returns rejected only after the rejection transaction succeeds`() {
+        val failure = InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG, "$.valuePerKey[0].key")
+        val outcome = InstanceRegistrationOutcome.Rejected(failure.code)
+        doThrow(failure).whenever(registrationService).register(messageId, 0, headers, instance)
+        whenever(registrationService.reject(messageId, 0, headers, failure)).thenReturn(outcome)
 
-        assertThatThrownBy { service.handle(messageId, 0, headers, instance) }.isSameAs(failure)
-
-        verify(errorEventService).registerError(
-            eq(headers),
-            eq(EventCategory.INSTANCE_REGISTRATION_ERROR),
-            any(),
-            eq(timestamp),
-            eq("registration-test-app"),
-        )
+        assertThat(handler.handle(messageId, 0, headers, instance)).isSameAs(outcome)
     }
 
     @Test
-    fun `error recording failure is suppressed on the original registration exception`() {
-        val failure = IllegalStateException("registration failed")
-        val errorFailure = IllegalArgumentException("error recording failed")
-        whenever(registrationService.register(messageId, 0, headers, instance)).thenThrow(failure)
-        doThrow(errorFailure).whenever(errorEventService).registerError(
-            any(),
-            any<EventCategory>(),
-            any(),
-            any(),
-            any(),
-        )
+    fun `failed rejection propagates and cannot be mistaken for success`() {
+        val failure = InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG)
+        val databaseFailure = DataAccessResourceFailureException("database unavailable")
+        doThrow(failure).whenever(registrationService).register(messageId, 0, headers, instance)
+        whenever(registrationService.reject(messageId, 0, headers, failure)).thenThrow(databaseFailure)
 
-        assertThatThrownBy { service.handle(messageId, 0, headers, instance) }.isSameAs(failure)
-        assertThat(failure.suppressed).containsExactly(errorFailure)
+        assertThatThrownBy { handler.handle(messageId, 0, headers, instance) }.isSameAs(databaseFailure)
     }
 }

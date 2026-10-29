@@ -1,5 +1,6 @@
 package no.novari.flyt.instance
 
+import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
@@ -37,6 +38,7 @@ class InstanceRegistrationServiceTest {
             InstanceRegistrationService(
                 instanceService,
                 infoEventService,
+                mock<InstanceErrorEventService>(),
                 offsetRepository,
                 outboxRepository,
                 Clock.fixed(Instant.parse("2026-10-21T10:20:30Z"), ZoneOffset.UTC),
@@ -51,7 +53,7 @@ class InstanceRegistrationServiceTest {
                 .sourceApplicationInstanceId("source-instance-1")
                 .correlationId(UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333"))
                 .build()
-        whenever(offsetRepository.lockNextOffset(messageId)).thenReturn(0L)
+        whenever(offsetRepository.lockForProcessing(messageId, 0)).thenReturn(0L)
         whenever(instanceService.save(dto)).thenReturn(InstanceObjectDto())
 
         assertThatThrownBy { service.register(messageId, 0, headers, dto) }
@@ -72,12 +74,13 @@ class InstanceRegistrationServiceTest {
             InstanceRegistrationService(
                 instanceService,
                 info,
+                mock<InstanceErrorEventService>(),
                 offsets,
                 outbox,
                 Clock.fixed(now, ZoneOffset.UTC),
                 event.applicationId,
             )
-        whenever(offsets.lockNextOffset(event.messageId)).thenReturn(0L)
+        whenever(offsets.lockForProcessing(event.messageId, 0)).thenReturn(0L)
         whenever(instanceService.save(event.instance)).thenReturn(event.instance)
 
         service.register(event.messageId, 0, event.headers, event.instance)

@@ -7,5 +7,9 @@ sealed interface InstanceRegistrationOutcome {
         val instance: InstanceObjectDto,
     ) : InstanceRegistrationOutcome
 
+    data class Rejected(
+        val code: InstanceInputErrorCode,
+    ) : InstanceRegistrationOutcome
+
     data object AlreadyProcessed : InstanceRegistrationOutcome
 }

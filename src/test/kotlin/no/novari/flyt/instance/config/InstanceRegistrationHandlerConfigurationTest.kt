@@ -1,6 +1,5 @@
 package no.novari.flyt.instance.config
 
-import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.instance.InstanceReceivedOffsetRepository
 import no.novari.flyt.instance.InstanceRegistrationHandler
 import no.novari.flyt.instance.InstanceRegistrationService
@@ -9,7 +8,6 @@ import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.jdbc.core.JdbcTemplate
-import java.time.Clock
 
 class InstanceRegistrationHandlerConfigurationTest {
     private val contextRunner =
@@ -44,8 +42,6 @@ class InstanceRegistrationHandlerConfigurationTest {
                 "novari.flyt.instance-functionality.enabled=true",
                 "fint.application-id=registration-test-app",
             ).withBean(InstanceRegistrationService::class.java, { mock<InstanceRegistrationService>() })
-            .withBean(InstanceErrorEventService::class.java, { mock<InstanceErrorEventService>() })
-            .withBean(Clock::class.java, { Clock.systemUTC() })
             .withBean(JdbcTemplate::class.java, { mock<JdbcTemplate>() })
             .run { context ->
                 assertThat(context).hasNotFailed()
