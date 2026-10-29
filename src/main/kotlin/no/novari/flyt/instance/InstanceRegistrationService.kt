@@ -1,5 +1,6 @@
 package no.novari.flyt.instance
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.model.event.EventCategory
@@ -28,6 +29,8 @@ class InstanceRegistrationService(
     @param:Value($$"${fint.application-id}")
     private val applicationId: String,
 ) {
+    private val logger = KotlinLogging.logger {}
+
     @Transactional
     fun register(
         messageId: InstanceReceivedMessageId,
@@ -36,7 +39,7 @@ class InstanceRegistrationService(
         instance: InstanceObjectDto,
     ): InstanceRegistrationOutcome {
         val nextOffset =
-            instanceReceivedOffsetRepository.lockForProcessing(messageId, expectedNextOffset)
+            lockForProcessing(messageId, expectedNextOffset)
                 ?: return InstanceRegistrationOutcome.AlreadyProcessed
         InstanceInputValidator.validateHeaders(instanceFlowHeaders)
         InstanceInputValidator.validate(instance)
@@ -63,7 +66,7 @@ class InstanceRegistrationService(
         failure: InstanceInputException,
     ): InstanceRegistrationOutcome {
         val nextOffset =
-            instanceReceivedOffsetRepository.lockForProcessing(messageId, expectedNextOffset)
+            lockForProcessing(messageId, expectedNextOffset)
                 ?: return InstanceRegistrationOutcome.AlreadyProcessed
         InstanceInputValidator.validateHeaders(instanceFlowHeaders)
         instanceErrorEventService.registerError(
@@ -75,5 +78,27 @@ class InstanceRegistrationService(
         )
         instanceReceivedOffsetRepository.advance(messageId, nextOffset)
         return InstanceRegistrationOutcome.Rejected(failure.code)
+    }
+
+    private fun lockForProcessing(
+        messageId: InstanceReceivedMessageId,
+        expectedNextOffset: Long,
+    ): Long? {
+        if (expectedNextOffset < 0) {
+            throw InstanceReceivedOffsetException("Expected next offset must not be negative")
+        }
+        val nextOffset = instanceReceivedOffsetRepository.lockNextOffset(messageId)
+        if (messageId.offset < nextOffset) {
+            logger.info { "Skipping already processed instance-received record: $messageId, nextOffset=$nextOffset" }
+            return null
+        }
+        if (nextOffset != expectedNextOffset) {
+            throw InstanceReceivedOffsetException(
+                "Unexpected instance-received position for topic=${messageId.topic}, " +
+                    "partition=${messageId.partition}: " +
+                    "storedNextOffset=$nextOffset, expectedNextOffset=$expectedNextOffset, recordOffset=${messageId.offset}",
+            )
+        }
+        return nextOffset
     }
 }

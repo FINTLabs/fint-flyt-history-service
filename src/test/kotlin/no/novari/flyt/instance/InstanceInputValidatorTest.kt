@@ -14,15 +14,11 @@ class InstanceInputValidatorTest {
         val root = InstanceObjectDto(objectCollectionPerKey = mutableMapOf("children" to listOf(child)))
         val valueFailure = assertThrows<InstanceInputException> { InstanceInputValidator.validate(root) }
         assertThat(valueFailure.code).isEqualTo(InstanceInputErrorCode.KEY_TOO_LONG)
-        assertThat(valueFailure.fieldPath).isEqualTo("$.objectCollectionPerKey[0].objects[0].valuePerKey[0].key")
 
         child.valuePerKey.clear()
         child.objectCollectionPerKey["x".repeat(256)] = emptyList()
         val collectionFailure = assertThrows<InstanceInputException> { InstanceInputValidator.validate(root) }
         assertThat(collectionFailure.code).isEqualTo(InstanceInputErrorCode.KEY_TOO_LONG)
-        assertThat(
-            collectionFailure.fieldPath,
-        ).isEqualTo("$.objectCollectionPerKey[0].objects[0].objectCollectionPerKey[0].key")
     }
 
     @Test
@@ -51,7 +47,6 @@ class InstanceInputValidatorTest {
             val failure = assertThrows<InstanceInputException> { InstanceInputValidator.validate(instance) }
             assertThat(failure.code).isEqualTo(InstanceInputErrorCode.TEXT_CONTAINS_NULL_CHARACTER)
             assertThat(failure.message).doesNotContain("secret")
-            assertThat(failure.fieldPath).doesNotContain("secret")
         }
     }
 

@@ -1,6 +1,5 @@
 package no.novari.flyt.instance
 
-import io.github.oshai.kotlinlogging.KotlinLogging
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
@@ -13,36 +12,11 @@ import java.util.UUID
 class InstanceReceivedOffsetRepository(
     private val jdbcTemplate: JdbcTemplate,
 ) {
-    private val logger = KotlinLogging.logger {}
-
     @Transactional(readOnly = true)
     fun find(
         topic: String,
         partition: Int,
     ): InstanceReceivedPosition? = readPosition(topic, partition, false)
-
-    @Transactional(propagation = Propagation.MANDATORY)
-    fun lockForProcessing(
-        messageId: InstanceReceivedMessageId,
-        expectedNextOffset: Long,
-    ): Long? {
-        if (expectedNextOffset < 0) {
-            throw InstanceReceivedOffsetException("Expected next offset must not be negative")
-        }
-        val nextOffset = lockNextOffset(messageId)
-        if (messageId.offset < nextOffset) {
-            logger.info { "Skipping already processed instance-received record: $messageId, nextOffset=$nextOffset" }
-            return null
-        }
-        if (nextOffset != expectedNextOffset) {
-            throw InstanceReceivedOffsetException(
-                "Unexpected instance-received position for topic=${messageId.topic}, " +
-                    "partition=${messageId.partition}: " +
-                    "storedNextOffset=$nextOffset, expectedNextOffset=$expectedNextOffset, recordOffset=${messageId.offset}",
-            )
-        }
-        return nextOffset
-    }
 
     @Transactional(propagation = Propagation.MANDATORY)
     fun lockNextOffset(messageId: InstanceReceivedMessageId): Long {

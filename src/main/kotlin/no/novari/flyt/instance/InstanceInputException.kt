@@ -7,5 +7,4 @@ enum class InstanceInputErrorCode {
 
 class InstanceInputException(
     val code: InstanceInputErrorCode,
-    val fieldPath: String? = null,
 ) : RuntimeException("Invalid instance-received input: code=$code")

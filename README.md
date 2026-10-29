@@ -263,8 +263,7 @@ Registration explicitly validates known instance-schema constraints after lockin
 position, before saving: value-map and collection-map keys are at most 255 Unicode codepoints,
 matching the existing `varchar(255)` columns. Text values have no 255-character limit. Keys and
 values cannot contain the null character unsupported by PostgreSQL text columns. Validation walks
-the complete graph. These failures use `InstanceInputException`, a stable technical error code and
-an optional structural field path without input keys or values.
+the complete graph. These failures use `InstanceInputException` with a stable technical error code.
 
 After a known graph input failure rolls back registration, the handler calls
 `InstanceRegistrationService.reject` in a separate transaction. This locks and verifies source
@@ -276,6 +275,10 @@ clock, this service's configured application ID and the existing
 from rolled-back registration is never attached. Rejection creates no instance graph, registration
 INFO or outbox row. Redelivery and concurrent attempts recheck the locked position and return
 `AlreadyProcessed` without adding history when the record has already been handled.
+
+Position checks and duplicate handling are shared privately by `register` and `reject`; the offset
+repository handles database reads, locks and writes. The handler logs position failures from both
+paths with their exception message and stack trace, including stored and expected offsets.
 
 The handler returns `Rejected` only after the rejection transaction commits. Rejections are logged
 with source identity and technical error code after commit. No payload, complete headers or field
@@ -292,16 +295,21 @@ not fill history with repeated errors.
 
 The future consumer must follow this contract:
 
-| Result or failure | Processing |
-| --- | --- |
-| `Registered` | Continue from the persisted database position. |
-| `AlreadyProcessed` | Continue from the persisted database position. |
-| `Rejected` | Error history and position committed; continue. |
-| Error history or position write failure | Retain position; retry or stop the partition. |
-| Transient technical failure | Bounded retries, then pause or stop the partition. |
-| Position error or changed topic generation | Stop and require resolution. |
-| Unknown failure | Retain position and stop pending investigation. |
-| Unreadable message or invalid/missing flow headers | Retain position and stop for resolution. |
+| Result or failure                                  | Processing                                         |
+| -------------------------------------------------- | -------------------------------------------------- |
+| `Registered`                                       | Continue from the persisted database position.     |
+| `AlreadyProcessed`                                 | Continue from the persisted database position.     |
+| `Rejected`                                         | Error history and position committed; continue.    |
+| Error history or position write failure            | Retain position; retry or stop the partition.      |
+| Transient technical failure                        | Bounded retries, then pause or stop the partition. |
+| Position error or changed topic generation         | Stop and require resolution.                       |
+| Unknown failure                                    | Retain position and stop pending investigation.    |
+| Unreadable message or invalid/missing flow headers | Retain position and stop for resolution.           |
+
+Task 20 must make an unresolved consumer failure visible to existing operational monitoring: the
+consumer stops without advancing the database position and exposes a failed/stopped status through
+the existing health or monitoring mechanism. An ERROR log alone is insufficient. Consumer tests
+must verify that failure status together with the preserved position.
 
 No separate archive of failed original messages is maintained, and this handling needs no new
 database table or migration. Resubmission or replay must use the source or messages still retained

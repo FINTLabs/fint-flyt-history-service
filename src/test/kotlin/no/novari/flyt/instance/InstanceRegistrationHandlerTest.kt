@@ -5,16 +5,22 @@ import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.dao.DataAccessResourceFailureException
 import org.springframework.dao.DataIntegrityViolationException
 import java.util.UUID
 
+@ExtendWith(OutputCaptureExtension::class)
 class InstanceRegistrationHandlerTest {
     private val registrationService: InstanceRegistrationService = mock()
     private val handler = InstanceRegistrationHandler(registrationService)
@@ -50,7 +56,7 @@ class InstanceRegistrationHandlerTest {
 
     @Test
     fun `known input failure returns rejected only after the rejection transaction succeeds`() {
-        val failure = InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG, "$.valuePerKey[0].key")
+        val failure = InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG)
         val outcome = InstanceRegistrationOutcome.Rejected(failure.code)
         doThrow(failure).whenever(registrationService).register(messageId, 0, headers, instance)
         whenever(registrationService.reject(messageId, 0, headers, failure)).thenReturn(outcome)
@@ -66,5 +72,30 @@ class InstanceRegistrationHandlerTest {
         whenever(registrationService.reject(messageId, 0, headers, failure)).thenThrow(databaseFailure)
 
         assertThatThrownBy { handler.handle(messageId, 0, headers, instance) }.isSameAs(databaseFailure)
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [false, true])
+    fun `position failures from registration and rejection log their exception details`(
+        rejectionFails: Boolean,
+        output: CapturedOutput,
+    ) {
+        val failure = InstanceReceivedOffsetException("storedNextOffset=5, expectedNextOffset=4")
+        if (rejectionFails) {
+            val inputFailure = InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG)
+            doThrow(inputFailure).whenever(registrationService).register(messageId, 4, headers, instance)
+            doThrow(failure).whenever(registrationService).reject(messageId, 4, headers, inputFailure)
+        } else {
+            doThrow(failure).whenever(registrationService).register(messageId, 4, headers, instance)
+        }
+
+        assertThatThrownBy { handler.handle(messageId, 4, headers, instance) }.isSameAs(failure)
+
+        assertThat(output.all).contains(
+            "Instance registration stopped because its persisted Kafka position is invalid",
+            messageId.toString(),
+            "storedNextOffset=5, expectedNextOffset=4",
+            InstanceReceivedOffsetException::class.java.name,
+        )
     }
 }

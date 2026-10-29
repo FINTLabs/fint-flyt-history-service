@@ -23,21 +23,20 @@ class InstanceRegistrationHandler(
         instance: InstanceObjectDto,
     ): InstanceRegistrationOutcome =
         try {
-            instanceRegistrationService.register(messageId, expectedNextOffset, instanceFlowHeaders, instance)
-        } catch (failure: InstanceInputException) {
             val outcome =
-                instanceRegistrationService.reject(
-                    messageId,
-                    expectedNextOffset,
-                    instanceFlowHeaders,
-                    failure,
-                )
+                try {
+                    instanceRegistrationService.register(messageId, expectedNextOffset, instanceFlowHeaders, instance)
+                } catch (failure: InstanceInputException) {
+                    instanceRegistrationService.reject(messageId, expectedNextOffset, instanceFlowHeaders, failure)
+                }
             if (outcome is InstanceRegistrationOutcome.Rejected) {
-                logger.warn { "Instance-received record rejected: $messageId, code=${failure.code}" }
+                logger.warn { "Instance-received record rejected: $messageId, code=${outcome.code}" }
             }
             outcome
         } catch (failure: InstanceReceivedOffsetException) {
-            logger.error { "Instance registration stopped because its persisted Kafka position is invalid: $messageId" }
+            logger.error(
+                failure,
+            ) { "Instance registration stopped because its persisted Kafka position is invalid: $messageId" }
             throw failure
         }
 }

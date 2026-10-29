@@ -53,7 +53,7 @@ class InstanceRegistrationServiceTest {
                 .sourceApplicationInstanceId("source-instance-1")
                 .correlationId(UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333"))
                 .build()
-        whenever(offsetRepository.lockForProcessing(messageId, 0)).thenReturn(0L)
+        whenever(offsetRepository.lockNextOffset(messageId)).thenReturn(0L)
         whenever(instanceService.save(dto)).thenReturn(InstanceObjectDto())
 
         assertThatThrownBy { service.register(messageId, 0, headers, dto) }
@@ -80,7 +80,7 @@ class InstanceRegistrationServiceTest {
                 Clock.fixed(now, ZoneOffset.UTC),
                 event.applicationId,
             )
-        whenever(offsets.lockForProcessing(event.messageId, 0)).thenReturn(0L)
+        whenever(offsets.lockNextOffset(event.messageId)).thenReturn(0L)
         whenever(instanceService.save(event.instance)).thenReturn(event.instance)
 
         service.register(event.messageId, 0, event.headers, event.instance)

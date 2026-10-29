@@ -5,7 +5,14 @@ import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 
 internal object InstanceInputValidator {
     fun validate(instance: InstanceObjectDto) {
-        validateObject(instance, "$")
+        instance.valuePerKey.forEach { (key, value) ->
+            validateKey(key)
+            validateText(value)
+        }
+        instance.objectCollectionPerKey.forEach { (key, children) ->
+            validateKey(key)
+            children.forEach(::validate)
+        }
     }
 
     fun validateHeaders(headers: InstanceFlowHeaders) {
@@ -21,40 +28,16 @@ internal object InstanceInputValidator {
         required: Boolean,
     ): Boolean = if (value == null) !required else value.codePointCount(0, value.length) <= 255 && '\u0000' !in value
 
-    private fun validateObject(
-        instance: InstanceObjectDto,
-        path: String,
-    ) {
-        instance.valuePerKey.entries.forEachIndexed { index, (key, value) ->
-            validateKey(key, "$path.valuePerKey[$index].key")
-            validateText(value, "$path.valuePerKey[$index].value")
-        }
-        instance.objectCollectionPerKey.entries.forEachIndexed { index, (key, children) ->
-            val collectionPath = "$path.objectCollectionPerKey[$index]"
-            validateKey(key, "$collectionPath.key")
-            children.forEachIndexed { childIndex, child ->
-                val childPath = "$collectionPath.objects[$childIndex]"
-                validateObject(child, childPath)
-            }
-        }
-    }
-
-    private fun validateKey(
-        key: String,
-        path: String,
-    ) {
+    private fun validateKey(key: String) {
         if (key.codePointCount(0, key.length) > 255) {
-            throw InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG, path)
+            throw InstanceInputException(InstanceInputErrorCode.KEY_TOO_LONG)
         }
-        validateText(key, path)
+        validateText(key)
     }
 
-    private fun validateText(
-        value: String,
-        path: String,
-    ) {
+    private fun validateText(value: String) {
         if ('\u0000' in value) {
-            throw InstanceInputException(InstanceInputErrorCode.TEXT_CONTAINS_NULL_CHARACTER, path)
+            throw InstanceInputException(InstanceInputErrorCode.TEXT_CONTAINS_NULL_CHARACTER)
         }
     }
 }
