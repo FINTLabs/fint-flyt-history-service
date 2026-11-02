@@ -59,7 +59,7 @@ patches:
          value: "/ra-no"
       - op: replace
         path: "/spec/probes/startup/path"
-        value: "/ra-no/actuator/health"
+        value: "/ra-no/actuator/health/liveness"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/ra-no/actuator/health/readiness"

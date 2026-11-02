@@ -48,7 +48,7 @@ patches:
          value: "/vlfk-no"
       - op: replace
         path: "/spec/probes/startup/path"
-        value: "/vlfk-no/actuator/health"
+        value: "/vlfk-no/actuator/health/liveness"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/vlfk-no/actuator/health/readiness"

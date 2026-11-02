@@ -48,7 +48,7 @@ patches:
          value: "/ffk-no"
       - op: replace
         path: "/spec/probes/startup/path"
-        value: "/ffk-no/actuator/health"
+        value: "/ffk-no/actuator/health/liveness"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/ffk-no/actuator/health/readiness"

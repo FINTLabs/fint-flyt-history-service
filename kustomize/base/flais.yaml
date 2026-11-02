@@ -52,7 +52,7 @@ spec:
       cpu: "150m"
   probes:
     startup:
-      path: /actuator/health
+      path: /actuator/health/liveness
       port: 8080
       initialDelaySeconds: 70
       failureThreshold: 12

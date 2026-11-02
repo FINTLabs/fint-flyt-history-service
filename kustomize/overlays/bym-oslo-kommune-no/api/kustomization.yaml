@@ -48,7 +48,7 @@ patches:
          value: "/bym-oslo-kommune-no"
       - op: replace
         path: "/spec/probes/startup/path"
-        value: "/bym-oslo-kommune-no/actuator/health"
+        value: "/bym-oslo-kommune-no/actuator/health/liveness"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/bym-oslo-kommune-no/actuator/health/readiness"

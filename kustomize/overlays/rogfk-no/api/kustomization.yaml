@@ -48,7 +48,7 @@ patches:
          value: "/rogfk-no"
       - op: replace
         path: "/spec/probes/startup/path"
-        value: "/rogfk-no/actuator/health"
+        value: "/rogfk-no/actuator/health/liveness"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/rogfk-no/actuator/health/readiness"

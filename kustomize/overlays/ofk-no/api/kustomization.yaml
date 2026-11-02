@@ -50,7 +50,7 @@ patches:
          value: "/ofk-no"
       - op: replace
         path: "/spec/probes/startup/path"
-        value: "/ofk-no/actuator/health"
+        value: "/ofk-no/actuator/health/liveness"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/ofk-no/actuator/health/readiness"

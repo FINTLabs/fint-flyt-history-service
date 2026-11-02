@@ -48,7 +48,7 @@ patches:
          value: "/beta/trondelagfylke-no"
       - op: replace
         path: "/spec/probes/startup/path"
-        value: "/beta/trondelagfylke-no/actuator/health"
+        value: "/beta/trondelagfylke-no/actuator/health/liveness"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/beta/trondelagfylke-no/actuator/health/readiness"

@@ -165,7 +165,8 @@ required. When explicitly set to `true`, `InstanceJpaConfiguration` registers bo
 `transactionManager`. Both domains share one datasource, EntityManagerFactory, and transaction
 manager. A missing or blank instance schema then fails startup with a configuration error.
 The instance repository provides CRUD operations and `findAllOlderThan` with a strict timestamp
-threshold. Registering it does not introduce instance processing, retention jobs, or Kafka handover.
+threshold. The flag also enables the received-event consumer and registration outbox described
+below; retention jobs and operational Kafka handover remain separate work.
 The default flag and deployment overlays remain unchanged; enabling instance functionality in a
 deployed environment is a separate cutover step.
 
@@ -180,8 +181,8 @@ DTOs can be used after the transaction ends without lazy loading. Missing IDs pr
 `EntityNotFoundException`. The age query uses the existing injected `Clock` and a strict
 `createdAt < now - days` threshold and returns only root instances. Nested objects remain part
 of each returned DTO graph rather than separate query results. These services use the shared
-transaction manager and have no Kafka dependencies. Deletion flows, cleanup jobs, controllers,
-and event publication remain later work.
+transaction manager and have no Kafka dependencies. Deletion flows, cleanup jobs and controllers
+remain later work. Registration event publication uses the outbox described below.
 
 `InstanceRegistrationService.register(messageId, expectedNextOffset, headers, instance)` is controlled
 by the master flag. `InstanceReceivedMessageId` contains the topic, partition, offset, Kafka cluster
@@ -247,11 +248,10 @@ graph. Headers and the complete saved DTO graph are stored as JSON snapshots. An
 model preserves generated IDs when reading the queue while the public DTO retains its existing
 read-only ID deserialization contract. Publication never reloads the instance graph.
 
-The incoming consumer, its metadata refresh lifecycle, and operational offset handover remain
-later work. Metadata lookup and explicit position initialization are provided below. The outbox
-does not activate that consumer or initialize processing positions. Kafka and PostgreSQL
-integration tests cover atomic registration, queue reservations, retries, restart recovery, broker
-metadata, and existing registration rollback behavior.
+The incoming consumer and explicit position initialization are described below. Operational offset
+handover and environment activation remain separate work. The outbox never initializes processing
+positions. Kafka and PostgreSQL integration tests cover registration, consumer assignments and
+restart recovery, retry/stop behavior, health status, and outbox publication.
 
 ### Invalid instance-received input
 
@@ -293,7 +293,7 @@ failures and programming errors are not classified as known graph input errors. 
 without new registration ERROR history or position advancement, so repeated technical failures do
 not fill history with repeated errors.
 
-The future consumer must follow this contract:
+The instance-received consumer follows this contract:
 
 | Result or failure                                  | Processing                                         |
 | -------------------------------------------------- | -------------------------------------------------- |
@@ -301,20 +301,147 @@ The future consumer must follow this contract:
 | `AlreadyProcessed`                                 | Continue from the persisted database position.     |
 | `Rejected`                                         | Error history and position committed; continue.    |
 | Error history or position write failure            | Retain position; retry or stop the partition.      |
-| Transient technical failure                        | Bounded retries, then pause or stop the partition. |
+| Transient technical failure                        | Bounded retries, then stop the container.          |
 | Position error or changed topic generation         | Stop and require resolution.                       |
 | Unknown failure                                    | Retain position and stop pending investigation.    |
 | Unreadable message or invalid/missing flow headers | Retain position and stop for resolution.           |
 
-Task 20 must make an unresolved consumer failure visible to existing operational monitoring: the
-consumer stops without advancing the database position and exposes a failed/stopped status through
-the existing health or monitoring mechanism. An ERROR log alone is insufficient. Consumer tests
-must verify that failure status together with the preserved position.
+An unresolved failure stops the received-event container without advancing the failed record's
+database position. The existing Kafka consumer health indicator exposes that stop as DOWN, as
+described below, so operational monitoring can detect it.
 
 No separate archive of failed original messages is maintained, and this handling needs no new
 database table or migration. Resubmission or replay must use the source or messages still retained
-by the Kafka broker. The consumer, retry scheduling, deserialization error handling and environment
-activation remain later work.
+by the Kafka broker. Environment activation and the operational handover remain separate work.
+
+### Instance-received consumer
+
+`InstanceReceivedEventConsumerConfiguration` registers `instanceReceivedEventConsumer` only when
+`novari.flyt.instance-functionality.enabled=true`. The topic uses the same
+`eventTopicNameParameters(EventCategory.INSTANCE_RECEIVED)` function as metadata lookup and the
+existing event listeners. The dedicated consumer factory copies the shared `ConsumerConfig`,
+including its connection/security settings and isolation level. The group ID is the shared
+application-default group plus `-instance-received`, so unrelated history listeners do not cause
+rebalances in this consumer. Only this consumer overrides auto commit to false, offset reset to
+`none`, and automatic topic creation to false. A missing topic is fatal. Other Kafka listeners retain their configuration.
+
+On every partition assignment, `InstanceReceivedEventListener` obtains one validated metadata
+snapshot through `InstanceReceivedPositionService.getValidatedPositions`, then seeks each
+partition to its database `next_offset`. Kafka group commits never supply the starting position.
+Missing/unbound rows, identity mismatches, and positions outside retained broker bounds stop
+processing without initializing, adopting or resetting anything. Assignment state is removed on
+revocation or loss and rebuilt on assignment. No metadata lookup is performed per message.
+
+Each listener call runs outside a database transaction and passes actual record identity and the
+partition's expected preceding position to `InstanceRegistrationHandler`. `Registered` and
+`Rejected` move the local expectation to the record offset plus one. `AlreadyProcessed` reloads
+persisted progress, verifies the identity and prevents local rewind. It does not use the duplicate
+record's offset as new progress. Processing is sequential per partition with no asynchronous
+work queue; separate partitions can run on different consumer threads or pods in the same group.
+Kafka acknowledgements use RECORD mode after successful handler completion; database position
+remains authoritative after restart. The listener never sends registered events directly or waits
+for outbox acknowledgement.
+
+The consumer reads raw value bytes and decodes them locally with the existing `ObjectMapper` and
+`InstanceFlowHeadersMapper`. This allows unreadable payloads and missing/malformed headers to stop
+the container through the same error handler without a deserializer logging original content.
+No raw message archive is created. Record-processing exceptions retain a sanitized cause chain:
+original type names and stack frames, SQLSTATE values and available constraint names. Original
+messages, SQL text, payloads and headers are omitted. Position failures retain their technical
+messages and stack traces. Stop logs include topic, partition and offset
+when a record is available. Broker/assignment failures are logged without record content.
+
+Settings under `novari.flyt.instance.kafka`:
+
+| Property           | Default | Meaning                                                      |
+| ------------------ | ------- | ------------------------------------------------------------ |
+| `metadata-timeout` | `10s`   | Metadata lookup waiting budget, shared by all requests.      |
+| `retry-attempts`   | `3`     | Additional attempts after the initial record-processing try. |
+| `retry-interval`   | `5s`    | Fixed delay between additional attempts.                     |
+
+Retries use Spring Kafka's `DefaultErrorHandler` and a fixed backoff. Only explicitly known
+infrastructure failures qualify: Spring transient/recoverable data-access exceptions and JDBC
+connection-acquisition failures, including when wrapped by transaction exceptions. Unknown SQL or
+application failures do not qualify. After exhaustion, or immediately for position errors,
+unreadable input, invalid headers and unknown failures, `CommonContainerStoppingErrorHandler`
+stops the received-event container abnormally. It never recovers by skipping a record. The failed
+record's database position is retained, and later records in that partition are not processed.
+Assignment and polling failures, including `OffsetOutOfRange`, also stop without offset reset.
+
+The managed container is discovered by the Kafka library's existing
+`KafkaConsumersHealthIndicator` (Actuator ID `kafkaConsumers`). Its DOWN status is available at
+`/actuator/health/consumers` and in aggregate `/actuator/health`. These endpoints expose health
+signals; they do not configure or send alerts. Liveness includes only `livenessState`. Startup
+probes use `/actuator/health/liveness` as well. Readiness includes only `readinessState`, so stopped
+consumers, Kafka connection failures and producer failure tracking do not remove the REST API
+from traffic or trigger a probe restart. Kafka connectivity and producer failures remain visible
+in aggregate health. This separates message-processing health from REST availability. These group settings apply to
+the existing shared consumer indicator, including the other history listeners. No new health
+indicator is introduced. Paths in deployment overlays include the organization's servlet prefix.
+
+### Monitoring verification before rollout
+
+This repository exposes health signals; it does not describe the external monitoring setup.
+The code and tests do not establish whether external alerting is already configured.
+
+Before rolling out these health/probe changes, including with the instance master flag disabled:
+
+- [ ] Verify in the target environment that the existing monitoring detects stopped consumers
+  through `/actuator/health/consumers` (with the servlet prefix) and detects Kafka connectivity
+  and producer failures independently of pod probes. This includes existing history listeners.
+
+Retain this verification point before enabling the instance master flag as well. A healthy
+readiness response is not evidence that Kafka processing is running.
+
+### Recovering stopped instance-received processing
+
+1. Check `/actuator/health/consumers` and the stop log. Record organization/environment, topic,
+   partition, actual failed record offset, cluster/topic identity and the database `next_offset`.
+   The failed record offset can be above `next_offset` because Kafka offsets may contain gaps.
+2. For infrastructure, configuration or code failures, correct the cause and restart the
+   application through the normal deployment process. Keep the database position unchanged.
+   Reassignment validates identity and retained bounds before retrying from that position.
+3. For unreadable payloads or invalid/missing headers, stop and obtain an explicit operational
+   decision. Broker records are immutable: resubmitting corrected data alone does not unblock
+   the earlier record. Keep message content out of logs and tickets; use approved restricted
+   tooling when inspecting it. Automatic rejection of unreadable input is not implemented.
+4. If an authorized decision permits skipping exactly that record, stop all active processing
+   owners for the organization and drain in-flight work first. Verify the target database/schema,
+   broker cluster/topic IDs, current `next_offset`, the exact failed offset and retained broker
+   bounds. Record the approval and treatment of the affected source instance in the incident.
+5. A privileged operator can then apply the conditional update below in an explicit transaction.
+   Replace the placeholders with verified values. Require exactly one returned row and inspect
+   it before COMMIT; zero or unexpected results require ROLLBACK and renewed investigation.
+   This is a manual recovery operation, not an initialization API or routine offset reset.
+
+```sql
+BEGIN;
+
+UPDATE <history_schema>.instance_received_offset
+SET next_offset = :failed_record_offset + 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE topic_name = :topic_name
+  AND partition_id = :partition_id
+  AND cluster_id = :cluster_id
+  AND topic_id = :topic_id
+  AND next_offset = :expected_next_offset
+  AND :failed_record_offset >= next_offset
+RETURNING topic_name, partition_id, cluster_id, topic_id, next_offset;
+
+-- COMMIT only after verifying exactly one expected row; otherwise ROLLBACK.
+```
+
+Restart controlled processing and verify consumer health, position progress and expected history.
+Do not fabricate business history when valid headers are unavailable. Missing/unbound identities,
+changed topic generations and positions already outside retention require a new verified handover
+basis; the skip procedure above must not be used to disguise those conditions. There is no
+automatic skipping, record archive, recovery endpoint or deployment action in this application.
+
+Keep the master flag false in every deployment overlay until controlled handover is complete:
+stop the old instance-service consumer, drain in-flight work, establish its final completed
+positions, and initialize/bind all database positions using the verified topic identity. Then
+activate history-service with one active processing owner. Those operational steps are not run by
+the consumer, and this change leaves all overlays disabled. No new database migration is needed.
 
 ### Instance-received identity and position handover
 
@@ -386,11 +513,10 @@ be incremented again.
 Stop the old writer and drain in-flight work before capturing the final basis. Initialize or bind
 all required partitions before starting the new consumer, with one active processing owner.
 Metadata and retention boundaries are snapshots, not an atomic transaction with Kafka: retention
-or topic recreation can occur after validation. The future consumer must refresh identity on
-assignment, restore the validated database position, use `auto.offset.reset=none`, and stop on
-`OffsetOutOfRange` or identity changes instead of falling back to earliest/latest. That consumer
-behavior and the operational stop/start procedure are implemented in later tasks. No existing
-listener settings or consumer group offsets are changed here.
+or topic recreation can occur after validation. The consumer refreshes identity on assignment,
+restores the validated database position, uses `auto.offset.reset=none`, and stops on
+`OffsetOutOfRange` or identity changes instead of falling back to earliest/latest. The operational
+stop/start procedure remains cutover work. Existing history listeners keep their settings.
 
 ### Instance registration outbox
 
@@ -452,9 +578,9 @@ payloads are removed; unresolved rows are retained for
 recovery and must be monitored. Serialization failures remain pending while other eligible rows
 continue. Repeated publication failures do not create business registration errors.
 
-Keep the master flag disabled in deployments until the complete processing flow is ready:
-enabling it already disables the Kafka history listener for `INSTANCE_REGISTERED`, while the
-registration service currently has no incoming consumer calling it.
+Keep the master flag disabled in deployments until the controlled handover is complete. Enabling
+it starts the received-event consumer and disables the Kafka history listener for
+`INSTANCE_REGISTERED`, whose history is already recorded in the registration transaction.
 
 Flyway continues to manage only the history schema. Instance tables, sequences, and existing
 Flyway history remain in their original schema. Taking over instance migrations is later work.
@@ -493,7 +619,7 @@ confirm deployed permissions.
 
 ## Observability & Operations
 
-- Actuator readiness at /actuator/health and Prometheus metrics at /actuator/prometheus (Micrometer Prometheus registry enabled).
+- Actuator liveness at `/actuator/health/liveness`, readiness at `/actuator/health/readiness`, and consumer monitoring at `/actuator/health/consumers`. Prometheus metrics are exposed at `/actuator/prometheus`.
 - Custom statistics metrics are published for Grafana dashboards (see Metrics section below).
 - Logs follow Spring defaults; Kafka consumers attach origin app IDs for traceability.
 - Event table indexes (timestamp, composite source application keys) keep summary queries fast; Flyway migrations (src/main/resources/db/migration) manage schema evolution.
