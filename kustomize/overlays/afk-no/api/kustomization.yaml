@@ -50,7 +50,7 @@ patches:
          value: "/afk-no"
       - op: replace
         path: "/spec/probes/startup/path"
-        value: "/afk-no/actuator/health"
+        value: "/afk-no/actuator/health/liveness"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/afk-no/actuator/health/readiness"

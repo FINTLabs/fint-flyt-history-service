@@ -138,7 +138,7 @@ EOF
   export KAFKA_TOPIC="${namespace}.flyt.*"
   export INGRESS_BASE_PATH="${path_prefix}/api/intern/instance-flow-tracking"
   export SERVLET_CONTEXT_PATH="$path_prefix"
-  export STARTUP_PATH="${path_prefix}/actuator/health"
+  export STARTUP_PATH="${path_prefix}/actuator/health/liveness"
   export READINESS_PATH="${path_prefix}/actuator/health/readiness"
   export LIVENESS_PATH="${path_prefix}/actuator/health/liveness"
   export METRICS_PATH="${path_prefix}/actuator/prometheus"

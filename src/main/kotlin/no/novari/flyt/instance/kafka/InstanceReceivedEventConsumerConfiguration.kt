@@ -22,6 +22,8 @@ class InstanceReceivedEventConsumerConfiguration {
         consumerConfig: ConsumerConfig,
     ): DefaultKafkaConsumerFactory<String, ByteArray> {
         val configuration = consumerConfig.originals().toMutableMap()
+        val applicationGroup = requireNotNull(consumerConfig.getString(ConsumerConfig.GROUP_ID_CONFIG))
+        configuration[ConsumerConfig.GROUP_ID_CONFIG] = "$applicationGroup-instance-received"
         configuration[ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG] = false
         configuration[ConsumerConfig.AUTO_OFFSET_RESET_CONFIG] = "none"
         configuration[ConsumerConfig.ALLOW_AUTO_CREATE_TOPICS_CONFIG] = false
@@ -50,7 +52,7 @@ class InstanceReceivedEventConsumerConfiguration {
             }
         return ConcurrentMessageListenerContainer(factory, containerProperties).apply {
             beanName = "instanceReceivedEventConsumer"
-            setCommonErrorHandler(InstanceReceivedErrorHandler(this, properties))
+            commonErrorHandler = InstanceReceivedErrorHandler(this, properties)
         }
     }
 }

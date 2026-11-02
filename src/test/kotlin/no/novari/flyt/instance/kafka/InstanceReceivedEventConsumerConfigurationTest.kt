@@ -41,7 +41,7 @@ class InstanceReceivedEventConsumerConfigurationTest {
     }
 
     @Test
-    fun `consumer overrides only its own offset settings and retains shared connection isolation and group`() {
+    fun `consumer uses an isolated group and retains shared connection and isolation settings`() {
         val config = consumerConfig()
         val original = config.originals()
         val factory = InstanceReceivedEventConsumerConfiguration().instanceReceivedConsumerFactory(config)
@@ -49,7 +49,7 @@ class InstanceReceivedEventConsumerConfigurationTest {
         assertThat(actual[ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG]).isEqualTo(false)
         assertThat(actual[ConsumerConfig.AUTO_OFFSET_RESET_CONFIG]).isEqualTo("none")
         assertThat(actual[ConsumerConfig.ALLOW_AUTO_CREATE_TOPICS_CONFIG]).isEqualTo(false)
-        assertThat(actual[ConsumerConfig.GROUP_ID_CONFIG]).isEqualTo("history-test-group")
+        assertThat(actual[ConsumerConfig.GROUP_ID_CONFIG]).isEqualTo("history-test-group-instance-received")
         assertThat(actual[ConsumerConfig.ISOLATION_LEVEL_CONFIG]).isEqualTo("read_committed")
         assertThat(
             actual[ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG],

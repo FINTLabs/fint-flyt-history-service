@@ -508,7 +508,7 @@ class InstanceReceivedEventConsumerIntegrationTest {
             ConsumerConfig(
                 mapOf(
                     ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrapServers,
-                    ConsumerConfig.GROUP_ID_CONFIG to GROUP,
+                    ConsumerConfig.GROUP_ID_CONFIG to APPLICATION_GROUP,
                     ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to StringDeserializer::class.java,
                     ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to StringDeserializer::class.java,
                     ConsumerConfig.ISOLATION_LEVEL_CONFIG to "read_committed",
@@ -530,7 +530,8 @@ class InstanceReceivedEventConsumerIntegrationTest {
 
     companion object {
         private const val TOPIC = "task20-instance-received"
-        private const val GROUP = "task20-history-service"
+        private const val APPLICATION_GROUP = "task20-history-service"
+        private const val GROUP = "$APPLICATION_GROUP-instance-received"
 
         @JvmField @Container
         val postgres = PostgreSQLContainer("postgres:17").withInitScript("db/instance-fixture/init.sql")

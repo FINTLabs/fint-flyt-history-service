@@ -50,7 +50,7 @@ patches:
          value: "/beta/bfk-no"
       - op: replace
         path: "/spec/probes/startup/path"
-        value: "/beta/bfk-no/actuator/health"
+        value: "/beta/bfk-no/actuator/health/liveness"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/beta/bfk-no/actuator/health/readiness"

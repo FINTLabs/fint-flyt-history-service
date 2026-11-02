@@ -320,9 +320,10 @@ by the Kafka broker. Environment activation and the operational handover remain 
 `novari.flyt.instance-functionality.enabled=true`. The topic uses the same
 `eventTopicNameParameters(EventCategory.INSTANCE_RECEIVED)` function as metadata lookup and the
 existing event listeners. The dedicated consumer factory copies the shared `ConsumerConfig`,
-including its application-default group ID, connection/security settings and isolation level.
-Only this consumer overrides auto commit to false, offset reset to `none`, and automatic topic
-creation to false. A missing topic is fatal. Other Kafka listeners retain their configuration.
+including its connection/security settings and isolation level. The group ID is the shared
+application-default group plus `-instance-received`, so unrelated history listeners do not cause
+rebalances in this consumer. Only this consumer overrides auto commit to false, offset reset to
+`none`, and automatic topic creation to false. A missing topic is fatal. Other Kafka listeners retain their configuration.
 
 On every partition assignment, `InstanceReceivedEventListener` obtains one validated metadata
 snapshot through `InstanceReceivedPositionService.getValidatedPositions`, then seeks each
@@ -344,9 +345,10 @@ for outbox acknowledgement.
 The consumer reads raw value bytes and decodes them locally with the existing `ObjectMapper` and
 `InstanceFlowHeadersMapper`. This allows unreadable payloads and missing/malformed headers to stop
 the container through the same error handler without a deserializer logging original content.
-No raw message archive is created. Record-processing exceptions retain the original exception type
-name and stack frames but omit original messages, causes, payloads and headers. Position failures
-retain their technical messages and stack traces. Stop logs include topic, partition and offset
+No raw message archive is created. Record-processing exceptions retain a sanitized cause chain:
+original type names and stack frames, SQLSTATE values and available constraint names. Original
+messages, SQL text, payloads and headers are omitted. Position failures retain their technical
+messages and stack traces. Stop logs include topic, partition and offset
 when a record is available. Broker/assignment failures are logged without record content.
 
 Settings under `novari.flyt.instance.kafka`:
@@ -367,12 +369,58 @@ record's database position is retained, and later records in that partition are 
 Assignment and polling failures, including `OffsetOutOfRange`, also stop without offset reset.
 
 The managed container is discovered by the Kafka library's existing
-`KafkaConsumersHealthIndicator` (`kafkaConsumersHealthIndicator`). A stopped consumer is DOWN; the
-library includes this indicator in its default liveness health group. Existing monitoring can
-observe `/actuator/health` and `/actuator/health/liveness`. No new health indicator or alerting
-system is added. A configured liveness probe may restart the pod, which retries from the same
-database position. Resolve the underlying failure and restart the application to resume; restarting
-alone does not skip or repair an unreadable record or an invalid position.
+`KafkaConsumersHealthIndicator` (Actuator ID `kafkaConsumers`). Its DOWN status is available at
+`/actuator/health/consumers` and in aggregate `/actuator/health`; existing monitoring must alert on
+this status. Liveness includes only `livenessState`. Startup probes use `/actuator/health/liveness`
+as well, so a stopped consumer does not trigger a startup/liveness restart loop. Readiness retains
+its existing application and Kafka connectivity checks and excludes stopped-consumer status.
+This separates stopped message processing from REST availability. These group settings apply to
+the existing shared consumer indicator, including the other history listeners. No new health
+indicator is introduced. Paths in deployment overlays include the organization's servlet prefix.
+
+### Recovering stopped instance-received processing
+
+1. Check `/actuator/health/consumers` and the stop log. Record organization/environment, topic,
+   partition, actual failed record offset, cluster/topic identity and the database `next_offset`.
+   The failed record offset can be above `next_offset` because Kafka offsets may contain gaps.
+2. For infrastructure, configuration or code failures, correct the cause and restart the
+   application through the normal deployment process. Keep the database position unchanged.
+   Reassignment validates identity and retained bounds before retrying from that position.
+3. For unreadable payloads or invalid/missing headers, stop and obtain an explicit operational
+   decision. Broker records are immutable: resubmitting corrected data alone does not unblock
+   the earlier record. Keep message content out of logs and tickets; use approved restricted
+   tooling when inspecting it. Automatic rejection of unreadable input is not implemented.
+4. If an authorized decision permits skipping exactly that record, stop all active processing
+   owners for the organization and drain in-flight work first. Verify the target database/schema,
+   broker cluster/topic IDs, current `next_offset`, the exact failed offset and retained broker
+   bounds. Record the approval and treatment of the affected source instance in the incident.
+5. A privileged operator can then apply the conditional update below in an explicit transaction.
+   Replace the placeholders with verified values. Require exactly one returned row and inspect
+   it before COMMIT; zero or unexpected results require ROLLBACK and renewed investigation.
+   This is a manual recovery operation, not an initialization API or routine offset reset.
+
+```sql
+BEGIN;
+
+UPDATE <history_schema>.instance_received_offset
+SET next_offset = :failed_record_offset + 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE topic_name = :topic_name
+  AND partition_id = :partition_id
+  AND cluster_id = :cluster_id
+  AND topic_id = :topic_id
+  AND next_offset = :expected_next_offset
+  AND :failed_record_offset >= next_offset
+RETURNING topic_name, partition_id, cluster_id, topic_id, next_offset;
+
+-- COMMIT only after verifying exactly one expected row; otherwise ROLLBACK.
+```
+
+Restart controlled processing and verify consumer health, position progress and expected history.
+Do not fabricate business history when valid headers are unavailable. Missing/unbound identities,
+changed topic generations and positions already outside retention require a new verified handover
+basis; the skip procedure above must not be used to disguise those conditions. There is no
+automatic skipping, record archive, recovery endpoint or deployment action in this application.
 
 Keep the master flag false in every deployment overlay until controlled handover is complete:
 stop the old instance-service consumer, drain in-flight work, establish its final completed
@@ -556,7 +604,7 @@ confirm deployed permissions.
 
 ## Observability & Operations
 
-- Actuator readiness at /actuator/health and Prometheus metrics at /actuator/prometheus (Micrometer Prometheus registry enabled).
+- Actuator liveness at `/actuator/health/liveness`, readiness at `/actuator/health/readiness`, and consumer monitoring at `/actuator/health/consumers`. Prometheus metrics are exposed at `/actuator/prometheus`.
 - Custom statistics metrics are published for Grafana dashboards (see Metrics section below).
 - Logs follow Spring defaults; Kafka consumers attach origin app IDs for traceability.
 - Event table indexes (timestamp, composite source application keys) keep summary queries fast; Flyway migrations (src/main/resources/db/migration) manage schema evolution.

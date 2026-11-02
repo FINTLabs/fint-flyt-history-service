@@ -181,7 +181,7 @@ class InstanceReceivedEventListenerTest {
 
         assertThat(failure.retryable).isFalse()
         assertThat(failure.message).doesNotContain("secret")
-        assertThat(failure.cause).isNull()
+        assertThat(failure.stackTraceToString()).doesNotContain("secret")
         verifyNoInteractions(registration)
     }
 
@@ -201,7 +201,7 @@ class InstanceReceivedEventListenerTest {
 
         assertThat(failure.retryable).isEqualTo(transient)
         assertThat(failure.message).contains(original.javaClass.name).doesNotContain("secret")
-        assertThat(failure.cause).isNull()
+        assertThat(failure.stackTraceToString()).doesNotContain("secret")
         assertThat(failure.stackTrace).containsExactly(*original.stackTrace)
     }
 

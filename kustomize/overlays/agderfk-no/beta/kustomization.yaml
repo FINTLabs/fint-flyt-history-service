@@ -48,7 +48,7 @@ patches:
          value: "/beta/agderfk-no"
       - op: replace
         path: "/spec/probes/startup/path"
-        value: "/beta/agderfk-no/actuator/health"
+        value: "/beta/agderfk-no/actuator/health/liveness"
       - op: replace
         path: "/spec/probes/readiness/path"
         value: "/beta/agderfk-no/actuator/health/readiness"
