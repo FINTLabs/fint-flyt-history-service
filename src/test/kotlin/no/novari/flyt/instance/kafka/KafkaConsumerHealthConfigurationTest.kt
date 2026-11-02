@@ -60,8 +60,6 @@ class KafkaConsumerHealthConfigurationTest {
 
     @BeforeEach
     fun applicationReady() {
-        assertThat(context.environment.getProperty("management.endpoint.health.group.liveness.include"))
-            .isEqualTo("livenessState")
         assertThat(groups.names).contains("consumers", "liveness", "readiness")
         assertThat(registry.stream().map { it.name }.toList())
             .contains("kafkaConsumers", "kafkaConnectivity", "livenessState", "readinessState")
@@ -92,8 +90,18 @@ class KafkaConsumerHealthConfigurationTest {
     }
 
     @Test
-    fun `readiness retains Kafka connectivity checks without affecting liveness`() {
+    fun `Kafka failures remain visible without failing readiness or liveness`() {
         connected.set(false)
+
+        assertThat(health.health().status).isEqualTo(Status.DOWN)
+        assertThat(probeStatus("readiness")).isEqualTo(200)
+        assertThat(probeStatus("liveness")).isEqualTo(200)
+        assertThat(probeStatus("consumers")).isEqualTo(200)
+    }
+
+    @Test
+    fun `readiness still refuses traffic when the application is not ready`() {
+        AvailabilityChangeEvent.publish(context, ReadinessState.REFUSING_TRAFFIC)
 
         assertThat(probeStatus("readiness")).isEqualTo(503)
         assertThat(probeStatus("liveness")).isEqualTo(200)

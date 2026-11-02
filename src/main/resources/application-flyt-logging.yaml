@@ -9,8 +9,11 @@ management:
         enabled: true
       group:
         liveness:
-          include: livenessState
+          include:
+            - livenessState
         readiness:
-          include: readinessState,kafkaConnectivity
+          include:
+            - readinessState
         consumers:
-          include: kafkaConsumers
+          include:
+            - kafkaConsumers

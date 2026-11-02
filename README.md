@@ -370,13 +370,28 @@ Assignment and polling failures, including `OffsetOutOfRange`, also stop without
 
 The managed container is discovered by the Kafka library's existing
 `KafkaConsumersHealthIndicator` (Actuator ID `kafkaConsumers`). Its DOWN status is available at
-`/actuator/health/consumers` and in aggregate `/actuator/health`; existing monitoring must alert on
-this status. Liveness includes only `livenessState`. Startup probes use `/actuator/health/liveness`
-as well, so a stopped consumer does not trigger a startup/liveness restart loop. Readiness retains
-its existing application and Kafka connectivity checks and excludes stopped-consumer status.
-This separates stopped message processing from REST availability. These group settings apply to
+`/actuator/health/consumers` and in aggregate `/actuator/health`. These endpoints expose health
+signals; they do not configure or send alerts. Liveness includes only `livenessState`. Startup
+probes use `/actuator/health/liveness` as well. Readiness includes only `readinessState`, so stopped
+consumers, Kafka connection failures and producer failure tracking do not remove the REST API
+from traffic or trigger a probe restart. Kafka connectivity and producer failures remain visible
+in aggregate health. This separates message-processing health from REST availability. These group settings apply to
 the existing shared consumer indicator, including the other history listeners. No new health
 indicator is introduced. Paths in deployment overlays include the organization's servlet prefix.
+
+### Monitoring verification before rollout
+
+This repository exposes health signals; it does not describe the external monitoring setup.
+The code and tests do not establish whether external alerting is already configured.
+
+Before rolling out these health/probe changes, including with the instance master flag disabled:
+
+- [ ] Verify in the target environment that the existing monitoring detects stopped consumers
+  through `/actuator/health/consumers` (with the servlet prefix) and detects Kafka connectivity
+  and producer failures independently of pod probes. This includes existing history listeners.
+
+Retain this verification point before enabling the instance master flag as well. A healthy
+readiness response is not evidence that Kafka processing is running.
 
 ### Recovering stopped instance-received processing
 
