@@ -31,6 +31,40 @@ and Prometheus support out of the box.
 | `ArchiveInstanceIdRequestConsumerConfiguration`                        | Request/reply consumer that resolves the latest archive instance ID for a `SourceApplicationAggregateInstanceId`.               |
 | `ValidationErrorsFormattingService`                                    | Folds constraint violations into human-friendly 422 responses for filters and manual action payloads.                           |
 
+## Instance retries
+
+When `novari.flyt.instance-functionality.enabled=true`, history-service exposes the existing internal retry API:
+
+| Method | Path                                                       | Body         | Response                                                                                     |
+| ------ | ---------------------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------- |
+| POST   | `/api/intern/handlinger/instanser/{instanceId}/prov-igjen` | None         | 200 after broker acknowledgement; 404 missing instance; 500 missing headers or failed retry. |
+| POST   | `/api/intern/handlinger/instanser/prov-igjen/batch`        | Array of IDs | 200 with no body after processing each ID sequentially, including an empty array.            |
+
+Both endpoints use the existing internal API authentication and USER-role authorization. Batch failures are logged
+per instance and do not stop the remaining requests. The flag controls the controller, orchestration and retry producer;
+this change does not enable the flag or redirect traffic from instance-service.
+
+The saved graph and latest `INSTANCE_REGISTERED` headers are read locally in short read-only transactions, including
+nested objects and file IDs. Each attempt gets a new correlation ID; all other flow headers and saved object IDs are
+preserved. Kafka publishing and waiting for acknowledgement happen outside database transactions. No graph or
+`instance_received_offset` is changed, and no Kafka request/reply is used to retrieve headers.
+
+The producer publishes to `instance-requested-for-retry` with the application-default organization/domain prefix,
+one partition, normal cleanup and `novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time`.
+The actor header uses the current auditor, falling back to `Actor.System`; origin is history-service's `fint.application-id`.
+Its dedicated producer uses `acks=all`. `novari.flyt.instance.retry.send-timeout` defaults to `30s` and bounds both
+producer blocking and acknowledgement waiting separately, so a call can take up to twice that duration during a broker
+failure. Other producers retain their existing configuration.
+
+After retry headers have been established, a failed publication writes `INSTANCE_RETRY_REQUEST_ERROR` locally with
+`FINT_FLYT_INSTANCE_SERVICE_GENERAL_SYSTEM_ERROR`, no arguments, the new correlation ID, the injected clock and
+history-service's application ID. Normal auditing retains the request actor. Missing instances or headers produce no
+fabricated error history. A history-write failure is attached to the original failure rather than replacing it.
+Retry INFO events still come from the existing Kafka listener; retry errors are not also published to `instance-error`.
+
+A timeout can mean that delivery succeeded without acknowledgement reaching this caller. There is no outbox or retry
+idempotency table for this manual action. Another HTTP request is a new retry attempt and may publish another message.
+
 ## HTTP API
 
 Base path: `/api/intern/instance-flow-tracking`
