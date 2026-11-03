@@ -38,10 +38,14 @@ When `novari.flyt.instance-functionality.enabled=true`, history-service exposes 
 | Method | Path                                                       | Body         | Response                                                                                     |
 | ------ | ---------------------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------- |
 | POST   | `/api/intern/handlinger/instanser/{instanceId}/prov-igjen` | None         | 200 after broker acknowledgement; 404 missing instance; 500 missing headers or failed retry. |
-| POST   | `/api/intern/handlinger/instanser/prov-igjen/batch`        | Array of IDs | 200 with no body after processing each ID sequentially, including an empty array.            |
+| POST   | `/api/intern/handlinger/instanser/prov-igjen/batch`        | Array of IDs | 200 after processing; 422 oversized batch; 500 interrupted batch.                            |
 
-Both endpoints use the existing internal API authentication and USER-role authorization. Batch failures are logged
-per instance and do not stop the remaining requests. The flag controls the controller, orchestration and retry producer;
+Both endpoints use the existing internal API authentication and USER-role authorization. A batch larger than
+`novari.flyt.instance.retry.max-batch-size` (default `20`) is rejected with 422 before any instance is attempted.
+Split larger requests into batches within that limit. Publication failures are logged per instance and do not stop
+the remaining requests. A thread interruption stops the batch, preserves interrupt status and returns 500; later
+instances are not attempted. Interruption does not trigger a database history write on the interrupted thread.
+The flag controls the controller, orchestration and retry producer;
 this change does not enable the flag or redirect traffic from instance-service.
 
 The saved graph and latest `INSTANCE_REGISTERED` headers are read locally in short read-only transactions, including
@@ -52,14 +56,25 @@ preserved. Kafka publishing and waiting for acknowledgement happen outside datab
 The producer publishes to `instance-requested-for-retry` with the application-default organization/domain prefix,
 one partition, normal cleanup and `novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time`.
 The actor header uses the current auditor, falling back to `Actor.System`; origin is history-service's `fint.application-id`.
-Its dedicated producer uses `acks=all`. `novari.flyt.instance.retry.send-timeout` defaults to `30s` and bounds both
-producer blocking and acknowledgement waiting separately, so a call can take up to twice that duration during a broker
-failure. Other producers retain their existing configuration.
+Retry publication uses `InstanceFlowTemplateFactory` and `InstanceFlowProducerRecord` from `flyt-kafka`.
+The library handles serialization, flow headers, origin, producer configuration and failure tracking.
+There is no separate retry producer factory or KafkaTemplate configuration.
+
+`novari.flyt.instance.retry.send-timeout` defaults to `2s` and bounds acknowledgement waiting after `send()` returns.
+Blocking inside `send()` follows the library's producer settings; this property does not override `max.block.ms`
+or `delivery.timeout.ms`. A batch can therefore take longer than 20 times the acknowledgement timeout, in addition
+to database work and serialization. The batch limit is not an end-to-end HTTP deadline or a guarantee against
+client/proxy timeouts.
+
+The outbox retains its existing producer configuration. Moving that publisher to the library template requires
+support for an explicit record timestamp and preserved snapshot origin; the current template API lacks timestamp support.
 
 After retry headers have been established, a failed publication writes `INSTANCE_RETRY_REQUEST_ERROR` locally with
 `FINT_FLYT_INSTANCE_SERVICE_GENERAL_SYSTEM_ERROR`, no arguments, the new correlation ID, the injected clock and
 history-service's application ID. Normal auditing retains the request actor. Missing instances or headers produce no
 fabricated error history. A history-write failure is attached to the original failure rather than replacing it.
+Failure logs retain stack traces,
+causes, suppressed failures, SQLSTATE and constraint names without logging exception messages that may contain instance data.
 Retry INFO events still come from the existing Kafka listener; retry errors are not also published to `instance-error`.
 
 A timeout can mean that delivery succeeded without acknowledgement reaching this caller. There is no outbox or retry

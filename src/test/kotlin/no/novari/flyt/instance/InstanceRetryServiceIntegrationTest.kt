@@ -208,6 +208,33 @@ class InstanceRetryServiceIntegrationTest {
     }
 
     @Test
+    fun `interruption preserves the flag without attempting a history write`() {
+        val (saved, _) = registered()
+        doThrow(InterruptedException("interrupted")).whenever(producer).publish(any(), any())
+        try {
+            assertThatThrownBy { retry.retry(saved.id!!) }.isInstanceOf(InterruptedException::class.java)
+            assertThat(Thread.currentThread().isInterrupted).isTrue()
+            verifyNoInteractions(errors)
+        } finally {
+            Thread.interrupted()
+        }
+        assertThat(events.count()).isEqualTo(1)
+    }
+
+    @Test
+    fun `already interrupted requests do not attempt publication or history writes`() {
+        Thread.currentThread().interrupt()
+        try {
+            assertThatThrownBy { retry.retry(123) }.isInstanceOf(InterruptedException::class.java)
+            assertThat(Thread.currentThread().isInterrupted).isTrue()
+        } finally {
+            Thread.interrupted()
+        }
+        verifyNoInteractions(producer, errors)
+        assertThat(events.count()).isZero()
+    }
+
+    @Test
     fun `retry refuses an outer transaction`() {
         TransactionTemplate(transactionManager).executeWithoutResult {
             assertThatThrownBy { retry.retry(123) }.isInstanceOf(IllegalTransactionStateException::class.java)

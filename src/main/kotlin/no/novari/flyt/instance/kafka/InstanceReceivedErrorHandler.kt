@@ -2,16 +2,15 @@ package no.novari.flyt.instance.kafka
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import no.novari.flyt.instance.InstanceReceivedOffsetException
+import no.novari.flyt.instance.safeDiagnosticCause
 import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.consumer.NoOffsetForPartitionException
 import org.apache.kafka.clients.consumer.OffsetOutOfRangeException
-import org.hibernate.exception.ConstraintViolationException
 import org.springframework.kafka.listener.CommonContainerStoppingErrorHandler
 import org.springframework.kafka.listener.ConsumerAwareRecordRecoverer
 import org.springframework.kafka.listener.DefaultErrorHandler
 import org.springframework.kafka.listener.MessageListenerContainer
 import org.springframework.util.backoff.FixedBackOff
-import java.sql.SQLException
 
 internal class InstanceReceivedProcessingException(
     context: String,
@@ -19,21 +18,6 @@ internal class InstanceReceivedProcessingException(
     val retryable: Boolean,
 ) : RuntimeException("$context (${failure.javaClass.name})", safeDiagnosticCause(failure)) {
     init {
-        stackTrace = failure.stackTrace
-    }
-}
-
-private fun safeDiagnosticCause(failure: Throwable): RuntimeException {
-    val description =
-        buildString {
-            append(failure.javaClass.name)
-            if (failure is SQLException) failure.sqlState?.let { append(" SQLSTATE=$it") }
-            if (failure is ConstraintViolationException) {
-                val constraintName: String? = failure.constraintName
-                if (constraintName != null) append(" constraint=$constraintName")
-            }
-        }
-    return RuntimeException(description, failure.cause?.let(::safeDiagnosticCause)).apply {
         stackTrace = failure.stackTrace
     }
 }

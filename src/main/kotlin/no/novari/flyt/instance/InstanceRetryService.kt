@@ -28,6 +28,7 @@ class InstanceRetryService(
 ) {
     @Transactional(propagation = Propagation.NEVER)
     fun retry(instanceId: Long) {
+        if (Thread.currentThread().isInterrupted) throw InterruptedException("Instance retry interrupted")
         val instance = instanceService.getById(instanceId)
         val headers =
             eventService
@@ -38,7 +39,11 @@ class InstanceRetryService(
                 ?: throw NoInstanceFlowHeadersException(instanceId)
         try {
             producer.publish(headers, instance)
+        } catch (failure: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw failure
         } catch (failure: Exception) {
+            if (Thread.currentThread().isInterrupted) throw failure
             try {
                 instanceErrorEventService.registerError(
                     headers,

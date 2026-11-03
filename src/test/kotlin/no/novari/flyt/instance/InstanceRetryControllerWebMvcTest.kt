@@ -3,22 +3,29 @@ package no.novari.flyt.instance
 import jakarta.persistence.EntityNotFoundException
 import no.novari.flyt.history.GlobalExceptionHandler
 import no.novari.flyt.history.validation.ValidationErrorsFormattingService
+import no.novari.flyt.instance.kafka.InstanceRetryProperties
 import no.novari.flyt.webresourceserver.security.AuthorityMappingService
 import no.novari.flyt.webresourceserver.security.InternalUserApiConfiguration
 import no.novari.flyt.webresourceserver.security.SecurityConfiguration
 import no.novari.flyt.webresourceserver.security.SecurityFilterChainFactoryService
 import no.novari.flyt.webresourceserver.security.properties.InternalApiSecurityProperties
 import no.novari.flyt.webresourceserver.security.user.UserRole
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
+import org.mockito.kotlin.verifyNoMoreInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
@@ -32,6 +39,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeoutException
@@ -39,6 +47,7 @@ import java.util.concurrent.TimeoutException
 @WebMvcTest(properties = ["novari.flyt.instance-functionality.enabled=true"])
 @ContextConfiguration(classes = [InstanceRetryController::class, InstanceRetryControllerWebMvcTest.Security::class])
 @Import(GlobalExceptionHandler::class)
+@ExtendWith(OutputCaptureExtension::class)
 class InstanceRetryControllerWebMvcTest {
     @Autowired
     lateinit var mvc: MockMvc
@@ -122,6 +131,69 @@ class InstanceRetryControllerWebMvcTest {
         verifyNoInteractions(service)
     }
 
+    @Test
+    fun `interruption stops the batch and preserves interrupt status`() {
+        token()
+        doThrow(InterruptedException("interrupted")).whenever(service).retry(123L)
+        try {
+            mvc
+                .perform(request(true).header("Authorization", "Bearer token"))
+                .andExpect(status().isInternalServerError)
+            assertThat(Thread.currentThread().isInterrupted).isTrue()
+        } finally {
+            Thread.interrupted()
+        }
+        verify(service).retry(123L)
+        verifyNoMoreInteractions(service)
+    }
+
+    @Test
+    fun `failure logging retains stack traces causes and suppressed failures without message content`(
+        output: CapturedOutput,
+    ) {
+        token()
+        val failure =
+            IllegalStateException("private-instance-content", SQLException("private-database-content", "08006"))
+        failure.addSuppressed(UnsupportedOperationException("private-history-content"))
+        doThrow(failure).whenever(service).retry(123L)
+        mvc.perform(request(false).header("Authorization", "Bearer token")).andExpect(status().isInternalServerError)
+        assertThat(output.all)
+            .contains(
+                "instanceId=123",
+                failure.stackTrace.first().toString(),
+                "SQLSTATE=08006",
+                "Suppressed:",
+                UnsupportedOperationException::class.java.name,
+            ).doesNotContain("private-instance-content", "private-database-content", "private-history-content")
+    }
+
+    @Test
+    fun `oversized batch is rejected before any instance is attempted`() {
+        token()
+        mvc
+            .perform(
+                post(BATCH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content((1L..21L).joinToString(prefix = "[", postfix = "]"))
+                    .header("Authorization", "Bearer token"),
+            ).andExpect(status().isUnprocessableEntity)
+        verifyNoInteractions(service)
+    }
+
+    @Test
+    fun `batch at the size limit attempts every instance`() {
+        token()
+        mvc
+            .perform(
+                post(BATCH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content((1L..20L).joinToString(prefix = "[", postfix = "]"))
+                    .header("Authorization", "Bearer token"),
+            ).andExpect(status().isOk)
+        (1L..20L).forEach { verify(service).retry(it) }
+        verifyNoMoreInteractions(service)
+    }
+
     private fun request(batch: Boolean) =
         if (batch) {
             post(BATCH).contentType(MediaType.APPLICATION_JSON).content("[123,124,125]")
@@ -145,6 +217,7 @@ class InstanceRetryControllerWebMvcTest {
     }
 
     @TestConfiguration(proxyBeanMethods = false)
+    @EnableConfigurationProperties(InstanceRetryProperties::class)
     class Security {
         @Bean
         fun internalApi(http: HttpSecurity): SecurityFilterChain {

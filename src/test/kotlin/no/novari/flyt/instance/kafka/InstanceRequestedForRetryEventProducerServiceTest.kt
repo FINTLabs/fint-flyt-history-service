@@ -4,17 +4,14 @@ import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.audit.actor.ActorHeader
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.instance.outbox.outboxEvent
-import no.novari.flyt.instance.outbox.outboxObjectMapper
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeadersMapper
+import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowProducerRecord
+import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplate
+import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
 import no.novari.kafka.OriginHeaderProducerInterceptor
 import no.novari.kafka.topic.EventTopicService
 import no.novari.kafka.topic.configuration.EventCleanupFrequency
 import no.novari.kafka.topic.configuration.EventTopicConfiguration
 import no.novari.kafka.topic.name.EventTopicNameParameters
-import no.novari.kafka.topic.name.TopicNameService
-import org.apache.kafka.clients.producer.ProducerConfig
-import org.apache.kafka.clients.producer.ProducerRecord
-import org.apache.kafka.common.serialization.StringSerializer
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
@@ -27,9 +24,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.data.domain.AuditorAware
-import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.support.SendResult
-import org.springframework.kafka.support.serializer.JsonSerializer
 import java.time.Duration
 import java.util.Optional
 import java.util.UUID
@@ -40,42 +35,41 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 class InstanceRequestedForRetryEventProducerServiceTest {
-    private val template: KafkaTemplate<String, InstanceObjectDto> = mock()
-    private val names: TopicNameService = mock { on { validateAndMapToTopicName(any()) }.thenReturn("retry-topic") }
+    private val template: InstanceFlowTemplate<InstanceObjectDto> = mock()
+    private val factory: InstanceFlowTemplateFactory =
+        mock {
+            on { createTemplate(InstanceObjectDto::class.java) }.thenReturn(template)
+        }
     private val topics: EventTopicService = mock()
-    private val mapper = InstanceFlowHeadersMapper(outboxObjectMapper())
     private val fixture = outboxEvent()
 
     @ParameterizedTest
     @ValueSource(booleans = [true, false])
     fun `publication preserves saved graph flow headers origin and current actor or system fallback`(user: Boolean) {
         val actor = if (user) Actor.User(UUID.randomUUID()) else null
-        whenever(template.send(any<ProducerRecord<String, InstanceObjectDto>>()))
+        whenever(template.send(any<InstanceFlowProducerRecord<InstanceObjectDto>>()))
             .thenReturn(CompletableFuture.completedFuture(mock()))
         producer(actor).publish(fixture.headers, fixture.instance)
-        val record = argumentCaptor<ProducerRecord<String, InstanceObjectDto>>()
+        val record = argumentCaptor<InstanceFlowProducerRecord<InstanceObjectDto>>()
         verify(template).send(record.capture())
-        assertThat(record.firstValue.topic()).isEqualTo("retry-topic")
-        assertThat(record.firstValue.key()).isNull()
-        assertThat(record.firstValue.value()).isSameAs(fixture.instance)
-        assertThat(mapper.getInstanceFlowHeaders(record.firstValue.headers())).isEqualTo(fixture.headers)
+        assertThat((record.firstValue.topicNameParameters as EventTopicNameParameters).eventName)
+            .isEqualTo("instance-requested-for-retry")
+        assertThat(record.firstValue.key).isNull()
+        assertThat(record.firstValue.value).isSameAs(fixture.instance)
+        assertThat(record.firstValue.instanceFlowHeaders).isEqualTo(fixture.headers)
         assertThat(
             ActorHeader.fromHeaderValue(
                 record.firstValue
-                    .headers()
+                    .additionalHeaders
                     .lastHeader(ActorHeader.HEADER_NAME)
                     .value(),
             ),
         ).isEqualTo(actor ?: Actor.System)
         assertThat(
-            String(
-                record.firstValue
-                    .headers()
-                    .lastHeader(
-                        OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_RECORD_HEADER,
-                    ).value(),
+            record.firstValue.additionalHeaders.lastHeader(
+                OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_RECORD_HEADER,
             ),
-        ).isEqualTo("history-app")
+        ).isNull()
         val topic = argumentCaptor<EventTopicNameParameters>()
         val configuration = argumentCaptor<EventTopicConfiguration>()
         verify(topics).createOrModifyTopic(topic.capture(), configuration.capture())
@@ -92,7 +86,7 @@ class InstanceRequestedForRetryEventProducerServiceTest {
         doAnswer {
             sent.countDown()
             acknowledgement
-        }.whenever(template).send(any<ProducerRecord<String, InstanceObjectDto>>())
+        }.whenever(template).send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())
         val producer = producer()
         Executors.newSingleThreadExecutor().use { executor ->
             val call = executor.submit { producer.publish(fixture.headers, fixture.instance) }
@@ -106,7 +100,7 @@ class InstanceRequestedForRetryEventProducerServiceTest {
     @Test
     fun `missing acknowledgement times out and failed acknowledgement propagates`() {
         val future = CompletableFuture<SendResult<String, InstanceObjectDto>>()
-        whenever(template.send(any<ProducerRecord<String, InstanceObjectDto>>())).thenReturn(future)
+        whenever(template.send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())).thenReturn(future)
         val producer = producer(timeout = Duration.ofMillis(30))
         assertThatThrownBy {
             producer.publish(
@@ -121,7 +115,7 @@ class InstanceRequestedForRetryEventProducerServiceTest {
 
     @Test
     fun `interruption is preserved`() {
-        whenever(template.send(any<ProducerRecord<String, InstanceObjectDto>>())).thenReturn(CompletableFuture())
+        whenever(template.send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())).thenReturn(CompletableFuture())
         val producer = producer()
         Thread.currentThread().interrupt()
         try {
@@ -134,38 +128,21 @@ class InstanceRequestedForRetryEventProducerServiceTest {
         }
     }
 
-    @Test
-    fun `dedicated producer bounds blocking and delivery without modifying shared configuration`() {
-        val config =
-            ProducerConfig(
-                mapOf(
-                    ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to "localhost:9092",
-                    ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to StringSerializer::class.java,
-                    ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to JsonSerializer::class.java,
-                ),
-            )
-        val original = config.originals().toMap()
-        val factory =
-            InstanceRetryKafkaConfiguration().instanceRetryProducerFactory(
-                config,
-                outboxObjectMapper(),
-                InstanceRetryProperties(Duration.ofSeconds(2)),
-            )
-        try {
-            assertThat(factory.configurationProperties[ProducerConfig.MAX_BLOCK_MS_CONFIG]).isEqualTo(2000L)
-            assertThat(factory.configurationProperties[ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG]).isEqualTo(2000)
-            assertThat(factory.configurationProperties[ProducerConfig.ACKS_CONFIG]).isEqualTo("all")
-            assertThat(config.originals()).isEqualTo(original)
-        } finally {
-            factory.destroy()
-        }
-    }
-
     @ParameterizedTest
-    @ValueSource(longs = [0, -1, 2, 2147483648])
+    @ValueSource(longs = [0, -1])
     fun `invalid send timeout is rejected`(milliseconds: Long) {
         assertThatThrownBy {
             InstanceRetryProperties(Duration.ofMillis(milliseconds))
+        }.isInstanceOf(IllegalArgumentException::class.java)
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = [0, -1])
+    fun `invalid maximum batch size is rejected`(size: Int) {
+        assertThatThrownBy {
+            InstanceRetryProperties(
+                maxBatchSize = size,
+            )
         }.isInstanceOf(IllegalArgumentException::class.java)
     }
 
@@ -173,13 +150,10 @@ class InstanceRequestedForRetryEventProducerServiceTest {
         actor: Actor? = null,
         timeout: Duration = Duration.ofSeconds(5),
     ) = InstanceRequestedForRetryEventProducerService(
-        template,
-        mapper,
-        names,
+        factory,
         topics,
         AuditorAware { Optional.ofNullable(actor) },
         InstanceRetryProperties(timeout),
-        "history-app",
         Duration.ofDays(4),
     )
 }
