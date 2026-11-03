@@ -3,7 +3,6 @@ package no.novari.flyt.instance
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.history.EventService
 import no.novari.flyt.history.InstanceErrorEventService
-import no.novari.flyt.instance.config.InstanceRetryConfiguration
 import no.novari.flyt.instance.kafka.InstanceRequestedForRetryEventProducerService
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
@@ -35,7 +34,6 @@ class InstanceRetryConditionTest {
                 InstanceRetryController::class.java,
                 InstanceRetryService::class.java,
                 InstanceRequestedForRetryEventProducerService::class.java,
-                InstanceRetryConfiguration::class.java,
             ).withPropertyValues(
                 "novari.flyt.instance-functionality.enabled=true",
                 "fint.application-id=history-app",
@@ -66,7 +64,6 @@ class InstanceRetryConditionTest {
                 InstanceRetryController::class.java,
                 InstanceRetryService::class.java,
                 InstanceRequestedForRetryEventProducerService::class.java,
-                InstanceRetryConfiguration::class.java,
             ).withPropertyValues(*listOf(property).filter(String::isNotEmpty).toTypedArray())
             .run {
                 assertThat(it)

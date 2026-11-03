@@ -24,15 +24,14 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.springframework.data.domain.AuditorAware
+import org.springframework.kafka.KafkaException
 import org.springframework.kafka.support.SendResult
 import java.time.Duration
 import java.util.Optional
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 class InstanceRequestedForRetryEventProducerServiceTest {
     private val template: InstanceFlowTemplate<InstanceObjectDto> = mock()
@@ -80,44 +79,36 @@ class InstanceRequestedForRetryEventProducerServiceTest {
     }
 
     @Test
-    fun `publication waits for broker acknowledgement`() {
-        val sent = CountDownLatch(1)
+    fun `publication returns before acknowledgement without turning later failure into a synchronous error`() {
         val acknowledgement = CompletableFuture<SendResult<String, InstanceObjectDto>>()
-        doAnswer {
-            sent.countDown()
-            acknowledgement
-        }.whenever(template).send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())
+        whenever(template.send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())).thenReturn(acknowledgement)
         val producer = producer()
         Executors.newSingleThreadExecutor().use { executor ->
             val call = executor.submit { producer.publish(fixture.headers, fixture.instance) }
-            assertThat(sent.await(5, TimeUnit.SECONDS)).isTrue()
-            assertThat(call.isDone).isFalse()
-            acknowledgement.complete(mock())
-            call.get(5, TimeUnit.SECONDS)
+            try {
+                call.get(5, TimeUnit.SECONDS)
+                assertThat(acknowledgement.isDone).isFalse()
+            } finally {
+                acknowledgement.completeExceptionally(KafkaException("Delayed delivery failure"))
+            }
         }
+        assertThat(acknowledgement.isCompletedExceptionally).isTrue()
+        verify(template).send(any())
     }
 
     @Test
-    fun `missing acknowledgement times out and failed acknowledgement propagates`() {
-        val future = CompletableFuture<SendResult<String, InstanceObjectDto>>()
-        whenever(template.send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())).thenReturn(future)
-        val producer = producer(timeout = Duration.ofMillis(30))
-        assertThatThrownBy {
-            producer.publish(
-                fixture.headers,
-                fixture.instance,
-            )
-        }.isInstanceOf(TimeoutException::class.java)
-        val failure = IllegalStateException("broker failed")
-        future.completeExceptionally(failure)
-        assertThatThrownBy { producer.publish(fixture.headers, fixture.instance) }.hasCause(failure)
+    fun `synchronous send failures propagate`() {
+        val failure = KafkaException("Send failed before returning")
+        doAnswer { throw failure }.whenever(template).send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())
+        assertThatThrownBy { producer().publish(fixture.headers, fixture.instance) }.isSameAs(failure)
     }
 
     @Test
     fun `interruption is preserved`() {
-        whenever(template.send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())).thenReturn(CompletableFuture())
+        doAnswer { throw InterruptedException("Interrupted during send") }
+            .whenever(template)
+            .send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())
         val producer = producer()
-        Thread.currentThread().interrupt()
         try {
             assertThatThrownBy {
                 producer.publish(fixture.headers, fixture.instance)
@@ -128,32 +119,11 @@ class InstanceRequestedForRetryEventProducerServiceTest {
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(longs = [0, -1])
-    fun `invalid send timeout is rejected`(milliseconds: Long) {
-        assertThatThrownBy {
-            InstanceRetryProperties(Duration.ofMillis(milliseconds))
-        }.isInstanceOf(IllegalArgumentException::class.java)
-    }
-
-    @ParameterizedTest
-    @ValueSource(ints = [0, -1])
-    fun `invalid maximum batch size is rejected`(size: Int) {
-        assertThatThrownBy {
-            InstanceRetryProperties(
-                maxBatchSize = size,
-            )
-        }.isInstanceOf(IllegalArgumentException::class.java)
-    }
-
-    private fun producer(
-        actor: Actor? = null,
-        timeout: Duration = Duration.ofSeconds(5),
-    ) = InstanceRequestedForRetryEventProducerService(
-        factory,
-        topics,
-        AuditorAware { Optional.ofNullable(actor) },
-        InstanceRetryProperties(timeout),
-        Duration.ofDays(4),
-    )
+    private fun producer(actor: Actor? = null) =
+        InstanceRequestedForRetryEventProducerService(
+            factory,
+            topics,
+            AuditorAware { Optional.ofNullable(actor) },
+            Duration.ofDays(4),
+        )
 }

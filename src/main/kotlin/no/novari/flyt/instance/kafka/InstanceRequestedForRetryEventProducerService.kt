@@ -16,7 +16,6 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.AuditorAware
 import org.springframework.stereotype.Service
 import java.time.Duration
-import java.util.concurrent.TimeUnit
 
 @Service
 @ConditionalOnInstanceFunctionality
@@ -24,7 +23,6 @@ class InstanceRequestedForRetryEventProducerService(
     instanceFlowTemplateFactory: InstanceFlowTemplateFactory,
     eventTopicService: EventTopicService,
     private val auditorAware: AuditorAware<Actor>,
-    private val properties: InstanceRetryProperties,
     @Value($$"${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
     retentionTime: Duration,
 ) {
@@ -68,7 +66,7 @@ class InstanceRequestedForRetryEventProducerService(
                 ).value(instance)
                 .build()
         try {
-            template.send(record).get(properties.sendTimeout.toMillis(), TimeUnit.MILLISECONDS)
+            template.send(record)
         } catch (failure: InterruptedException) {
             Thread.currentThread().interrupt()
             throw failure

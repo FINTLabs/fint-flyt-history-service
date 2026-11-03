@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.persistence.EntityNotFoundException
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
-import no.novari.flyt.instance.kafka.InstanceRetryProperties
 import no.novari.flyt.webresourceserver.UrlPaths.INTERNAL_API
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -24,7 +23,6 @@ import org.springframework.web.server.ResponseStatusException
 @Tag(name = "Instance retries", description = "Retry processing for Flyt instances.")
 class InstanceRetryController(
     private val instanceRetryService: InstanceRetryService,
-    private val properties: InstanceRetryProperties,
 ) {
     private val logger = KotlinLogging.logger {}
 
@@ -32,7 +30,7 @@ class InstanceRetryController(
     @Operation(summary = "Retry an instance", operationId = "retryInstance")
     @ApiResponses(
         value = [
-            ApiResponse(responseCode = "200", description = "Retry request acknowledged by Kafka"),
+            ApiResponse(responseCode = "200", description = "Retry request accepted for publication"),
             ApiResponse(responseCode = "404", description = "Instance not found"),
             ApiResponse(responseCode = "500", description = "Retry request failed"),
         ],
@@ -58,19 +56,12 @@ class InstanceRetryController(
     @ApiResponses(
         value = [
             ApiResponse(responseCode = "200", description = "Batch retry request processed"),
-            ApiResponse(responseCode = "422", description = "Batch exceeds the configured maximum size"),
             ApiResponse(responseCode = "500", description = "Batch retry interrupted"),
         ],
     )
     fun retry(
         @RequestBody instanceIds: List<Long>,
     ): ResponseEntity<Void> {
-        if (instanceIds.size > properties.maxBatchSize) {
-            throw ResponseStatusException(
-                HttpStatus.UNPROCESSABLE_ENTITY,
-                "Batch must not contain more than ${properties.maxBatchSize} instances",
-            )
-        }
         instanceIds.forEach { instanceId ->
             try {
                 instanceRetryService.retry(instanceId)

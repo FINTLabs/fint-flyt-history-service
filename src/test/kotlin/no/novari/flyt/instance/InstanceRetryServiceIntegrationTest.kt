@@ -23,14 +23,18 @@ import no.novari.flyt.instance.model.InstanceMappingService
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.instance.outbox.outboxEvent
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
+import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplate
+import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Timeout
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
@@ -41,7 +45,10 @@ import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
+import org.springframework.data.domain.AuditorAware
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.kafka.KafkaException
+import org.springframework.kafka.support.SendResult
 import org.springframework.test.context.ContextConfiguration
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -57,10 +64,12 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.Optional
 import java.util.UUID
-import java.util.concurrent.TimeoutException
+import java.util.concurrent.CompletableFuture
 
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(
@@ -162,7 +171,7 @@ class InstanceRetryServiceIntegrationTest {
     @Test
     fun `failed publication commits one local retry error with clock origin and request actor`() {
         val (saved, headers) = registered()
-        val failure = TimeoutException("broker acknowledgement timed out")
+        val failure = KafkaException("send failed synchronously")
         val actor = Actor.User(UUID.randomUUID())
         doThrow(failure).whenever(producer).publish(any(), any())
         assertThatThrownBy { ActorContext.withActor(actor) { retry.retry(saved.id!!) } }.isSameAs(failure)
@@ -181,6 +190,37 @@ class InstanceRetryServiceIntegrationTest {
         assertThat(instances.getById(saved.id!!)).usingRecursiveComparison().isEqualTo(saved)
         assertThat(sent.firstValue.correlationId).isNotEqualTo(headers.correlationId)
         assertThat(events.count()).isEqualTo(2)
+    }
+
+    @Test
+    @Timeout(10)
+    fun `asynchronous delivery failure does not create a local retry error`() {
+        val (saved, _) = registered()
+        val future = CompletableFuture<SendResult<String, InstanceObjectDto>>()
+        val template: InstanceFlowTemplate<InstanceObjectDto> = mock()
+        whenever(template.send(any())).thenReturn(future)
+        val factory: InstanceFlowTemplateFactory =
+            mock {
+                on { createTemplate(InstanceObjectDto::class.java) }.thenReturn(template)
+            }
+        val libraryProducer =
+            InstanceRequestedForRetryEventProducerService(
+                factory,
+                mock(),
+                AuditorAware { Optional.of(Actor.System) },
+                Duration.ofDays(4),
+            )
+        doAnswer {
+            libraryProducer.publish(it.getArgument(0), it.getArgument(1))
+            null
+        }.whenever(producer).publish(any(), any())
+
+        retry.retry(saved.id!!)
+        assertThat(future.isDone).isFalse()
+        future.completeExceptionally(KafkaException("Asynchronous delivery failure"))
+
+        verifyNoInteractions(errors)
+        assertThat(events.count()).isEqualTo(1)
     }
 
     @Test

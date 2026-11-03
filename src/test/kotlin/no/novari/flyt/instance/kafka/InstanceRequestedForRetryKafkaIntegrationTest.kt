@@ -42,7 +42,7 @@ import java.util.UUID
 @Testcontainers(disabledWithoutDocker = true)
 class InstanceRequestedForRetryKafkaIntegrationTest {
     @Test
-    fun `broker acknowledges the existing retry contract and metadata`() {
+    fun `library publishes the existing retry contract and metadata`() {
         val mapper = outboxObjectMapper()
         val headersMapper = InstanceFlowHeadersMapper(mapper)
         val config =
@@ -56,7 +56,6 @@ class InstanceRequestedForRetryKafkaIntegrationTest {
                     OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_PRODUCER_CONFIG to "history-app",
                 ),
             )
-        val properties = InstanceRetryProperties()
         val factories = mutableListOf<DefaultKafkaProducerFactory<*, *>>()
         val libraryProducerFactory = spy(ProducerFactory(config, mapper))
         doAnswer { invocation ->
@@ -85,7 +84,6 @@ class InstanceRequestedForRetryKafkaIntegrationTest {
                             context.getBean(InstanceFlowTemplateFactory::class.java),
                             mock(),
                             AuditorAware { Optional.of(actor) },
-                            properties,
                             Duration.ofDays(4),
                         )
                     val fixture = outboxEvent()

@@ -3,7 +3,6 @@ package no.novari.flyt.instance
 import jakarta.persistence.EntityNotFoundException
 import no.novari.flyt.history.GlobalExceptionHandler
 import no.novari.flyt.history.validation.ValidationErrorsFormattingService
-import no.novari.flyt.instance.kafka.InstanceRetryProperties
 import no.novari.flyt.webresourceserver.security.AuthorityMappingService
 import no.novari.flyt.webresourceserver.security.InternalUserApiConfiguration
 import no.novari.flyt.webresourceserver.security.SecurityConfiguration
@@ -15,13 +14,14 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.verifyNoMoreInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.boot.test.system.CapturedOutput
@@ -29,6 +29,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
+import org.springframework.kafka.KafkaException
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
@@ -42,7 +43,6 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.TimeoutException
 
 @WebMvcTest(properties = ["novari.flyt.instance-functionality.enabled=true"])
 @ContextConfiguration(classes = [InstanceRetryController::class, InstanceRetryControllerWebMvcTest.Security::class])
@@ -96,9 +96,9 @@ class InstanceRetryControllerWebMvcTest {
     }
 
     @Test
-    fun `timeout gives 500`() {
+    fun `synchronous publication failure gives 500`() {
         token()
-        doThrow(TimeoutException()).whenever(service).retry(123L)
+        doThrow(KafkaException("Publication failed")).whenever(service).retry(123L)
         mvc.perform(request(false).header("Authorization", "Bearer token")).andExpect(status().isInternalServerError)
     }
 
@@ -106,7 +106,7 @@ class InstanceRetryControllerWebMvcTest {
     fun `batch continues sequentially after failures and returns no body`() {
         token()
         doThrow(EntityNotFoundException()).whenever(service).retry(123L)
-        doThrow(TimeoutException()).whenever(service).retry(124L)
+        doThrow(KafkaException("Publication failed")).whenever(service).retry(124L)
         mvc
             .perform(request(true).header("Authorization", "Bearer token"))
             .andExpect(status().isOk)
@@ -168,29 +168,21 @@ class InstanceRetryControllerWebMvcTest {
     }
 
     @Test
-    fun `oversized batch is rejected before any instance is attempted`() {
+    fun `batch accepts thousands of instances and attempts all IDs in order despite a failed item`() {
         token()
+        val instanceIds = (1L..5000L).toList()
+        doThrow(KafkaException("Publication failed")).whenever(service).retry(2500L)
         mvc
             .perform(
                 post(BATCH)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content((1L..21L).joinToString(prefix = "[", postfix = "]"))
-                    .header("Authorization", "Bearer token"),
-            ).andExpect(status().isUnprocessableEntity)
-        verifyNoInteractions(service)
-    }
-
-    @Test
-    fun `batch at the size limit attempts every instance`() {
-        token()
-        mvc
-            .perform(
-                post(BATCH)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content((1L..20L).joinToString(prefix = "[", postfix = "]"))
+                    .content(instanceIds.joinToString(prefix = "[", postfix = "]"))
                     .header("Authorization", "Bearer token"),
             ).andExpect(status().isOk)
-        (1L..20L).forEach { verify(service).retry(it) }
+            .andExpect(content().string(""))
+        val attempted = argumentCaptor<Long>()
+        verify(service, times(instanceIds.size)).retry(attempted.capture())
+        assertThat(attempted.allValues).containsExactlyElementsOf(instanceIds)
         verifyNoMoreInteractions(service)
     }
 
@@ -217,7 +209,6 @@ class InstanceRetryControllerWebMvcTest {
     }
 
     @TestConfiguration(proxyBeanMethods = false)
-    @EnableConfigurationProperties(InstanceRetryProperties::class)
     class Security {
         @Bean
         fun internalApi(http: HttpSecurity): SecurityFilterChain {
