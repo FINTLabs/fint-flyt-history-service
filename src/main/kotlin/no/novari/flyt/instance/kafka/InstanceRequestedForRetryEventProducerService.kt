@@ -23,8 +23,8 @@ class InstanceRequestedForRetryEventProducerService(
     instanceFlowTemplateFactory: InstanceFlowTemplateFactory,
     eventTopicService: EventTopicService,
     private val auditorAware: AuditorAware<Actor>,
-    @Value($$"${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
-    retentionTime: Duration,
+    @param:Value($$"${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
+    private val retentionTime: Duration,
 ) {
     private val template = instanceFlowTemplateFactory.createTemplate(InstanceObjectDto::class.java)
     private val topicNameParameters =
@@ -65,11 +65,6 @@ class InstanceRequestedForRetryEventProducerService(
                     ActorHeader.toHeaderValue(auditorAware.currentAuditor.orElse(Actor.System)),
                 ).value(instance)
                 .build()
-        try {
-            template.send(record)
-        } catch (failure: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw failure
-        }
+        template.send(record)
     }
 }

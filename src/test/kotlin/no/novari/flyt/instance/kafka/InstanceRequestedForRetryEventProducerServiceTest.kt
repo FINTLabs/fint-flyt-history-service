@@ -103,22 +103,6 @@ class InstanceRequestedForRetryEventProducerServiceTest {
         assertThatThrownBy { producer().publish(fixture.headers, fixture.instance) }.isSameAs(failure)
     }
 
-    @Test
-    fun `interruption is preserved`() {
-        doAnswer { throw InterruptedException("Interrupted during send") }
-            .whenever(template)
-            .send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())
-        val producer = producer()
-        try {
-            assertThatThrownBy {
-                producer.publish(fixture.headers, fixture.instance)
-            }.isInstanceOf(InterruptedException::class.java)
-            assertThat(Thread.currentThread().isInterrupted).isTrue()
-        } finally {
-            Thread.interrupted()
-        }
-    }
-
     private fun producer(actor: Actor? = null) =
         InstanceRequestedForRetryEventProducerService(
             factory,
