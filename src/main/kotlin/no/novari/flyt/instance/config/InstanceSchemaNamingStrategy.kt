@@ -6,7 +6,7 @@ import org.hibernate.boot.model.naming.Identifier
 import org.hibernate.engine.jdbc.env.spi.JdbcEnvironment
 
 class InstanceSchemaNamingStrategy(
-    private val properties: InstanceDatabaseProperties,
+    private val schema: String?,
 ) : CamelCaseToUnderscoresNamingStrategy() {
     override fun toPhysicalSchemaName(
         logicalName: Identifier?,
@@ -15,9 +15,9 @@ class InstanceSchemaNamingStrategy(
         if (logicalName?.text != INSTANCE_SCHEMA) {
             return super.toPhysicalSchemaName(logicalName, jdbcEnvironment)
         }
-        require(properties.schema.isNotBlank()) {
-            "novari.flyt.instance.database.schema must be configured when instance entities are included in the JPA metamodel"
+        requireNotNull(schema) {
+            "Cannot derive the instance schema from the database user; set novari.flyt.instance.database.schema"
         }
-        return Identifier.toIdentifier(properties.schema, logicalName.isQuoted)
+        return Identifier.toIdentifier(schema, logicalName.isQuoted)
     }
 }

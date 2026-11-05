@@ -8,7 +8,6 @@ import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.history.repository.EventRepository
-import no.novari.flyt.instance.config.InstanceFunctionalityProperties
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowConsumerRecord
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
@@ -97,7 +96,6 @@ class InstanceErrorListenerTest {
         EventListenerConfiguration(
             instanceErrorEventService = instanceErrorEventService,
             instanceInfoEventService = mock<InstanceInfoEventService>(),
-            instanceFunctionalityProperties = InstanceFunctionalityProperties(),
             instanceFlowListenerFactoryService = instanceFlowListenerFactoryService,
             errorHandlerFactory = errorHandlerFactory,
             beanFactory = mock<ConfigurableListableBeanFactory>(),
