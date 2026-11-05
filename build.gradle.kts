@@ -103,9 +103,9 @@ dependencies {
 
     implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.16.0")
 
-    implementation("no.novari:flyt-web-resource-server:4.1.0")
-    implementation("no.novari:flyt-kafka:7.4.0")
-    implementation("no.novari:flyt-audit-starter:1.2.0")
+    implementation("no.novari:flyt-web-resource-server:4.1.1")
+    implementation("no.novari:flyt-kafka:7.4.1")
+    implementation("no.novari:flyt-audit-starter:1.2.1")
 
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-database-postgresql")
