@@ -31,6 +31,55 @@ and Prometheus support out of the box.
 | `ArchiveInstanceIdRequestConsumerConfiguration`                        | Request/reply consumer that resolves the latest archive instance ID for a `SourceApplicationAggregateInstanceId`.               |
 | `ValidationErrorsFormattingService`                                    | Folds constraint violations into human-friendly 422 responses for filters and manual action payloads.                           |
 
+## Instance retries
+
+When `novari.flyt.instance-functionality.enabled=true`, history-service exposes the existing internal retry API:
+
+| Method | Path                                                       | Body         | Response                                                                                        |
+|--------|------------------------------------------------------------|--------------|-------------------------------------------------------------------------------------------------|
+| POST   | `/api/intern/handlinger/instanser/{instanceId}/prov-igjen` | None         | 200 after send returns; 404 missing instance; 500 missing headers or synchronous retry failure. |
+| POST   | `/api/intern/handlinger/instanser/prov-igjen/batch`        | Array of IDs | 200 with no body after attempting each ID; 500 if interrupted.                                  |
+
+Both endpoints use the existing internal API authentication and USER-role authorization. The batch endpoint has no
+application-level size limit and accepts thousands of instance IDs in one request, matching instance-service without
+requiring frontend batching changes. IDs are attempted sequentially; synchronous failures are logged per instance and
+do not stop the remaining IDs. An empty batch returns 200 without publishing. A thread interruption stops the batch,
+preserves interrupt status and returns 500; later instances are not attempted. Interruption does not trigger a database
+history write on the interrupted thread. The master flag controls the controller, orchestration and retry producer.
+This change does not enable the flag or redirect traffic from instance-service.
+
+The saved graph and latest `INSTANCE_REGISTERED` headers are read locally in short read-only transactions, including
+nested objects and file IDs. Each attempt gets a new correlation ID; all other flow headers and saved object IDs are
+preserved. Kafka publishing happens outside database transactions. No graph or `instance_received_offset` is changed,
+and no Kafka request/reply is used to retrieve headers.
+
+The producer publishes to `instance-requested-for-retry` with the application-default organization/domain prefix,
+one partition, normal cleanup and `novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time`.
+The actor header uses the current auditor, falling back to `Actor.System`; origin is history-service's `fint.application-id`.
+Retry publication uses `InstanceFlowTemplateFactory` and `InstanceFlowProducerRecord` from `flyt-kafka`.
+The library handles serialization, flow headers, origin, producer configuration and asynchronous failure tracking.
+There is no separate retry producer factory, batch-limit property or acknowledgement-timeout property.
+
+As in instance-service, publication does not wait for the send future. HTTP 200 means the send call returned successfully,
+not that the broker acknowledged delivery or retry processing completed. Blocking inside `send()` follows the library's
+producer settings, so large batches can still take time, particularly during broker problems. Removing acknowledgement
+waiting does not make the entire HTTP request background work or impose an end-to-end deadline.
+
+After retry headers have been established, a synchronous publication failure writes `INSTANCE_RETRY_REQUEST_ERROR`
+locally with `FINT_FLYT_INSTANCE_SERVICE_GENERAL_SYSTEM_ERROR`, no arguments, the new correlation ID, the injected clock
+and history-service's application ID. Normal auditing retains the request actor. Missing instances or headers produce
+no fabricated error history. A history-write failure is attached to the original failure rather than replacing it.
+Failure logs retain stack traces, causes, suppressed failures, SQLSTATE and constraint names without logging exception
+messages that may contain instance data. Asynchronous delivery failures remain the responsibility of the library's
+producer failure tracking and do not create a local retry ERROR event. There is no short acknowledgement deadline that
+can create an ERROR event while the same message is still pending delivery. Retry INFO events still come from the
+existing Kafka listener; retry errors are not also published to `instance-error`.
+
+The outbox retains its existing producer configuration. Moving that publisher to the library template requires support
+for an explicit record timestamp and preserved snapshot origin; the current template API lacks timestamp support.
+There is no outbox or retry idempotency table for this manual action. Another HTTP request is a new retry attempt and
+may publish another message.
+
 ## HTTP API
 
 Base path: `/api/intern/instance-flow-tracking`
