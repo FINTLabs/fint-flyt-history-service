@@ -286,7 +286,7 @@ class InstanceSchemaMappingIntegrationTest {
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = ["", "   "])
-    fun `enabled flag fails startup when instance schema is missing or blank`(schema: String?) {
+    fun `startup fails when instance schema is neither configured nor derivable`(schema: String?) {
         var runner =
             instanceJpaContextRunner(postgreSQLContainer, HISTORY_SCHEMA)
                 .withPropertyValues("novari.flyt.instance-functionality.enabled=true")
@@ -297,7 +297,7 @@ class InstanceSchemaMappingIntegrationTest {
             assertThat(context).hasFailed()
             assertThat(NestedExceptionUtils.getMostSpecificCause(context.startupFailure!!))
                 .isInstanceOf(IllegalArgumentException::class.java)
-                .hasMessageContaining("novari.flyt.instance.database.schema must be configured")
+                .hasMessageContaining("Cannot derive the instance schema from the database user")
         }
     }
 
