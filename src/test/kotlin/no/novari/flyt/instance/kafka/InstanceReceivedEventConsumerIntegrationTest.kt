@@ -310,16 +310,6 @@ class InstanceReceivedEventConsumerIntegrationTest {
         headers?.let { headers().add(headersMapper.toHeader(it)) }
     }
 
-    private fun transactionalProducer() =
-        KafkaProducer<String, ByteArray>(
-            mapOf(
-                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrapServers,
-                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to StringSerializer::class.java,
-                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to ByteArraySerializer::class.java,
-                ProducerConfig.TRANSACTIONAL_ID_CONFIG to "consumer-test-${UUID.randomUUID()}",
-            ),
-        )
-
     private fun insertPosition(nextOffset: Long) {
         jdbc.update(
             "INSERT INTO instance_received_offset (topic_name, partition_id, next_offset) VALUES (?, 0, ?)",
@@ -381,6 +371,16 @@ class InstanceReceivedEventConsumerIntegrationTest {
             KafkaContainer(DockerImageName.parse("apache/kafka:3.9.1"))
                 .withEnv("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0")
 
+        private fun transactionalProducer() =
+            KafkaProducer<String, ByteArray>(
+                mapOf(
+                    ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrapServers,
+                    ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to StringSerializer::class.java,
+                    ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to ByteArraySerializer::class.java,
+                    ProducerConfig.TRANSACTIONAL_ID_CONFIG to "consumer-test-${UUID.randomUUID()}",
+                ),
+            )
+
         @JvmStatic @DynamicPropertySource
         fun properties(registry: DynamicPropertyRegistry) {
             postgres.start()
@@ -389,6 +389,9 @@ class InstanceReceivedEventConsumerIntegrationTest {
             Admin.create(mapOf(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrapServers)).use {
                 it.createTopics(listOf(NewTopic(RECEIVED, 1, 1))).all().get(20, TimeUnit.SECONDS)
             }
+            // The first transaction on a fresh broker creates and loads __transaction_state. Doing it here keeps
+            // that setup from delaying the application's first send in a test.
+            transactionalProducer().use { it.initTransactions() }
             registry.add("fint.database.url", postgres::getJdbcUrl)
             registry.add("fint.database.username", postgres::getUsername)
             registry.add("fint.database.password", postgres::getPassword)
