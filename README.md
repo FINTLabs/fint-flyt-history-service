@@ -153,9 +153,11 @@ until `novari.flyt.instance-functionality.enabled=true`.
 - `InstanceReceivedEventConsumerConfiguration` consumes `instance-received` with the fint-kafka
   listener factory, in its own consumer group (`<application-id>-instance-received`).
 - `instance_received_offset` holds `next_offset` per topic and partition, and it decides where
-  consumption starts. `InstanceReceivedPositions` seeks to `next_offset` on every assignment, and it
-  only lets through the record whose offset equals `next_offset`.
-  - A record ahead of the position moves the consumer back to `next_offset`.
+  consumption starts. `InstanceReceivedPositions` seeks to `next_offset` on every assignment.
+  - Once the consumer reads from `next_offset`, the next record it gets is processed, also when
+    Kafka offsets have gaps, for example after transaction markers.
+  - If the seek at assignment failed, the consumer starts at its committed Kafka offset. A record
+    ahead of `next_offset` then moves the consumer back to `next_offset` first.
   - A record behind the position has already been processed and is ignored.
   - Without a readable row nothing is processed. The record is retried until the row exists.
   - `cluster_id` and `topic_id` are not used.
@@ -168,9 +170,9 @@ until `novari.flyt.instance-functionality.enabled=true`.
   reuses the saved instance and does not send again once the send has succeeded.
 - A record without usable instance flow headers is logged and skipped without history, because
   history cannot be stored without headers.
-- A missing payload or invalid input (`InstanceInputException`: a key over 255 characters, or a null
-  character) is stored as one `INSTANCE_REGISTRATION_ERROR` together with the position, in one
-  transaction.
+- A missing payload or invalid input (a key over 255 characters, a null character, or a JSON `null`
+  where text or an object is expected) is stored as one `INSTANCE_REGISTRATION_ERROR` together with
+  the position, in one transaction.
 - Every other failure is retried every 10 seconds without limit, and no record is skipped. The
   partition waits until the cause is fixed. A payload that is not valid JSON fails in the fint-kafka
   deserializer before it reaches the listener, and it also blocks the partition.
@@ -192,7 +194,8 @@ for local runs and tests. The database role needs `USAGE` on that schema, `SELEC
 - Before the consumer is enabled, every partition needs a row. Set `next_offset` to the higher of
   the row written by instance-service and the committed offset of the instance-service consumer
   group, after instance-service has stopped. Check that the topic ID is unchanged and that
-  `next_offset` lies within the earliest and end offsets of the partition.
+  `next_offset` lies within the earliest and end offsets of the partition. If neither the row nor
+  the committed offset exists, stop and investigate.
 - Only one service may consume `instance-received` at a time.
 - If the topic is recreated, delete the rows and insert new ones before the service starts again.
   Otherwise an old `next_offset` that is still inside the new topic skips records.

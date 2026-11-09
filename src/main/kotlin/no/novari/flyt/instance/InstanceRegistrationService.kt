@@ -76,9 +76,10 @@ class InstanceRegistrationService(
                 }
 
                 else -> {
+                    // Validation only reads the payload, so any failure, such as a JSON null where text is expected,
+                    // is an input error and not a technical one.
                     runCatching { InstanceInputValidator.validate(instance) }.exceptionOrNull()?.let { failure ->
-                        if (failure !is InstanceInputException) throw failure
-                        failure.code.name
+                        (failure as? InstanceInputException)?.code?.name ?: "invalid payload: $failure"
                     }
                 }
             }

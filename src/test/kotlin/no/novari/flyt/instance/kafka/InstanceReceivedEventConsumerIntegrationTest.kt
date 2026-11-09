@@ -261,16 +261,64 @@ class InstanceReceivedEventConsumerIntegrationTest {
         assertThat(endOffset(REGISTERED) - registeredBefore).isEqualTo(1)
     }
 
+    @Test
+    fun `a null value inside the payload is recorded as a registration error and does not block the next`() {
+        send("""{"valuePerKey":{"label":null}}""".toByteArray(), headers())
+        send(instance("next"))
+        insertPosition(start)
+
+        consumer.start()
+        awaitPosition(start + 2)
+
+        assertThat(events.findAll().map { it.name }).containsExactly("instance-registration-error")
+        assertThat(labels()).containsExactly("next")
+        assertThat(endOffset(REGISTERED) - registeredBefore).isEqualTo(1)
+    }
+
+    @Test
+    fun `a gap in Kafka offsets after a transaction marker does not block the next record`() {
+        transactionalProducer().use {
+            it.initTransactions()
+            it.beginTransaction()
+            it.send(record(objectMapper.writeValueAsBytes(instance("in transaction")), headers()))
+            it.commitTransaction()
+        }
+        // The commit marker takes one offset, so the next record leaves a gap after the first.
+        send(instance("after gap"))
+        insertPosition(start)
+
+        consumer.start()
+        awaitPosition(start + 3)
+
+        assertThat(labels()).containsExactlyInAnyOrder("in transaction", "after gap")
+        assertThat(endOffset(REGISTERED) - registeredBefore).isEqualTo(2)
+    }
+
     private fun send(instance: InstanceObjectDto) = send(objectMapper.writeValueAsBytes(instance), headers())
 
     private fun send(
         value: ByteArray?,
         headers: InstanceFlowHeaders?,
     ) {
-        val record = ProducerRecord<String, ByteArray>(RECEIVED, value)
-        headers?.let { record.headers().add(headersMapper.toHeader(it)) }
-        producer.send(record).get(20, TimeUnit.SECONDS)
+        producer.send(record(value, headers)).get(20, TimeUnit.SECONDS)
     }
+
+    private fun record(
+        value: ByteArray?,
+        headers: InstanceFlowHeaders?,
+    ) = ProducerRecord<String, ByteArray>(RECEIVED, value).apply {
+        headers?.let { headers().add(headersMapper.toHeader(it)) }
+    }
+
+    private fun transactionalProducer() =
+        KafkaProducer<String, ByteArray>(
+            mapOf(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrapServers,
+                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to StringSerializer::class.java,
+                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to ByteArraySerializer::class.java,
+                ProducerConfig.TRANSACTIONAL_ID_CONFIG to "consumer-test-${UUID.randomUUID()}",
+            ),
+        )
 
     private fun insertPosition(nextOffset: Long) {
         jdbc.update(
