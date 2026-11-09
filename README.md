@@ -153,24 +153,30 @@ until `novari.flyt.instance-functionality.enabled=true`.
 - `InstanceReceivedEventConsumerConfiguration` consumes `instance-received` with the fint-kafka
   listener factory, in its own consumer group (`<application-id>-instance-received`).
 - `instance_received_offset` holds `next_offset` per topic and partition, and it decides where
-  consumption starts. On every partition assignment the consumer seeks to `next_offset`, so
-  committed Kafka offsets are never used. `cluster_id` and `topic_id` are not used.
+  consumption starts. `InstanceReceivedPositions` seeks to `next_offset` on every assignment, and it
+  only lets through the record whose offset equals `next_offset`.
+  - A record ahead of the position moves the consumer back to `next_offset`.
+  - A record behind the position has already been processed and is ignored.
+  - Without a readable row nothing is processed. The record is retried until the row exists.
+  - `cluster_id` and `topic_id` are not used.
 - For each record, `InstanceRegistrationService`:
-  1. requires a position row, so without one nothing is saved or published
-  2. validates headers and instance
-  3. saves the instance graph
-  4. publishes `instance-registered` and waits for the broker acknowledgement
-  5. sets `next_offset = offset + 1`
+  1. saves the instance graph
+  2. publishes `instance-registered` and waits for the broker acknowledgement
+  3. sets `next_offset = offset + 1`
 
-  The position is written last, so it never gets ahead of processing.
-- Invalid input (`InstanceInputException`: a key over 255 characters, or a null character) is stored
-  as one `INSTANCE_REGISTRATION_ERROR` together with the position, in one transaction.
+  The position is written last, so it never gets ahead of processing. A retry of the same record
+  reuses the saved instance and does not send again once the send has succeeded.
+- A record without usable instance flow headers is logged and skipped without history, because
+  history cannot be stored without headers.
+- A missing payload or invalid input (`InstanceInputException`: a key over 255 characters, or a null
+  character) is stored as one `INSTANCE_REGISTRATION_ERROR` together with the position, in one
+  transaction.
 - Every other failure is retried every 10 seconds without limit, and no record is skipped. The
-  partition waits until the cause is fixed.
+  partition waits until the cause is fixed. A payload that is not valid JSON fails in the fint-kafka
+  deserializer before it reaches the listener, and it also blocks the partition.
 - The `INSTANCE_REGISTERED` history event comes from the ordinary `instance-registered` listener.
-- Duplicates only occur after a crash or a failure between steps 4 and 5, for example when the pod
-  dies after the send. A failed send leaves the saved instance without an event, and the retry
-  saves a new one.
+- Duplicates only occur when the process dies between the send and the position write. If it dies
+  between the save and the send, the saved instance remains without an event.
 
 ### Instance schema
 
@@ -185,7 +191,8 @@ for local runs and tests. The database role needs `USAGE` on that schema, `SELEC
 
 - Before the consumer is enabled, every partition needs a row. Set `next_offset` to the higher of
   the row written by instance-service and the committed offset of the instance-service consumer
-  group, after instance-service has stopped.
+  group, after instance-service has stopped. Check that the topic ID is unchanged and that
+  `next_offset` lies within the earliest and end offsets of the partition.
 - Only one service may consume `instance-received` at a time.
 - If the topic is recreated, delete the rows and insert new ones before the service starts again.
   Otherwise an old `next_offset` that is still inside the new topic skips records.

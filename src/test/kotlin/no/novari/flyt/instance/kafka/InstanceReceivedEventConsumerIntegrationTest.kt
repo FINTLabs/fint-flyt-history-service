@@ -8,6 +8,7 @@ import no.novari.flyt.history.JpaAuditingTestConfig
 import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
 import no.novari.flyt.history.repository.EventRepository
 import no.novari.flyt.instance.InstanceReceivedOffsetRepository
+import no.novari.flyt.instance.InstanceReceivedPositions
 import no.novari.flyt.instance.InstanceRegistrationService
 import no.novari.flyt.instance.InstanceService
 import no.novari.flyt.instance.config.InstanceDatabaseConfiguration
@@ -20,6 +21,7 @@ import org.apache.kafka.clients.admin.Admin
 import org.apache.kafka.clients.admin.AdminClientConfig
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.admin.OffsetSpec
+import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -84,6 +86,7 @@ import java.util.concurrent.TimeUnit
     InstanceErrorEventService::class,
     InstanceFlowHeadersMappingService::class,
     InstanceReceivedOffsetRepository::class,
+    InstanceReceivedPositions::class,
     InstanceRegistrationService::class,
     InstanceRegisteredEventProducerService::class,
     InstanceReceivedEventConsumerConfiguration::class,
@@ -102,6 +105,8 @@ class InstanceReceivedEventConsumerIntegrationTest {
     @Autowired lateinit var headersMapper: InstanceFlowHeadersMapper
 
     @MockitoSpyBean lateinit var producerService: InstanceRegisteredEventProducerService
+
+    @MockitoSpyBean lateinit var offsetRepository: InstanceReceivedOffsetRepository
 
     private lateinit var admin: Admin
     private lateinit var producer: KafkaProducer<String, ByteArray>
@@ -179,7 +184,7 @@ class InstanceReceivedEventConsumerIntegrationTest {
     }
 
     @Test
-    fun `a failed send keeps the position and publishes once when retried`() {
+    fun `a failed send is retried with the instance already saved and publishes once`() {
         doThrow(IllegalStateException("broker unavailable"))
             .doCallRealMethod()
             .whenever(producerService)
@@ -190,14 +195,80 @@ class InstanceReceivedEventConsumerIntegrationTest {
         consumer.start()
         awaitPosition(start + 1)
 
+        assertThat(labels()).containsExactly("retried")
         assertThat(endOffset(REGISTERED) - registeredBefore).isEqualTo(1)
-        // The first attempt's instance stays without an instance-registered event.
-        assertThat(labels()).containsExactly("retried", "retried")
     }
 
-    private fun send(instance: InstanceObjectDto) {
-        val record = ProducerRecord<String, ByteArray>(RECEIVED, objectMapper.writeValueAsBytes(instance))
-        record.headers().add(headersMapper.toHeader(headers()))
+    @Test
+    fun `a failed position write after the send does not publish again`() {
+        doThrow(IllegalStateException("database unavailable"))
+            .doCallRealMethod()
+            .whenever(offsetRepository)
+            .markProcessed(any(), any(), any())
+        send(instance("published once"))
+        insertPosition(start)
+
+        consumer.start()
+        awaitPosition(start + 1)
+
+        assertThat(labels()).containsExactly("published once")
+        assertThat(endOffset(REGISTERED) - registeredBefore).isEqualTo(1)
+    }
+
+    @Test
+    fun `a committed Kafka offset ahead of the database position never skips records`() {
+        send(instance("first"))
+        send(instance("second"))
+        admin
+            .alterConsumerGroupOffsets(GROUP, mapOf(TopicPartition(RECEIVED, 0) to OffsetAndMetadata(start + 1)))
+            .all()
+            .get(20, TimeUnit.SECONDS)
+
+        consumer.start()
+        await().during(Duration.ofSeconds(3)).atMost(Duration.ofSeconds(5)).until { labels().isEmpty() }
+        insertPosition(start)
+        awaitPosition(start + 2)
+
+        assertThat(labels()).containsExactlyInAnyOrder("first", "second")
+        assertThat(endOffset(REGISTERED) - registeredBefore).isEqualTo(2)
+    }
+
+    @Test
+    fun `a record without usable headers is skipped without history and does not block the next`() {
+        send(objectMapper.writeValueAsBytes(instance("no headers")), headers = null)
+        send(instance("next"))
+        insertPosition(start)
+
+        consumer.start()
+        awaitPosition(start + 2)
+
+        assertThat(labels()).containsExactly("next")
+        assertThat(events.findAll()).isEmpty()
+        assertThat(endOffset(REGISTERED) - registeredBefore).isEqualTo(1)
+    }
+
+    @Test
+    fun `a missing payload is recorded as a registration error and does not block the next`() {
+        send(null, headers())
+        send(instance("next"))
+        insertPosition(start)
+
+        consumer.start()
+        awaitPosition(start + 2)
+
+        assertThat(events.findAll().map { it.name }).containsExactly("instance-registration-error")
+        assertThat(labels()).containsExactly("next")
+        assertThat(endOffset(REGISTERED) - registeredBefore).isEqualTo(1)
+    }
+
+    private fun send(instance: InstanceObjectDto) = send(objectMapper.writeValueAsBytes(instance), headers())
+
+    private fun send(
+        value: ByteArray?,
+        headers: InstanceFlowHeaders?,
+    ) {
+        val record = ProducerRecord<String, ByteArray>(RECEIVED, value)
+        headers?.let { record.headers().add(headersMapper.toHeader(it)) }
         producer.send(record).get(20, TimeUnit.SECONDS)
     }
 
@@ -251,6 +322,7 @@ class InstanceReceivedEventConsumerIntegrationTest {
         private const val INSTANCE_SCHEMA = "mapping_test_instance"
         private const val RECEIVED = "$ORG_ID.flyt.event.instance-received"
         private const val REGISTERED = "$ORG_ID.flyt.event.instance-registered"
+        private const val GROUP = "consumer-test-instance-received"
 
         @JvmField @Container
         val postgres: PostgreSQLContainer<*> =
