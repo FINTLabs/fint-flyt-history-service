@@ -1,5 +1,7 @@
 fint:
   org-id: fintlabs.no
+  sso:
+    client-id: local
 
 novari:
   flyt:

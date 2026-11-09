@@ -21,7 +21,7 @@ and Prometheus support out of the box.
 
 | Component                                                              | Responsibility                                                                                                                  |
 |------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `HistoryController`                                                    | Exposes `/api/intern/instance-flow-tracking` endpoints, performs validation, and shapes HTTP responses.                       |
+| `HistoryController`                                                    | Exposes `/api/intern/instance-flow-tracking` endpoints, performs validation, and shapes HTTP responses.                         |
 | `AuthorizationService`                                                 | Delegates to `UserAuthorizationService` to intersect requested source applications with the caller’s access rights.             |
 | `EventService`                                                         | Central orchestration for saving events, running summary/statistics queries, mapping projections, and fetching latest metadata. |
 | `ManualEventCreationService`                                           | Builds manual events, enforces “latest status must be ERROR,” injects correlation IDs, and persists via `EventService`.         |
@@ -29,6 +29,7 @@ and Prometheus support out of the box.
 | `EventListenerConfiguration`                                           | Registers one Kafka listener per `EventCategory`, mapping consumer records into `EventEntity` rows (info and error variants).   |
 | `InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguration` | Request/reply consumer that returns the latest `InstanceFlowHeaders` for a given instance ID.                                   |
 | `ArchiveInstanceIdRequestConsumerConfiguration`                        | Request/reply consumer that resolves the latest archive instance ID for a `SourceApplicationAggregateInstanceId`.               |
+| `ArchiveInstanceIdInternalClientController`                            | Exposes `/api/intern-klient/archive-instance-id`, which resolves the same archive instance ID over HTTP.                        |
 | `ValidationErrorsFormattingService`                                    | Folds constraint violations into human-friendly 422 responses for filters and manual action payloads.                           |
 
 ## HTTP API
@@ -73,6 +74,15 @@ Manual action payloads:
 
 Validation failures respond with 422 Unprocessable Entity using the shared formatting service.
 
+### Internal client API
+
+`GET /api/intern-klient/archive-instance-id` returns the latest archive instance ID as plain text, or `404` if the
+instance has none. Query parameters: `sourceApplicationId` and `sourceApplicationInstanceId` (required),
+`sourceApplicationIntegrationId` (optional).
+
+Only tokens from the OAuth client `fint-flyt-history-oauth2-client` are accepted. The endpoint replaces the
+`archive-instance-id` request/reply topic, which is kept until all callers use HTTP.
+
 ### OpenAPI Documentation
 
 Swagger UI and the generated OpenAPI specification are available only through direct service access, such as a
@@ -95,7 +105,7 @@ Swagger UI is then available at `http://localhost:8080/beta/fintlabs-no/swagger-
 
 - Event ingestion: EventListenerConfiguration registers a listener per EventCategory. INFO events persist headers, timestamps, and application IDs; ERROR events also persist the attached ErrorCollection.
 - Request/reply for headers: instance-flow-headers-for-registered-instance topic replies with the latest InstanceFlowHeaders for a given instance ID (retention 5 minutes). Useful when downstream services only know DB IDs.
-- Request/reply for archive IDs: archive-instance-id topic replies with the newest archive instance ID for a SourceApplicationAggregateInstanceId.
+- Request/reply for archive IDs: archive-instance-id topic replies with the newest archive instance ID for a SourceApplicationAggregateInstanceId. Deprecated in favour of the internal client API.
 - Operational defaults: Listeners reuse the shared ListenerConfiguration defaults (auto group ID, bounded poll sizes) and use ErrorHandlerFactory with “no retries, skip failed records.”
 
 ## Scheduled Tasks
@@ -110,21 +120,22 @@ Swagger UI is then available at `http://localhost:8080/beta/fintlabs-no/swagger-
 The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-web-resource-server,
 flyt-authorization-client, flyt-postgres) and exposes these key properties:
 
-| Property                                                                                   | Description                                                                                |
-|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service). |
-| novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                               |
-| novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                         |
-| novari.flyt.history-service.retention.time-to-keep-error-details-in-days                   | Number of days to keep error detail values before scheduled scrub.                         |
-| novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                |
-| novari.flyt.instance.database.schema                                                     | Existing instance schema, configured through NOVARI_FLYT_INSTANCE_DATABASE_SCHEMA.        |
-| fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                               |
-| spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.         |
-| spring.security.oauth2.resourceserver.jwt.issuer-uri                                       | Authority used for JWT validation.                                                         |
-| fint.flyt.authorization.sso.client-id / client-secret                                       | OAuth2 client credentials for authorization-service.                                      |
-| no.novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API.                                |
-| server.max-http-request-header-size                                                        | Raised to 40KB to handle large JWTs.                                                       |
-| spring.jackson.time-zone                                                                   | Forces JSON serialization to UTC.                                                          |
+| Property                                                                                   | Description                                                                                                      |
+|--------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service).                       |
+| novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                                                     |
+| novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                                               |
+| novari.flyt.history-service.retention.time-to-keep-error-details-in-days                   | Number of days to keep error detail values before scheduled scrub.                                               |
+| novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                                      |
+| novari.flyt.instance.database.schema                                                       | Existing instance schema, configured through NOVARI_FLYT_INSTANCE_DATABASE_SCHEMA.                               |
+| fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                                                     |
+| spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.                               |
+| spring.security.oauth2.resourceserver.jwt.issuer-uri                                       | Authority used for JWT validation.                                                                               |
+| fint.flyt.authorization.sso.client-id / client-secret                                      | OAuth2 client credentials for authorization-service.                                                             |
+| fint.sso.client-id                                                                         | Client ID of `fint-flyt-history-oauth2-client` (via `envFrom`), the only client allowed on `/api/intern-klient`. |
+| no.novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API.                                                      |
+| server.max-http-request-header-size                                                        | Raised to 40KB to handle large JWTs.                                                                             |
+| spring.jackson.time-zone                                                                   | Forces JSON serialization to UTC.                                                                                |
 
 Secrets referenced in the base Kustomize manifests must include DB credentials and OAuth client metadata.
 
@@ -354,7 +365,7 @@ when a record is available. Broker/assignment failures are logged without record
 Settings under `novari.flyt.instance.kafka`:
 
 | Property           | Default | Meaning                                                      |
-| ------------------ | ------- | ------------------------------------------------------------ |
+|--------------------|---------|--------------------------------------------------------------|
 | `metadata-timeout` | `10s`   | Metadata lookup waiting budget, shared by all requests.      |
 | `retry-attempts`   | `3`     | Additional attempts after the initial record-processing try. |
 | `retry-interval`   | `5s`    | Fixed delay between additional attempts.                     |
@@ -559,7 +570,7 @@ changing topic settings.
 Configuration under `novari.flyt.instance.outbox`:
 
 | Property              | Default | Purpose                                                                                                                                          |
-| --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+|-----------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------|
 | `poll-delay`          | `1s`    | Delay between completed runs.                                                                                                                    |
 | `max-records-per-run` | `100`   | Maximum attempts during one run.                                                                                                                 |
 | `send-timeout`        | `30s`   | Timeout for the startup topic check and each acknowledgement wait. Producer metadata/buffer blocking is bounded separately by the same duration. |

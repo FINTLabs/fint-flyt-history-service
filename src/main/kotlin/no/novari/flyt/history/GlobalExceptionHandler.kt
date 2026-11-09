@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.validation.BindException
+import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
@@ -82,6 +83,19 @@ class GlobalExceptionHandler(
             status = HttpStatus.BAD_REQUEST,
             title = "Bad Request",
             detail = "Previous event status is not of type ERROR",
+        )
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException::class)
+    fun handleMissingServletRequestParameter(exception: MissingServletRequestParameterException): ProblemDetail {
+        logger.atWarn {
+            message = "Missing request parameter"
+            cause = exception
+        }
+        return createProblemDetail(
+            status = HttpStatus.BAD_REQUEST,
+            title = "Bad Request",
+            detail = "Missing request parameter '${exception.parameterName}'",
         )
     }
 

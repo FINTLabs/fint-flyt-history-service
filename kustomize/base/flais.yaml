@@ -43,6 +43,11 @@ spec:
         secretKeyRef:
           name: fint-flyt-authorization-oauth2-client
           key: fint.sso.client-secret
+  # Gives fint.sso.client-id, used as authorized-client-ids for /api/intern-klient.
+  # The authorization client above is mapped to fint.flyt.authorization.sso.* so the two don't collide.
+  envFrom:
+    - secretRef:
+        name: fint-flyt-history-oauth2-client
   resources:
     limits:
       memory: "1024Mi"
