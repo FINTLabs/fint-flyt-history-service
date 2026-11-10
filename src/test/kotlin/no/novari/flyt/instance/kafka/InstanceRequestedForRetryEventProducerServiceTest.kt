@@ -3,7 +3,8 @@ package no.novari.flyt.instance.kafka
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.audit.actor.ActorHeader
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
-import no.novari.flyt.instance.outbox.outboxEvent
+import no.novari.flyt.instance.retryHeaders
+import no.novari.flyt.instance.retryInstance
 import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowProducerRecord
 import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplate
 import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
@@ -40,7 +41,8 @@ class InstanceRequestedForRetryEventProducerServiceTest {
             on { createTemplate(InstanceObjectDto::class.java) }.thenReturn(template)
         }
     private val topics: EventTopicService = mock()
-    private val fixture = outboxEvent()
+    private val headers = retryHeaders()
+    private val instance = retryInstance()
 
     @ParameterizedTest
     @ValueSource(booleans = [true, false])
@@ -48,14 +50,14 @@ class InstanceRequestedForRetryEventProducerServiceTest {
         val actor = if (user) Actor.User(UUID.randomUUID()) else null
         whenever(template.send(any<InstanceFlowProducerRecord<InstanceObjectDto>>()))
             .thenReturn(CompletableFuture.completedFuture(mock()))
-        producer(actor).publish(fixture.headers, fixture.instance)
+        producer(actor).publish(headers, instance)
         val record = argumentCaptor<InstanceFlowProducerRecord<InstanceObjectDto>>()
         verify(template).send(record.capture())
         assertThat((record.firstValue.topicNameParameters as EventTopicNameParameters).eventName)
             .isEqualTo("instance-requested-for-retry")
         assertThat(record.firstValue.key).isNull()
-        assertThat(record.firstValue.value).isSameAs(fixture.instance)
-        assertThat(record.firstValue.instanceFlowHeaders).isEqualTo(fixture.headers)
+        assertThat(record.firstValue.value).isSameAs(instance)
+        assertThat(record.firstValue.instanceFlowHeaders).isEqualTo(headers)
         assertThat(
             ActorHeader.fromHeaderValue(
                 record.firstValue
@@ -84,7 +86,7 @@ class InstanceRequestedForRetryEventProducerServiceTest {
         whenever(template.send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())).thenReturn(acknowledgement)
         val producer = producer()
         Executors.newSingleThreadExecutor().use { executor ->
-            val call = executor.submit { producer.publish(fixture.headers, fixture.instance) }
+            val call = executor.submit { producer.publish(headers, instance) }
             try {
                 call.get(5, TimeUnit.SECONDS)
                 assertThat(acknowledgement.isDone).isFalse()
@@ -100,7 +102,7 @@ class InstanceRequestedForRetryEventProducerServiceTest {
     fun `synchronous send failures propagate`() {
         val failure = KafkaException("Send failed before returning")
         doAnswer { throw failure }.whenever(template).send(any<InstanceFlowProducerRecord<InstanceObjectDto>>())
-        assertThatThrownBy { producer().publish(fixture.headers, fixture.instance) }.isSameAs(failure)
+        assertThatThrownBy { producer().publish(headers, instance) }.isSameAs(failure)
     }
 
     private fun producer(actor: Actor? = null) =

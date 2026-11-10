@@ -13,7 +13,7 @@ class InstanceSchemaNamingStrategyTest {
 
     @Test
     fun `maps logical instance schema while preserving identifier quoting`() {
-        val strategy = InstanceSchemaNamingStrategy(InstanceDatabaseProperties("afk_no_fint_flyt_instance_service_db"))
+        val strategy = InstanceSchemaNamingStrategy("afk_no_fint_flyt_instance_service_db")
         val schema = strategy.toPhysicalSchemaName(Identifier.toIdentifier(INSTANCE_SCHEMA, true), jdbcEnvironment)
         assertThat(schema!!.text).isEqualTo("afk_no_fint_flyt_instance_service_db")
         assertThat(schema.isQuoted).isTrue()
@@ -21,7 +21,7 @@ class InstanceSchemaNamingStrategyTest {
 
     @Test
     fun `history schema and naming rules work without instance configuration`() {
-        val strategy = InstanceSchemaNamingStrategy(InstanceDatabaseProperties())
+        val strategy = InstanceSchemaNamingStrategy(null)
         val delegate = CamelCaseToUnderscoresNamingStrategy()
         val historySchema = Identifier.toIdentifier("afk_no_fint_flyt_history_service_db")
         assertThat(strategy.toPhysicalSchemaName(null, jdbcEnvironment)).isNull()
@@ -36,5 +36,14 @@ class InstanceSchemaNamingStrategyTest {
         val sequence = Identifier.toIdentifier("event_id_seq")
         assertThat(strategy.toPhysicalSequenceName(sequence, jdbcEnvironment))
             .isEqualTo(delegate.toPhysicalSequenceName(sequence, jdbcEnvironment))
+    }
+
+    @Test
+    fun `derives the instance schema from the database user unless configured`() {
+        assertThat(instanceSchema("", "afk_no_fint_flyt_history_service_db"))
+            .isEqualTo("afk_no_fint_flyt_instance_service_db")
+        assertThat(instanceSchema("local_instance", "afk_no_fint_flyt_history_service_db")).isEqualTo("local_instance")
+        assertThat(instanceSchema("", "postgres")).isNull()
+        assertThat(instanceSchema("", null)).isNull()
     }
 }

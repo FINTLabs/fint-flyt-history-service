@@ -1,10 +1,11 @@
 package no.novari.flyt.instance.kafka
 
+import com.fasterxml.jackson.databind.ObjectMapper
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.audit.actor.ActorHeader
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
-import no.novari.flyt.instance.outbox.outboxEvent
-import no.novari.flyt.instance.outbox.outboxObjectMapper
+import no.novari.flyt.instance.retryHeaders
+import no.novari.flyt.instance.retryInstance
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeadersMapper
 import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
 import no.novari.kafka.OriginHeaderProducerInterceptor
@@ -29,6 +30,7 @@ import org.mockito.kotlin.spy
 import org.mockito.kotlin.whenever
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.data.domain.AuditorAware
+import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder
 import org.springframework.kafka.core.DefaultKafkaProducerFactory
 import org.springframework.kafka.support.serializer.JsonSerializer
 import org.testcontainers.junit.jupiter.Container
@@ -43,7 +45,7 @@ import java.util.UUID
 class InstanceRequestedForRetryKafkaIntegrationTest {
     @Test
     fun `library publishes the existing retry contract and metadata`() {
-        val mapper = outboxObjectMapper()
+        val mapper = Jackson2ObjectMapperBuilder.json().build<ObjectMapper>()
         val headersMapper = InstanceFlowHeadersMapper(mapper)
         val config =
             ProducerConfig(
@@ -86,8 +88,9 @@ class InstanceRequestedForRetryKafkaIntegrationTest {
                             AuditorAware { Optional.of(actor) },
                             Duration.ofDays(4),
                         )
-                    val fixture = outboxEvent()
-                    producer.publish(fixture.headers, fixture.instance)
+                    val headers = retryHeaders()
+                    val instance = retryInstance()
+                    producer.publish(headers, instance)
                     KafkaConsumer<ByteArray, ByteArray>(
                         mapOf(
                             ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrapServers,
@@ -103,8 +106,8 @@ class InstanceRequestedForRetryKafkaIntegrationTest {
                         assertThat(record.key()).isNull()
                         assertThat(
                             mapper.readTree(record.value()),
-                        ).isEqualTo(mapper.readTree(mapper.writeValueAsBytes(fixture.instance)))
-                        assertThat(headersMapper.getInstanceFlowHeaders(record.headers())).isEqualTo(fixture.headers)
+                        ).isEqualTo(mapper.readTree(mapper.writeValueAsBytes(instance)))
+                        assertThat(headersMapper.getInstanceFlowHeaders(record.headers())).isEqualTo(headers)
                         assertThat(
                             ActorHeader.fromHeaderValue(record.headers().lastHeader(ActorHeader.HEADER_NAME).value()),
                         ).isEqualTo(actor)

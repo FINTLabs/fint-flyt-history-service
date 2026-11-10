@@ -21,7 +21,6 @@ import no.novari.flyt.instance.config.InstanceJpaConfiguration
 import no.novari.flyt.instance.kafka.InstanceRequestedForRetryEventProducerService
 import no.novari.flyt.instance.model.InstanceMappingService
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
-import no.novari.flyt.instance.outbox.outboxEvent
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplate
 import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
@@ -283,9 +282,8 @@ class InstanceRetryServiceIntegrationTest {
     }
 
     private fun registered(): Pair<InstanceObjectDto, InstanceFlowHeaders> {
-        val fixture = outboxEvent()
         val graph =
-            fixture.instance.copy(
+            retryInstance().copy(
                 id = null,
                 objectCollectionPerKey =
                     mutableMapOf(
@@ -294,11 +292,7 @@ class InstanceRetryServiceIntegrationTest {
                     ),
             )
         val saved = instances.save(graph)
-        val headers =
-            fixture.headers
-                .toBuilder()
-                .instanceId(saved.id)
-                .build()
+        val headers = retryHeaders(requireNotNull(saved.id))
         info.registerEvent(headers, EventCategory.INSTANCE_REGISTERED, NOW, "registration-app")
         return saved to headers
     }
