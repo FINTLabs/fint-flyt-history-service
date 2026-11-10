@@ -173,9 +173,13 @@ until `novari.flyt.instance-functionality.enabled=true`.
 - A missing payload or invalid input (a key over 255 characters, a null character, or a JSON `null`
   where text or an object is expected) is stored as one `INSTANCE_REGISTRATION_ERROR` together with
   the position, in one transaction.
-- Every other failure is retried every 10 seconds without limit, and no record is skipped. The
-  partition waits until the cause is fixed. A payload that is not valid JSON fails in the fint-kafka
-  deserializer before it reaches the listener, and it also blocks the partition.
+- Every other failure in the listener is retried every 10 seconds without limit, and no record is
+  skipped. The partition waits until the cause is fixed.
+- A payload that is not valid JSON fails in the fint-kafka deserializer during `poll`, before it
+  reaches the listener. Spring Kafka cannot assign it to a record, so the error handler's 10-second
+  back-off does not apply: the container polls again at once and logs the error on every attempt.
+  The partition is blocked until the record is skipped by hand (see Operations). Instance-service
+  has the same limitation.
 - The `INSTANCE_REGISTERED` history event comes from the ordinary `instance-registered` listener.
 - Duplicates only occur when the process dies between the send and the position write. If it dies
   between the save and the send, the saved instance remains without an event.
@@ -197,6 +201,16 @@ for local runs and tests. The database role needs `USAGE` on that schema, `SELEC
   `next_offset` lies within the earliest and end offsets of the partition. If neither the row nor
   the committed offset exists, stop and investigate.
 - Only one service may consume `instance-received` at a time.
+- To skip a record that cannot be deserialized:
+  1. Scale history-service to 0 and wait until the `<application-id>-instance-received` group has
+     no members. Changing `next_offset` while the service runs has no effect, because the position
+     is read at partition assignment.
+  2. Find the offset in the log and inspect the record.
+  3. If it is to be skipped, set `next_offset` to that offset + 1 for the partition.
+  4. The `INSTANCE_RECEIVED` history listener reads the same topic in the default group. If it is
+     blocked by the same record, reset that group's committed offset to the same value with
+     `kafka-consumer-groups --reset-offsets`.
+  5. Start history-service again.
 - If the topic is recreated, delete the rows and insert new ones before the service starts again.
   Otherwise an old `next_offset` that is still inside the new topic skips records.
 
