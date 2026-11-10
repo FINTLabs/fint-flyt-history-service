@@ -9,8 +9,6 @@ import no.novari.flyt.kafka.model.Error
 import no.novari.flyt.kafka.model.ErrorCollection
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Propagation
-import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
@@ -26,9 +24,7 @@ class InstanceRetryService(
     @param:Value($$"${fint.application-id}")
     private val applicationId: String,
 ) {
-    @Transactional(propagation = Propagation.NEVER)
     fun retry(instanceId: Long) {
-        if (Thread.currentThread().isInterrupted) throw InterruptedException("Instance retry interrupted")
         val instance = instanceService.getById(instanceId)
         val headers =
             eventService
@@ -36,14 +32,10 @@ class InstanceRetryService(
                 ?.toBuilder()
                 ?.correlationId(UUID.randomUUID())
                 ?.build()
-                ?: throw NoInstanceFlowHeadersException(instanceId)
+                ?: throw MissingRetryHeadersException(instanceId)
         try {
             producer.publish(headers, instance)
-        } catch (failure: InterruptedException) {
-            Thread.currentThread().interrupt()
-            throw failure
         } catch (failure: Exception) {
-            if (Thread.currentThread().isInterrupted) throw failure
             try {
                 instanceErrorEventService.registerError(
                     headers,
@@ -60,6 +52,6 @@ class InstanceRetryService(
     }
 }
 
-class NoInstanceFlowHeadersException(
+class MissingRetryHeadersException(
     instanceId: Long,
 ) : RuntimeException("Could not find instance flow headers for registered instance with id=$instanceId")

@@ -42,10 +42,10 @@ class InstanceRetryController(
             instanceRetryService.retry(instanceId)
         } catch (_: EntityNotFoundException) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Could not find instance with id='$instanceId'")
-        } catch (failure: NoInstanceFlowHeadersException) {
+        } catch (failure: MissingRetryHeadersException) {
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, failure.message)
         } catch (failure: Exception) {
-            logFailure(instanceId, failure)
+            logger.error(failure) { "Retry request failed for instanceId=$instanceId" }
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)
         }
         return ResponseEntity.ok().build()
@@ -66,7 +66,7 @@ class InstanceRetryController(
             try {
                 instanceRetryService.retry(instanceId)
             } catch (failure: Exception) {
-                logFailure(instanceId, failure)
+                logger.error(failure) { "Retry request failed for instanceId=$instanceId" }
                 if (failure is InterruptedException || Thread.currentThread().isInterrupted) {
                     Thread.currentThread().interrupt()
                     throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Batch retry interrupted")
@@ -74,12 +74,5 @@ class InstanceRetryController(
             }
         }
         return ResponseEntity.ok().build()
-    }
-
-    private fun logFailure(
-        instanceId: Long,
-        failure: Exception,
-    ) {
-        logger.error(safeDiagnosticCause(failure)) { "Retry request failed for instanceId=$instanceId" }
     }
 }

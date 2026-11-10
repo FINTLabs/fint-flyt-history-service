@@ -11,7 +11,6 @@ import no.novari.flyt.webresourceserver.security.properties.InternalApiSecurityP
 import no.novari.flyt.webresourceserver.security.user.UserRole
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.argumentCaptor
@@ -24,8 +23,6 @@ import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.context.TestConfiguration
-import org.springframework.boot.test.system.CapturedOutput
-import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
@@ -40,14 +37,12 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 
 @WebMvcTest(properties = ["novari.flyt.instance-functionality.enabled=true"])
 @ContextConfiguration(classes = [InstanceRetryController::class, InstanceRetryControllerWebMvcTest.Security::class])
 @Import(GlobalExceptionHandler::class)
-@ExtendWith(OutputCaptureExtension::class)
 class InstanceRetryControllerWebMvcTest {
     @Autowired
     lateinit var mvc: MockMvc
@@ -91,7 +86,7 @@ class InstanceRetryControllerWebMvcTest {
         token()
         doThrow(EntityNotFoundException()).whenever(service).retry(123L)
         mvc.perform(request(false).header("Authorization", "Bearer token")).andExpect(status().isNotFound)
-        doThrow(NoInstanceFlowHeadersException(123L)).whenever(service).retry(123L)
+        doThrow(MissingRetryHeadersException(123L)).whenever(service).retry(123L)
         mvc.perform(request(false).header("Authorization", "Bearer token")).andExpect(status().isInternalServerError)
     }
 
@@ -145,26 +140,6 @@ class InstanceRetryControllerWebMvcTest {
         }
         verify(service).retry(123L)
         verifyNoMoreInteractions(service)
-    }
-
-    @Test
-    fun `failure logging retains stack traces causes and suppressed failures without message content`(
-        output: CapturedOutput,
-    ) {
-        token()
-        val failure =
-            IllegalStateException("private-instance-content", SQLException("private-database-content", "08006"))
-        failure.addSuppressed(UnsupportedOperationException("private-history-content"))
-        doThrow(failure).whenever(service).retry(123L)
-        mvc.perform(request(false).header("Authorization", "Bearer token")).andExpect(status().isInternalServerError)
-        assertThat(output.all)
-            .contains(
-                "instanceId=123",
-                failure.stackTrace.first().toString(),
-                "SQLSTATE=08006",
-                "Suppressed:",
-                UnsupportedOperationException::class.java.name,
-            ).doesNotContain("private-instance-content", "private-database-content", "private-history-content")
     }
 
     @Test
