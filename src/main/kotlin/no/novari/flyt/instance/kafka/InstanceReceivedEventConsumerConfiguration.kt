@@ -2,57 +2,55 @@ package no.novari.flyt.instance.kafka
 
 import no.novari.flyt.history.kafka.eventTopicNameParameters
 import no.novari.flyt.history.model.event.EventCategory
+import no.novari.flyt.instance.InstanceReceivedPositions
+import no.novari.flyt.instance.InstanceRegistrationService
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
-import no.novari.kafka.topic.name.TopicNameService
-import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.common.serialization.ByteArrayDeserializer
-import org.apache.kafka.common.serialization.StringDeserializer
-import org.springframework.beans.factory.annotation.Qualifier
+import no.novari.flyt.instance.model.dtos.InstanceObjectDto
+import no.novari.kafka.consuming.ErrorHandlerConfiguration
+import no.novari.kafka.consuming.ErrorHandlerFactory
+import no.novari.kafka.consuming.ListenerConfiguration
+import no.novari.kafka.consuming.ParameterizedListenerContainerFactoryService
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.kafka.core.DefaultKafkaConsumerFactory
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
-import org.springframework.kafka.listener.ContainerProperties
+import java.time.Duration
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnInstanceFunctionality
 class InstanceReceivedEventConsumerConfiguration {
-    @Bean(defaultCandidate = false)
-    fun instanceReceivedConsumerFactory(
-        consumerConfig: ConsumerConfig,
-    ): DefaultKafkaConsumerFactory<String, ByteArray> {
-        val configuration = consumerConfig.originals().toMutableMap()
-        val applicationGroup = requireNotNull(consumerConfig.getString(ConsumerConfig.GROUP_ID_CONFIG))
-        configuration[ConsumerConfig.GROUP_ID_CONFIG] = "$applicationGroup-instance-received"
-        configuration[ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG] = false
-        configuration[ConsumerConfig.AUTO_OFFSET_RESET_CONFIG] = "none"
-        configuration[ConsumerConfig.ALLOW_AUTO_CREATE_TOPICS_CONFIG] = false
-        return DefaultKafkaConsumerFactory(configuration, StringDeserializer(), ByteArrayDeserializer())
-    }
-
+    // Plain records, not InstanceFlowListenerFactoryService: unusable headers must be handled, not retried forever.
     @Bean
     fun instanceReceivedEventConsumer(
-        @Qualifier("instanceReceivedConsumerFactory") factory: DefaultKafkaConsumerFactory<String, ByteArray>,
-        topicNameService: TopicNameService,
-        listener: InstanceReceivedEventListener,
-        properties: InstanceReceivedKafkaProperties,
-    ): ConcurrentMessageListenerContainer<String, ByteArray> {
-        val topic =
-            topicNameService.validateAndMapToTopicName(
-                eventTopicNameParameters(EventCategory.INSTANCE_RECEIVED),
-            )
-        val containerProperties =
-            ContainerProperties(topic).apply {
-                messageListener = listener
-                consumerRebalanceListener = listener
-                ackMode = ContainerProperties.AckMode.RECORD
-                assignmentCommitOption = ContainerProperties.AssignmentCommitOption.NEVER
-                isStopImmediate = true
-                isMissingTopicsFatal = true
-            }
-        return ConcurrentMessageListenerContainer(factory, containerProperties).apply {
-            beanName = "instanceReceivedEventConsumer"
-            commonErrorHandler = InstanceReceivedErrorHandler(this, properties)
-        }
-    }
+        listenerContainerFactoryService: ParameterizedListenerContainerFactoryService,
+        errorHandlerFactory: ErrorHandlerFactory,
+        registrationService: InstanceRegistrationService,
+        positions: InstanceReceivedPositions,
+    ): ConcurrentMessageListenerContainer<String, InstanceObjectDto> =
+        listenerContainerFactoryService
+            .createRecordListenerContainerFactory(
+                InstanceObjectDto::class.java,
+                registrationService::register,
+                ListenerConfiguration
+                    .stepBuilder()
+                    // Own group: the INSTANCE_RECEIVED history listener reads the same topic with the default group.
+                    .groupIdApplicationDefaultWithSuffix("-instance-received")
+                    .maxPollRecordsKafkaDefault()
+                    .maxPollIntervalKafkaDefault()
+                    // The database position is the source of truth, so committed Kafka offsets never decide the start.
+                    .onAssignment { assignments, callback -> positions.assigned(assignments.keys, callback) }
+                    .onRevocation(positions::revoked)
+                    .build(),
+                errorHandlerFactory.createErrorHandler(
+                    ErrorHandlerConfiguration
+                        .stepBuilder<InstanceObjectDto>()
+                        .retryWithFixedInterval(Duration.ofSeconds(10), 3)
+                        // Includes exceptions Spring treats as fatal, so they also back off between attempts.
+                        .retryOnly(listOf(Exception::class.java))
+                        .restartRetryOnExceptionChange()
+                        // Never skip a record: the partition waits until the cause is fixed.
+                        .recoverFailedRecords { _, exception -> throw exception }
+                        .reprocessAndRetryRecordOnRecoveryFailure()
+                        .build(),
+                ),
+            ).createContainer(eventTopicNameParameters(EventCategory.INSTANCE_RECEIVED))
 }
