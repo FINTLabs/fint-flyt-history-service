@@ -19,6 +19,8 @@ and Prometheus support out of the box.
 
 ## Architecture Overview
 
+C4 diagrams (level 1 to 3) are in [docs/architecture.md](docs/architecture.md).
+
 | Component                                                              | Responsibility                                                                                                                  |
 |------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | `HistoryController`                                                    | Exposes `/api/intern/instance-flow-tracking` endpoints, performs validation, and shapes HTTP responses.                       |
