@@ -16,7 +16,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import java.time.Duration
-import java.util.*
+import java.util.UUID
 
 class InstanceDeletedEventProducerServiceTest {
     @Test
