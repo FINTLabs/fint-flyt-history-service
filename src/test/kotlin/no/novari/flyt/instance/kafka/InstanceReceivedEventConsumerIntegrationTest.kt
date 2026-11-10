@@ -59,7 +59,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.kafka.KafkaContainer
 import org.testcontainers.utility.DockerImageName
 import java.time.Duration
-import java.util.*
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 @Testcontainers(disabledWithoutDocker = true)

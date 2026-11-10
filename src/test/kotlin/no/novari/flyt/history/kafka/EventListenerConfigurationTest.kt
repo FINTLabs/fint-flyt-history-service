@@ -39,7 +39,8 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
 import org.springframework.kafka.listener.DefaultErrorHandler
 import java.time.Instant
-import java.util.*
+import java.util.Optional
+import java.util.UUID
 import java.util.function.Consumer
 
 class EventListenerConfigurationTest {
