@@ -21,6 +21,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Slice
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class EventService(
@@ -102,6 +103,7 @@ class EventService(
             )
     }
 
+    @Transactional(readOnly = true)
     fun findInstanceFlowHeadersForLatestInstanceRegisteredEvent(instanceId: Long): InstanceFlowHeaders? {
         return eventRepository
             .findFirstByInstanceFlowHeadersInstanceIdAndNameOrderByTimestampDesc(

@@ -22,6 +22,11 @@ class InstanceService(
             instanceRepository.save(instanceMappingService.toInstanceObject(instanceObjectDto)),
         )
 
+    @Transactional
+    fun deleteById(instanceId: Long) {
+        instanceRepository.deleteById(instanceId)
+    }
+
     @Transactional(readOnly = true)
     fun getById(instanceId: Long): InstanceObjectDto =
         instanceMappingService.toInstanceObjectDto(instanceRepository.getReferenceById(instanceId))

@@ -115,7 +115,7 @@ flyt-authorization-client, flyt-postgres) and exposes these key properties:
 | fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service). |
 | novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                               |
 | novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                         |
-| novari.flyt.history-service.retention.time-to-keep-error-details-in-days                   | Number of days to keep error detail values before scheduled scrub.                         |
+| novari.flyt.history-service.retention.time-to-keep-in-days                   | Days to keep stored instances and error details before scheduled cleanup.                         |
 | novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                |
 | novari.flyt.instance.database.schema                                                     | Existing instance schema, configured through NOVARI_FLYT_INSTANCE_DATABASE_SCHEMA.        |
 | fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                               |
@@ -166,7 +166,7 @@ required. When explicitly set to `true`, `InstanceJpaConfiguration` registers bo
 manager. A missing or blank instance schema then fails startup with a configuration error.
 The instance repository provides CRUD operations and `findAllOlderThan` with a strict timestamp
 threshold. The flag also enables the received-event consumer and registration outbox described
-below; retention jobs and operational Kafka handover remain separate work.
+below; operational Kafka handover remains separate work.
 The default flag and deployment overlays remain unchanged; enabling instance functionality in a
 deployed environment is a separate cutover step.
 
@@ -675,3 +675,26 @@ Commit the updated lockfiles together with the change. If you forget, the build 
 4. Describe any new filters, Kafka topics, or manual actions in this README to keep operators aligned.
 
 FINT Flyt History Service is maintained by the FINT Flyt team. Reach out via the internal Slack channel or open an issue in this repository with questions or enhancement ideas.
+
+## Instance deletion and cleanup
+
+With `novari.flyt.instance-functionality.enabled=true`, history-service also:
+
+- Consumes `instance-dispatched` with group `<application-id>-instance-dispatched`, deletes the instance graph in a
+  transaction, and then sends `instance-deleted` with the original flow headers, no key and a null payload.
+- Runs instance cleanup 30 seconds after startup and every 24 hours after the previous run completes. Only roots
+  older than `novari.flyt.history-service.retention.time-to-keep-in-days` are selected; their children are deleted
+  through the existing JPA cascade. The default is 60 days, shared with scheduled error-detail scrubbing.
+- Reads the latest registration headers from local history. An instance without registration headers is still
+  deleted, with a warning and without a fabricated deletion event. A failed candidate does not block later ones.
+
+Deletion events use the existing Kafka library, one partition, normal cleanup and the configured processing-event
+retention. Sending is asynchronous, as in instance-service. A failure after the delete can leave the instance
+without a deletion event; replay can publish the event again. No deletion outbox is added.
+The ordinary history listener records `instance-deleted`; immediate scrubbing remains disabled. Scheduled
+scrubbing uses event timestamps, while instance cleanup uses the instance creation timestamp.
+
+Before enabling the flag, stop instance-service and transfer the `instance-dispatched` consumer group's committed
+position to the new group for every partition. This group uses Kafka commits, independently of the database
+position used by the new `instance-received` consumer. Existing Kafka ACLs and schema grants must allow the new
+consumer, publishing to `instance-deleted`, and deleting instance tables. Keep the flag false until cutover.

@@ -27,7 +27,7 @@ class InstanceFlowHeadersMappingService {
                 .sourceApplicationId(requireNotNull(embeddable.sourceApplicationId))
                 .sourceApplicationIntegrationId(requireNotNull(embeddable.sourceApplicationIntegrationId))
                 .sourceApplicationInstanceId(requireNotNull(embeddable.sourceApplicationInstanceId))
-                .fileIds(embeddable.fileIds)
+                .fileIds(embeddable.fileIds.toList())
                 .integrationId(embeddable.integrationId)
                 .instanceId(embeddable.instanceId)
                 .configurationId(embeddable.configurationId)
