@@ -1,6 +1,5 @@
 package no.novari.flyt.instance.model
 
-import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.instance.model.entities.InstanceObject
 import no.novari.flyt.instance.model.entities.InstanceObjectCollection
@@ -8,7 +7,6 @@ import org.springframework.stereotype.Service
 import java.util.Date
 
 @Service
-@ConditionalOnInstanceFunctionality
 class InstanceMappingService {
     fun toInstanceObject(instanceObjectDto: InstanceObjectDto): InstanceObject {
         return InstanceObject(

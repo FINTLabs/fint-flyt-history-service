@@ -2,7 +2,6 @@ package no.novari.flyt.instance.kafka
 
 import no.novari.flyt.history.kafka.eventTopicNameParameters
 import no.novari.flyt.history.model.event.EventCategory
-import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowProducerRecord
@@ -15,7 +14,6 @@ import org.springframework.stereotype.Service
 import java.time.Duration
 
 @Service
-@ConditionalOnInstanceFunctionality
 class InstanceDeletedEventProducerService(
     templateFactory: InstanceFlowTemplateFactory,
     topicService: EventTopicService,

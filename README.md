@@ -215,10 +215,7 @@ for local runs and tests. The database role needs `USAGE` on that schema, `SELEC
 ### Operations
 
 - Before enabling instance functionality, stop instance-service in Git and wait until its consumer group has no members.
-- Transfer the instance-service group's committed offset for every `instance-dispatched` partition to
-  `<application-id>-instance-dispatched`. This consumer uses Kafka commits, independently of the database position
-  used by `instance-received`.
-- Verify Kafka ACLs for the new consumer and `instance-deleted` producer, and the schema grants described above,
+- Verify Kafka ACLs for the `instance-deleted` producer, and the schema grants described above,
   including `DELETE` on the instance tables.
 - Before the consumer is enabled, every partition needs a row. Set `next_offset` to the higher of
   the row written by instance-service and the committed offset of the instance-service consumer
@@ -241,10 +238,16 @@ for local runs and tests. The database role needs `USAGE` on that schema, `SELEC
 
 ## Instance deletion and cleanup
 
-The instance functionality flag also enables the `instance-dispatched` consumer, in its own group
-`<application-id>-instance-dispatched`, and scheduled cleanup of old root instances.
-Deletion commits the complete instance graph before publishing `instance-deleted` asynchronously
-with the original flow headers, no key and a null payload. The ordinary history listener records the event.
+Deletion after `instance-dispatched` runs regardless of the instance functionality flag. The ordinary history
+listener for `instance-dispatched` records the event and then deletes the instance, in the default group, so no
+offsets need to be carried over from instance-service at cutover. The flag enables scheduled cleanup of old root
+instances.
+Deletion locks the root row, commits the complete instance graph and then publishes `instance-deleted`
+asynchronously with the original flow headers, no key and a null payload. The ordinary history listener records
+the event.
+
+Until cutover, instance-service deletes dispatched instances too. Whichever service deletes the row publishes
+the event. The other waits for the row lock, finds nothing and publishes nothing.
 
 Dispatch handling uses `noRetries().skipFailedRecords()`, matching instance-service. A failed delete leaves
 an instance for the scheduled cleanup job, so the partition can continue. If deletion succeeds but publishing

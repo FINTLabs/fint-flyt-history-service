@@ -6,6 +6,7 @@ import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.event.EventType
+import no.novari.flyt.instance.InstanceDeletionService
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowConsumerRecord
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
@@ -29,11 +30,13 @@ import org.mockito.Mockito.clearInvocations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.isNull
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.same
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
@@ -46,6 +49,7 @@ import java.util.function.Consumer
 class EventListenerConfigurationTest {
     private val instanceErrorEventService: InstanceErrorEventService = mock()
     private val instanceInfoEventService: InstanceInfoEventService = mock()
+    private val instanceDeletionService: InstanceDeletionService = mock()
     private val instanceFlowListenerFactoryService: InstanceFlowListenerFactoryService = mock()
     private val errorHandlerFactory: ErrorHandlerFactory = mock()
     private val beanFactory: ConfigurableListableBeanFactory = mock()
@@ -243,6 +247,27 @@ class EventListenerConfigurationTest {
     }
 
     @Test
+    fun `instance dispatched listener registers the event and then deletes the instance`() {
+        val category = EventCategory.INSTANCE_DISPATCHED
+        val record = instanceFlowConsumerRecord(category, actor = null)
+
+        infoListenersByEventName
+            .getValue(category.eventName)
+            .accept(record)
+
+        inOrder(instanceInfoEventService, instanceDeletionService) {
+            verify(instanceInfoEventService).registerEvent(
+                same(record.instanceFlowHeaders),
+                eq(category),
+                eq(Instant.ofEpochMilli(record.consumerRecord.timestamp())),
+                eq("test-app"),
+                isNull(),
+            )
+            verify(instanceDeletionService).delete(same(record.instanceFlowHeaders))
+        }
+    }
+
+    @Test
     fun `other info event listeners ignore flyt actor header`() {
         val actor = Actor.User(UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333"))
         val category = EventCategory.INSTANCE_MAPPED
@@ -259,6 +284,7 @@ class EventListenerConfigurationTest {
             eq("test-app"),
             isNull(),
         )
+        verifyNoInteractions(instanceDeletionService)
     }
 
     private fun instanceFlowConsumerRecord(
@@ -336,6 +362,7 @@ class EventListenerConfigurationTest {
         EventListenerConfiguration(
             instanceErrorEventService = instanceErrorEventService,
             instanceInfoEventService = instanceInfoEventService,
+            instanceDeletionService = instanceDeletionService,
             instanceFlowListenerFactoryService = instanceFlowListenerFactoryService,
             errorHandlerFactory = errorHandlerFactory,
             beanFactory = beanFactory,
