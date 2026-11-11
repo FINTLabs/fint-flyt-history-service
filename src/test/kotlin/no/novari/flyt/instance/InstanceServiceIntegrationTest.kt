@@ -260,17 +260,17 @@ class InstanceServiceIntegrationTest {
     }
 
     @Test
-    fun `a concurrent deleter waits for the row lock and then skips the event`() {
+    fun `concurrent deletions delete the graph and publish once`() {
         val saved = instanceService.save(instanceGraph())
-        val instanceId = saved.id!!
+        val headers = deletionHeaders(saved.id!!)
         val transaction = TransactionTemplate(transactionManager)
         val concurrent = Executors.newSingleThreadExecutor()
         try {
             val waiting =
                 transaction.execute {
-                    // Stands in for instance-service: holds the row lock while it deletes.
-                    assertThat(instanceService.deleteIfExists(instanceId)).isTrue()
-                    val waiting = concurrent.submit { deletionService.delete(deletionHeaders(instanceId)) }
+                    // The first deletion joins this transaction, so its row lock is held until the block ends.
+                    deletionService.delete(headers)
+                    val waiting = concurrent.submit { deletionService.delete(headers) }
                     await().atMost(Duration.ofSeconds(10)).until {
                         jdbcTemplate.queryForObject(
                             "SELECT count(*) FROM pg_locks WHERE NOT granted",
@@ -286,10 +286,12 @@ class InstanceServiceIntegrationTest {
             concurrent.shutdownNow()
         }
 
-        verifyNoInteractions(producer)
-        assertThat(
-            jdbcTemplate.queryForObject("SELECT count(*) FROM $INSTANCE_SCHEMA.instance_object", Long::class.java),
-        ).isZero()
+        verify(producer, times(1)).publish(headers)
+        for (table in listOf("instance_object", "instance_object_collection", "instance_object_value_per_key")) {
+            assertThat(
+                jdbcTemplate.queryForObject("SELECT count(*) FROM $INSTANCE_SCHEMA.$table", Long::class.java),
+            ).isZero()
+        }
     }
 
     @Test
