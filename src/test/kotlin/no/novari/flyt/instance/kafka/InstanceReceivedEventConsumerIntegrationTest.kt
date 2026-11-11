@@ -34,7 +34,6 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.any
-import org.mockito.kotlin.doCallRealMethod
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
@@ -94,19 +93,26 @@ import java.util.concurrent.TimeUnit
 )
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class InstanceReceivedEventConsumerIntegrationTest {
-    @Autowired lateinit var consumer: ConcurrentMessageListenerContainer<String, InstanceObjectDto>
+    @Autowired
+    lateinit var consumer: ConcurrentMessageListenerContainer<String, InstanceObjectDto>
 
-    @Autowired lateinit var jdbc: JdbcTemplate
+    @Autowired
+    lateinit var jdbc: JdbcTemplate
 
-    @Autowired lateinit var events: EventRepository
+    @Autowired
+    lateinit var events: EventRepository
 
-    @Autowired lateinit var objectMapper: ObjectMapper
+    @Autowired
+    lateinit var objectMapper: ObjectMapper
 
-    @Autowired lateinit var headersMapper: InstanceFlowHeadersMapper
+    @Autowired
+    lateinit var headersMapper: InstanceFlowHeadersMapper
 
-    @MockitoSpyBean lateinit var producerService: InstanceRegisteredEventProducerService
+    @MockitoSpyBean
+    lateinit var producerService: InstanceRegisteredEventProducerService
 
-    @MockitoSpyBean lateinit var offsetRepository: InstanceReceivedOffsetRepository
+    @MockitoSpyBean
+    lateinit var offsetRepository: InstanceReceivedOffsetRepository
 
     private lateinit var admin: Admin
     private lateinit var producer: KafkaProducer<String, ByteArray>
@@ -374,16 +380,19 @@ class InstanceReceivedEventConsumerIntegrationTest {
         private const val REGISTERED = "$ORG_ID.flyt.event.instance-registered"
         private const val GROUP = "consumer-test-instance-received"
 
-        @JvmField @Container
+        @JvmField
+        @Container
         val postgres: PostgreSQLContainer<*> =
             PostgreSQLContainer("postgres:17").withInitScript("db/instance-fixture/init.sql")
 
-        @JvmField @Container
+        @JvmField
+        @Container
         val kafka: KafkaContainer =
             KafkaContainer(DockerImageName.parse("apache/kafka:3.9.1"))
                 .withEnv("KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS", "0")
 
-        @JvmStatic @DynamicPropertySource
+        @JvmStatic
+        @DynamicPropertySource
         fun properties(registry: DynamicPropertyRegistry) {
             postgres.start()
             kafka.start()

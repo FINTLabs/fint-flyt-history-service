@@ -33,6 +33,20 @@ C4 diagrams (level 1 to 3) are in [docs/architecture.md](docs/architecture.md).
 | `ArchiveInstanceIdRequestConsumerConfiguration`                        | Request/reply consumer that resolves the latest archive instance ID for a `SourceApplicationAggregateInstanceId`.               |
 | `ValidationErrorsFormattingService`                                    | Folds constraint violations into human-friendly 422 responses for filters and manual action payloads.                           |
 
+## Instance retries
+
+When `novari.flyt.instance-functionality.enabled=true`, history-service exposes the existing internal retry API:
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| POST | `/api/intern/handlinger/instanser/{instanceId}/prov-igjen` | None | 200 after send returns; 404 missing instance; 500 missing headers or synchronous failure. |
+| POST | `/api/intern/handlinger/instanser/prov-igjen/batch` | Array of IDs | 200 after attempting each ID; 500 if interrupted. |
+
+Each attempt loads the stored graph and latest registration headers locally and generates a new correlation ID.
+HTTP 200 means the Kafka send call returned successfully; delivery and processing are asynchronous.
+Synchronous publication failures are stored locally as `INSTANCE_RETRY_REQUEST_ERROR`, and batch processing continues
+with later IDs. Batches have no application-level size limit and stop with HTTP 500 if the thread is interrupted.
+
 ## HTTP API
 
 Base path: `/api/intern/instance-flow-tracking`
