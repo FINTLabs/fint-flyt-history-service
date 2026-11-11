@@ -204,7 +204,9 @@ C4Component
 
 ### Instance registration
 
-Off by default (`novari.flyt.instance-functionality.enabled`). The rules for positions, retries and
+Enabled by default (`novari.flyt.instance-functionality.enabled`) after cutover from instance-service.
+History-service owns the received topic configuration and both schemas' Flyway histories, using one datasource.
+The rules for positions, retries and
 skipping records are in [Instance registration](../README.md#instance-registration).
 
 ```mermaid

@@ -10,6 +10,10 @@ import no.novari.kafka.consuming.ErrorHandlerConfiguration
 import no.novari.kafka.consuming.ErrorHandlerFactory
 import no.novari.kafka.consuming.ListenerConfiguration
 import no.novari.kafka.consuming.ParameterizedListenerContainerFactoryService
+import no.novari.kafka.topic.EventTopicService
+import no.novari.kafka.topic.configuration.EventCleanupFrequency
+import no.novari.kafka.topic.configuration.EventTopicConfiguration
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
@@ -17,7 +21,23 @@ import java.time.Duration
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnInstanceFunctionality
-class InstanceReceivedEventConsumerConfiguration {
+class InstanceReceivedEventConsumerConfiguration(
+    eventTopicService: EventTopicService,
+    @Value($$"${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
+    retentionTime: Duration,
+) {
+    init {
+        eventTopicService.createOrModifyTopic(
+            eventTopicNameParameters(EventCategory.INSTANCE_RECEIVED),
+            EventTopicConfiguration
+                .stepBuilder()
+                .partitions(1)
+                .retentionTime(retentionTime)
+                .cleanupFrequency(EventCleanupFrequency.NORMAL)
+                .build(),
+        )
+    }
+
     // Plain records, not InstanceFlowListenerFactoryService: unusable headers must be handled, not retried forever.
     @Bean
     fun instanceReceivedEventConsumer(

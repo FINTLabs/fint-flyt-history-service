@@ -98,6 +98,19 @@ class InstanceRetryControllerWebMvcTest {
     }
 
     @Test
+    fun `malformed batch retains the legacy 400 response instead of a history problem detail`() {
+        token()
+        mvc
+            .perform(
+                post(
+                    BATCH,
+                ).contentType(MediaType.APPLICATION_JSON).content("[").header("Authorization", "Bearer token"),
+            ).andExpect(status().isBadRequest)
+            .andExpect(content().string(""))
+        verifyNoInteractions(service)
+    }
+
+    @Test
     fun `batch continues sequentially after failures and returns no body`() {
         token()
         doThrow(EntityNotFoundException()).whenever(service).retry(123L)
