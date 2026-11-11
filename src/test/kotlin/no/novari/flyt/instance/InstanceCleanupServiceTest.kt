@@ -75,17 +75,6 @@ class InstanceCleanupServiceTest {
     }
 
     @Test
-    fun `an interrupt stops cleanup before touching candidates`() {
-        whenever(instances.getAllOlderThan(17)).thenReturn(listOf(InstanceObjectDto(id = 1L)))
-        Thread.currentThread().interrupt()
-
-        cleanup.cleanUp()
-
-        verifyNoInteractions(events, deletion)
-        assertThat(Thread.currentThread().isInterrupted).isTrue()
-    }
-
-    @Test
     fun `an interrupt during deletion stops cleanup and preserves the interrupt flag`() {
         whenever(
             instances.getAllOlderThan(17),

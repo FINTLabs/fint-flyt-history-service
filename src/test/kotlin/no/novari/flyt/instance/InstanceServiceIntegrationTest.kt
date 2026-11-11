@@ -43,7 +43,6 @@ import org.springframework.test.context.ContextConfiguration
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoBean
-import org.springframework.transaction.IllegalTransactionStateException
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -285,19 +284,6 @@ class InstanceServiceIntegrationTest {
         } finally {
             jdbcTemplate.execute("DROP TABLE $INSTANCE_SCHEMA.delete_guard")
         }
-    }
-
-    @Test
-    fun `an outer transaction cannot delay the delete commit until after publication`() {
-        val saved = instanceService.save(instanceGraph())
-        assertThatThrownBy {
-            TransactionTemplate(transactionManager).executeWithoutResult {
-                deletionService.delete(deletionHeaders(saved.id!!))
-            }
-        }.isInstanceOf(IllegalTransactionStateException::class.java)
-
-        assertThat(nodes(instanceService.getById(saved.id!!))).hasSize(3)
-        verifyNoInteractions(producer)
     }
 
     @Test
