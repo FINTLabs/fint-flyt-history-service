@@ -136,7 +136,7 @@ flyt-authorization-client, flyt-postgres) and exposes these key properties:
 | novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                         |
 | novari.flyt.history-service.retention.time-to-keep-in-days                                 | Days to keep stored instances and error details before scheduled cleanup.                  |
 | novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                |
-| novari.flyt.instance-functionality.enabled                                                 | Enables instance registration from instance-received (default false).                      |
+| novari.flyt.instance-functionality.enabled                                                 | Enables instance registration, retry, deletion and cleanup (default false).                |
 | novari.flyt.instance.database.schema                                                       | Instance schema override; derived from the database user when empty.                       |
 | fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                               |
 | spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.         |

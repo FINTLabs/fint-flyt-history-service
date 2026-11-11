@@ -61,7 +61,7 @@ C4Container
     title Containers
 
     System_Ext(frontend, "fint-flyt-frontend", "Browser app.")
-    ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events, request/reply, instance-received, instance-registered")
+    ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events, request/reply, instance-received, instance-registered, instance-dispatched, instance-deleted")
     Container(app, "fint-flyt-history-service", "Kotlin, Spring Boot 3, Java 25", "Consumes events, serves the internal API, registers and deletes instances.")
     System_Ext(prometheus, "Prometheus", "Metrics in the cluster.")
     ContainerDb(db, "PostgreSQL", "Flyway, JPA", "History schema: events, errors, next_offset. Instance-service schema: instances.")
@@ -284,10 +284,9 @@ C4Component
 
     Rel(dispatchedTopic, consumer, "Consumes")
     Rel(consumer, deletion, "Deletes dispatched instance")
-    Rel(cleanup, instances, "Finds old roots")
+    Rel(cleanup, instances, "Finds old roots; deletes when headers are missing")
     Rel(cleanup, headers, "Looks up registration headers")
     Rel(cleanup, deletion, "Deletes with headers")
-    Rel(cleanup, instances, "Deletes when headers are missing")
     Rel(deletion, instances, "Deletes graph")
     Rel(deletion, producer, "Publishes after commit")
     Rel(producer, deletedTopic, "Publishes")
