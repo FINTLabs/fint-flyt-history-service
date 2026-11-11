@@ -20,7 +20,7 @@ novari:
         topic:
           instance-processing-events-retention-time: "4d"
       retention:
-        time-to-keep-error-details-in-days: 60
+        time-to-keep-in-days: 60
         scrub-batch-size: 10000
 
 server:

@@ -120,6 +120,9 @@ Swagger UI is then available at `http://localhost:8080/beta/fintlabs-no/swagger-
 (`novari.flyt.history-service.metrics.refresh-ms`, default `60000` ms).
 
 `ScheduledErrorScrubService` runs daily after an initial 2 minutes delay and scrubs old, unscrubbed events in batches.
+`InstanceCleanupService` runs 30 seconds after startup and then every 24 hours when the instance functionality flag
+is enabled. It deletes root instances older than the shared `novari.flyt.history-service.retention.time-to-keep-in-days`.
+Both jobs default to 60 days, using event timestamps for scrubbing and instance creation timestamps for cleanup.
 
 ## Configuration
 
@@ -131,9 +134,9 @@ flyt-authorization-client, flyt-postgres) and exposes these key properties:
 | fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service). |
 | novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                               |
 | novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                         |
-| novari.flyt.history-service.retention.time-to-keep-error-details-in-days                   | Number of days to keep error detail values before scheduled scrub.                         |
+| novari.flyt.history-service.retention.time-to-keep-in-days                                 | Days to keep stored instances and error details before scheduled cleanup.                  |
 | novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                |
-| novari.flyt.instance-functionality.enabled                                                 | Enables instance registration from instance-received (default false).                      |
+| novari.flyt.instance-functionality.enabled                                                 | Enables instance registration, retry, deletion and cleanup (default false).                |
 | novari.flyt.instance.database.schema                                                       | Instance schema override; derived from the database user when empty.                       |
 | fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                               |
 | spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.         |
@@ -211,6 +214,12 @@ for local runs and tests. The database role needs `USAGE` on that schema, `SELEC
 
 ### Operations
 
+- Before enabling instance functionality, stop instance-service in Git and wait until its consumer group has no members.
+- Transfer the instance-service group's committed offset for every `instance-dispatched` partition to
+  `<application-id>-instance-dispatched`. This consumer uses Kafka commits, independently of the database position
+  used by `instance-received`.
+- Verify Kafka ACLs for the new consumer and `instance-deleted` producer, and the schema grants described above,
+  including `DELETE` on the instance tables.
 - Before the consumer is enabled, every partition needs a row. Set `next_offset` to the higher of
   the row written by instance-service and the committed offset of the instance-service consumer
   group, after instance-service has stopped. Check that the topic ID is unchanged and that
@@ -229,6 +238,21 @@ for local runs and tests. The database role needs `USAGE` on that schema, `SELEC
   5. Start history-service again.
 - If the topic is recreated, delete the rows and insert new ones before the service starts again.
   Otherwise an old `next_offset` that is still inside the new topic skips records.
+
+## Instance deletion and cleanup
+
+The instance functionality flag also enables the `instance-dispatched` consumer, in its own group
+`<application-id>-instance-dispatched`, and scheduled cleanup of old root instances.
+Deletion commits the complete instance graph before publishing `instance-deleted` asynchronously
+with the original flow headers, no key and a null payload. The ordinary history listener records the event.
+
+Dispatch handling uses `noRetries().skipFailedRecords()`, matching instance-service. A failed delete leaves
+an instance for the scheduled cleanup job, so the partition can continue. If deletion succeeds but publishing
+fails, the deletion event can be lost; cleanup cannot recreate it after the instance has been removed.
+
+Cleanup uses the latest registration headers from local history. If they are missing, it deletes the instance
+and logs a warning without publishing an event. A failed candidate does not stop later candidates.
+Both instance cleanup and error-detail scrubbing use the shared retention setting, which defaults to 60 days.
 
 ## Deployment
 

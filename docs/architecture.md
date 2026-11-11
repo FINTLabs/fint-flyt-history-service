@@ -47,7 +47,7 @@ C4Context
 - **Instance registration** is moving from instance-service to history-service. When
   `novari.flyt.instance-functionality.enabled=true`, history-service consumes `instance-received`,
   stores the instance and publishes `instance-registered`, which mapping-service consumes. It is
-  off by default.
+  off by default. The same flag enables deletion after `instance-dispatched` and daily instance cleanup.
 - **Users** call the API from fint-flyt-frontend with a JWT. History-service asks
   authorization-service which source applications the user has access to, with a
   client_credentials token from NAM.
@@ -61,8 +61,8 @@ C4Container
     title Containers
 
     System_Ext(frontend, "fint-flyt-frontend", "Browser app.")
-    ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events, request/reply, instance-received, instance-registered")
-    Container(app, "fint-flyt-history-service", "Kotlin, Spring Boot 3, Java 25", "Consumes events, serves the internal API, registers instances.")
+    ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events, request/reply, instance-received, instance-registered, instance-dispatched, instance-deleted")
+    Container(app, "fint-flyt-history-service", "Kotlin, Spring Boot 3, Java 25", "Consumes events, serves the internal API, registers and deletes instances.")
     System_Ext(prometheus, "Prometheus", "Metrics in the cluster.")
     ContainerDb(db, "PostgreSQL", "Flyway, JPA", "History schema: events, errors, next_offset. Instance-service schema: instances.")
     Container_Ext(authz, "authorization-service", "Spring Boot", "fint-flyt-authorization-service. User access to source applications.")
@@ -95,8 +95,7 @@ C4Container
 
 ## C4 level 3: Components
 
-The application has three parts. They share `EventRepository` and the database, but otherwise
-work independently.
+The components below share the existing database and Kafka infrastructure.
 
 ### HTTP API
 
@@ -264,3 +263,49 @@ Invalid input is stored as `INSTANCE_REGISTRATION_ERROR` together with the new `
 transaction. The consumer calls `InstanceReceivedPositions` on every partition assignment to seek
 to `next_offset` (not drawn). `InstanceRegistrationService` and `InstanceReceivedPositions` read and write
 `instance_received_offset` through `InstanceReceivedOffsetRepository` (not drawn).
+
+### Instance deletion and cleanup
+
+The instance functionality flag enables this flow. Registration headers for cleanup are read from local history.
+
+```mermaid
+C4Component
+    title Instance deletion and cleanup
+
+    ContainerQueue_Ext(dispatchedTopic, "Kafka", "Topic", "instance-dispatched")
+    ContainerQueue_Ext(deletedTopic, "Kafka", "Topic", "instance-deleted")
+    Component(consumer, "Instance-dispatched consumer", "flyt-kafka", "Own consumer group. No retries; skips failed records.")
+    Component(cleanup, "InstanceCleanupService", "Spring @Scheduled", "Finds old root instances. Shared retention, default 60 days.")
+    Component(deletion, "InstanceDeletionService", "Service", "Deletes the graph, then publishes the deletion event.")
+    Component(instances, "InstanceService", "Spring Data JPA", "Finds old roots and deletes complete graphs in transactions.")
+    Component(headers, "EventService", "Service", "Latest registration headers from local history.")
+    Component(producer, "InstanceDeletedEventProducerService", "flyt-kafka", "Publishes asynchronously with the original headers and null payload.")
+    ContainerDb(db, "PostgreSQL", "Two schemas", "Instance graphs and event history.")
+
+    Rel(dispatchedTopic, consumer, "Consumes")
+    Rel(consumer, deletion, "Deletes dispatched instance")
+    Rel(cleanup, instances, "Finds old roots; deletes when headers are missing")
+    Rel(cleanup, headers, "Looks up registration headers")
+    Rel(cleanup, deletion, "Deletes with headers")
+    Rel(deletion, instances, "Deletes graph")
+    Rel(deletion, producer, "Publishes after commit")
+    Rel(producer, deletedTopic, "Publishes")
+    Rel(instances, db, "Reads, deletes", "JDBC")
+    Rel(headers, db, "Reads via EventRepository", "JDBC")
+
+    UpdateElementStyle(consumer, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
+    UpdateElementStyle(cleanup, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
+    UpdateElementStyle(deletion, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
+    UpdateElementStyle(instances, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
+    UpdateElementStyle(headers, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
+    UpdateElementStyle(producer, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
+    UpdateElementStyle(db, $bgColor="#C4B5FD", $fontColor="#1F2937", $borderColor="#8B5CF6")
+    UpdateElementStyle(dispatchedTopic, $bgColor="#A5F3FC", $fontColor="#1F2937", $borderColor="#06B6D4")
+    UpdateElementStyle(deletedTopic, $bgColor="#A5F3FC", $fontColor="#1F2937", $borderColor="#06B6D4")
+    UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+```
+
+The dispatched consumer uses Kafka commits and a separate group from the ordinary history listener.
+A failed delete leaves the instance for later scheduled cleanup. If publication fails after deletion,
+the event may be lost. Cleanup without registration headers deletes the graph and logs a warning.
+Immediate error-detail scrubbing remains disabled; scheduled scrubbing runs independently.

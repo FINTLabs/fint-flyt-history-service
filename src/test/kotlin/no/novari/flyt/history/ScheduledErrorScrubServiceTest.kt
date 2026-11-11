@@ -45,7 +45,7 @@ import java.time.ZoneOffset
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @TestPropertySource(
     properties = [
-        "novari.flyt.history-service.retention.time-to-keep-error-details-in-days=60",
+        "novari.flyt.history-service.retention.time-to-keep-in-days=60",
         "novari.flyt.history-service.retention.scrub-batch-size=2",
     ],
 )
