@@ -47,7 +47,8 @@ C4Context
 - **Instance registration** is moving from instance-service to history-service. When
   `novari.flyt.instance-functionality.enabled=true`, history-service consumes `instance-received`,
   stores the instance and publishes `instance-registered`, which mapping-service consumes. It is
-  off by default. The same flag enables deletion after `instance-dispatched` and daily instance cleanup.
+  off by default. The same flag enables daily instance cleanup. Deletion after `instance-dispatched` runs
+  regardless of the flag, in parallel with instance-service until cutover.
 - **Users** call the API from fint-flyt-frontend with a JWT. History-service asks
   authorization-service which source applications the user has access to, with a
   client_credentials token from NAM.
@@ -266,7 +267,8 @@ to `next_offset` (not drawn). `InstanceRegistrationService` and `InstanceReceive
 
 ### Instance deletion and cleanup
 
-The instance functionality flag enables this flow. Registration headers for cleanup are read from local history.
+Deletion after dispatch always runs; the instance functionality flag enables cleanup. Registration headers for
+cleanup are read from local history.
 
 ```mermaid
 C4Component
@@ -274,9 +276,9 @@ C4Component
 
     ContainerQueue_Ext(dispatchedTopic, "Kafka", "Topic", "instance-dispatched")
     ContainerQueue_Ext(deletedTopic, "Kafka", "Topic", "instance-deleted")
-    Component(consumer, "Instance-dispatched consumer", "flyt-kafka", "Own consumer group. No retries; skips failed records.")
+    Component(consumer, "Instance-dispatched history listener", "flyt-kafka", "Default group. Records the event, then deletes. No retries; skips failed records.")
     Component(cleanup, "InstanceCleanupService", "Spring @Scheduled", "Finds old root instances. Shared retention, default 60 days.")
-    Component(deletion, "InstanceDeletionService", "Service", "Deletes the graph, then publishes the deletion event.")
+    Component(deletion, "InstanceDeletionService", "Service", "Deletes the graph if it still exists, then publishes the deletion event.")
     Component(instances, "InstanceService", "Spring Data JPA", "Finds old roots and deletes complete graphs in transactions.")
     Component(headers, "EventService", "Service", "Latest registration headers from local history.")
     Component(producer, "InstanceDeletedEventProducerService", "flyt-kafka", "Publishes asynchronously with the original headers and null payload.")
@@ -305,7 +307,8 @@ C4Component
     UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
 ```
 
-The dispatched consumer uses Kafka commits and a separate group from the ordinary history listener.
+Deletion runs in the ordinary history listener's group. Until cutover, instance-service also deletes dispatched
+instances: the root row lock makes the second deleter find nothing, so only the service that deleted publishes.
 A failed delete leaves the instance for later scheduled cleanup. If publication fails after deletion,
 the event may be lost. Cleanup without registration headers deletes the graph and logs a warning.
 Immediate error-detail scrubbing remains disabled; scheduled scrubbing runs independently.

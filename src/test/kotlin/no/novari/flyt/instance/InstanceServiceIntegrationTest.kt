@@ -17,6 +17,7 @@ import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.assertj.core.api.Assertions.within
+import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -52,11 +53,14 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.Date
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(
@@ -236,7 +240,7 @@ class InstanceServiceIntegrationTest {
     }
 
     @Test
-    fun `deletion commits the full graph before publishing and permits replay`() {
+    fun `deletion commits the full graph before publishing and publishes nothing on replay`() {
         val saved = instanceService.save(instanceGraph())
         val headers = deletionHeaders(saved.id!!)
         doAnswer {
@@ -252,7 +256,42 @@ class InstanceServiceIntegrationTest {
         deletionService.delete(headers)
         deletionService.delete(headers)
 
-        verify(producer, times(2)).publish(headers)
+        verify(producer, times(1)).publish(headers)
+    }
+
+    @Test
+    fun `concurrent deletions delete the graph and publish once`() {
+        val saved = instanceService.save(instanceGraph())
+        val headers = deletionHeaders(saved.id!!)
+        val transaction = TransactionTemplate(transactionManager)
+        val concurrent = Executors.newSingleThreadExecutor()
+        try {
+            val waiting =
+                transaction.execute {
+                    // The first deletion joins this transaction, so its row lock is held until the block ends.
+                    deletionService.delete(headers)
+                    val waiting = concurrent.submit { deletionService.delete(headers) }
+                    await().atMost(Duration.ofSeconds(10)).until {
+                        jdbcTemplate.queryForObject(
+                            "SELECT count(*) FROM pg_locks WHERE NOT granted",
+                            Long::class.java,
+                        )!! >
+                            0
+                    }
+                    assertThat(waiting).isNotDone()
+                    waiting
+                }!!
+            waiting.get(10, TimeUnit.SECONDS)
+        } finally {
+            concurrent.shutdownNow()
+        }
+
+        verify(producer, times(1)).publish(headers)
+        for (table in listOf("instance_object", "instance_object_collection", "instance_object_value_per_key")) {
+            assertThat(
+                jdbcTemplate.queryForObject("SELECT count(*) FROM $INSTANCE_SCHEMA.$table", Long::class.java),
+            ).isZero()
+        }
     }
 
     @Test

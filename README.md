@@ -129,22 +129,22 @@ Both jobs default to 60 days, using event timestamps for scrubbing and instance 
 The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-web-resource-server,
 flyt-authorization-client, flyt-postgres) and exposes these key properties:
 
-| Property                                                                                   | Description                                                                                |
-|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service). |
-| novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                               |
-| novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                         |
-| novari.flyt.history-service.retention.time-to-keep-in-days                                 | Days to keep stored instances and error details before scheduled cleanup.                  |
-| novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                |
-| novari.flyt.instance-functionality.enabled                                                 | Enables instance registration, retry, deletion and cleanup (default false).                |
-| novari.flyt.instance.database.schema                                                       | Instance schema override; derived from the database user when empty.                       |
-| fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                               |
-| spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.         |
-| spring.security.oauth2.resourceserver.jwt.issuer-uri                                       | Authority used for JWT validation.                                                         |
-| fint.flyt.authorization.sso.client-id / client-secret                                      | OAuth2 client credentials for authorization-service.                                       |
-| no.novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API.                                |
-| server.max-http-request-header-size                                                        | Raised to 40KB to handle large JWTs.                                                       |
-| spring.jackson.time-zone                                                                   | Forces JSON serialization to UTC.                                                          |
+| Property                                                                                   | Description                                                                                            |
+|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service).             |
+| novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                                           |
+| novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                                     |
+| novari.flyt.history-service.retention.time-to-keep-in-days                                 | Days to keep stored instances and error details before scheduled cleanup.                              |
+| novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                            |
+| novari.flyt.instance-functionality.enabled                                                 | Enables instance registration, retry and cleanup (default false). Deletion after dispatch always runs. |
+| novari.flyt.instance.database.schema                                                       | Instance schema override; derived from the database user when empty.                                   |
+| fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                                           |
+| spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.                     |
+| spring.security.oauth2.resourceserver.jwt.issuer-uri                                       | Authority used for JWT validation.                                                                     |
+| fint.flyt.authorization.sso.client-id / client-secret                                      | OAuth2 client credentials for authorization-service.                                                   |
+| no.novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API.                                            |
+| server.max-http-request-header-size                                                        | Raised to 40KB to handle large JWTs.                                                                   |
+| spring.jackson.time-zone                                                                   | Forces JSON serialization to UTC.                                                                      |
 
 Secrets referenced in the base Kustomize manifests must include DB credentials and OAuth client metadata.
 
@@ -154,6 +154,8 @@ Prerequisites: Java 25+, Gradle wrapper (bundled), and Docker.
 
 1. Start Postgres on localhost:5436 and Kafka on localhost:9092: `docker compose up -d`
 2. Export SPRING_PROFILES_ACTIVE=local-staging to pick up application-local-staging.yaml.
+   The profile sets the instance schema to `fintlabs_no_instance`, which Docker creates empty. Deletion after
+   dispatch uses it even with the instance functionality flag off.
 
 Add `--profile tools` to also start Kafdrop on http://localhost:19000. Kafka topics and the database are empty on every start.
 
@@ -215,10 +217,7 @@ for local runs and tests. The database role needs `USAGE` on that schema, `SELEC
 ### Operations
 
 - Before enabling instance functionality, stop instance-service in Git and wait until its consumer group has no members.
-- Transfer the instance-service group's committed offset for every `instance-dispatched` partition to
-  `<application-id>-instance-dispatched`. This consumer uses Kafka commits, independently of the database position
-  used by `instance-received`.
-- Verify Kafka ACLs for the new consumer and `instance-deleted` producer, and the schema grants described above,
+- Verify Kafka ACLs for the `instance-deleted` producer, and the schema grants described above,
   including `DELETE` on the instance tables.
 - Before the consumer is enabled, every partition needs a row. Set `next_offset` to the higher of
   the row written by instance-service and the committed offset of the instance-service consumer
@@ -241,10 +240,16 @@ for local runs and tests. The database role needs `USAGE` on that schema, `SELEC
 
 ## Instance deletion and cleanup
 
-The instance functionality flag also enables the `instance-dispatched` consumer, in its own group
-`<application-id>-instance-dispatched`, and scheduled cleanup of old root instances.
-Deletion commits the complete instance graph before publishing `instance-deleted` asynchronously
-with the original flow headers, no key and a null payload. The ordinary history listener records the event.
+Deletion after `instance-dispatched` runs regardless of the instance functionality flag. The ordinary history
+listener for `instance-dispatched` records the event and then deletes the instance, in the default group, so no
+offsets need to be carried over from instance-service at cutover. The flag enables scheduled cleanup of old root
+instances.
+Deletion locks the root row, commits the complete instance graph and then publishes `instance-deleted`
+asynchronously with the original flow headers, no key and a null payload. The ordinary history listener records
+the event.
+
+Until cutover, instance-service deletes dispatched instances too. Whichever service deletes the row publishes
+the event. The other waits for the row lock, finds nothing and publishes nothing.
 
 Dispatch handling uses `noRetries().skipFailedRecords()`, matching instance-service. A failed delete leaves
 an instance for the scheduled cleanup job, so the partition can continue. If deletion succeeds but publishing
