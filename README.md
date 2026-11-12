@@ -171,7 +171,7 @@ Useful commands:
 
 History-service takes over registration of received instances from instance-service.
 `novari.flyt.instance-functionality.enabled` defaults to `true`; this version must only be deployed
-after instance-service has been removed and the cutover positions have been prepared.
+after instance-service has been stopped for the organisation and the cutover positions have been prepared.
 
 - `InstanceReceivedEventConsumerConfiguration` owns the `instance-received` topic configuration
   (one partition, configured processing-event retention, normal cleanup), and consumes it with the fint-kafka
@@ -240,15 +240,24 @@ the old database owner role if ownership is inherited from it.
   Schema access, including `DELETE`, and Kafka rights for the `instance-deleted` producer must
   already be in place: dispatched deletion runs even with the functionality flag off.
 - This version enables registration, retry and cleanup by default and adds the existing retry
-  routes in all overlays. Limit deployment to the organisation and environment being migrated;
-  the CD workflow currently lists all 30 targets. Other targets must keep their existing version
-  and routing until their cutover.
+  routes in all overlays. Run MD from `feature/instance-service-takeover`, selecting one organisation
+  and cluster at a time, starting in beta. Merge #141 only after all targets have been migrated
+  and verified. MD renders the selected overlay and deploys it with `kubectl apply`; changing Git
+  alone does not change resources already running in a cluster.
+- Disable automatic CD in instance-service before rollout and keep it disabled throughout the
+  transition. A deployment of its unchanged manifests would restore replicas and retry ingress.
+  Also pause automatic history-service CD, or prevent pushes to main during rollout: deploying
+  main/#142 would otherwise overwrite organisations already running #141 from the branch.
 - Before stopping instance-service, complete the #142 rollout and verify that instance-service's
   dispatched consumer has no lag on the organisation's partitions. The history group may previously have
   recorded those events without deleting instances, so let instance-service drain that backlog.
-- Stop instance-service through Git/GitOps and wait for its pod and in-flight work to finish.
-  Preserve its database schema, data, sequences, Flyway history and required owner role. Remove
-  the old deployment and retry ingress before deploying this version.
+- Save the current instance-service Application CR, then patch that CR for the selected organisation:
+  set `spec.replicas` to `0` and remove `spec.ingress`. Wait for the pod and in-flight work to finish,
+  and verify that the old retry IngressRoute is gone. Do not just scale or delete the generated
+  Deployment or IngressRoute: flaiserator reconciles them from the Application CR.
+- Keep the Application CR and PGUser during the transition. Deleting the CR can also delete its
+  owned PGUser; the effect on the database role has not been verified. Preserve the instance schema,
+  data, sequences, Flyway history and required owner role. Retiring these resources is a later step.
 - After instance-service has stopped, manually read and save its final committed offsets from
   Aiven: group `fint-flyt-instance-service`, topic `<org>.flyt.event.instance-received`, separately
   for each partition. Use the consumer group's committed/current offset, not the topic's log-end
@@ -277,17 +286,33 @@ the old database owner role if ownership is inherited from it.
 
 #### Rollback
 
-Stop and drain history-service for the affected organisation, including cleanup and dispatched
-handling. The functionality flag alone does not stop dispatched deletion. Preserve the schemas
-and both Flyway histories. Capture the received position from the database, validate identity and
-bounds, and transfer it to the old instance-service group's received partitions without adding 1.
-Coordinate any reset with other members of the shared group. Do not reset the history group's
-dispatched offsets or copy them into a separate group. Check that the old dispatched commits
-are still within retention; its #90 deletion logic can skip instances already deleted by history-service.
-Restore the old retry ingress and the patched instance-service deployment through Git. History-service
-can return to #142 with the functionality flag off. Do not restart instance-service with stale
-received offsets. Already published events and deleted data are not reversed by offset changes;
-investigate these before deciding whether rollback is appropriate.
+1. Stop and drain history-service for the affected organisation by setting its Application CR's
+   `spec.replicas` to `0`. This also stops cleanup and dispatched handling; the functionality flag
+   alone does not stop dispatched deletion. Preserve both schemas and Flyway histories.
+2. Record the replica counts of all remaining instance-service Applications using group
+   `fint-flyt-instance-service` on the same **Kafka cluster**. Set their Application CR replicas to
+   `0` and verify that the entire group has no members. This temporary pause includes other
+   organisations, even though only the rolled-back organisation's offsets will be changed.
+3. Always read the affected organisation's received positions from the database, validate topic
+   identity and `earliestOffset <= next_offset <= endOffset`, and write these positions to its
+   received partitions in the old group, without adding 1. Read back the committed offsets.
+   Do not rely on the old group's stored positions: commits can expire for topics to which the
+   group no longer subscribes. `offsets.retention.minutes` defaults to 10080 minutes (7 days), but
+   verify the actual broker setting. See [Kafka offset retention](https://kafka.apache.org/42/generated/kafka_config.html#offsets.retention.minutes).
+   Missing commits are governed by `auto.offset.reset`, not by the database checkpoint.
+4. Do not reset the history group's dispatched offsets or copy them into a separate group.
+   Check the old dispatched positions against retention and investigate missing or invalid ones
+   before restarting. Use the patched instance-service version containing #90.
+5. Restore history-service to the recorded #142 version with the functionality flag off using MD
+   or the recorded manifests/image. Restore the saved instance-service Application CR's ingress
+   and replica count with an explicit apply/patch; editing Git alone does not restore it.
+   Resume the other instance-service Applications at their recorded replica counts. Organisations
+   already migrated and previously at zero must remain at zero. Keep automatic CD disabled during
+   this operation so it cannot overwrite these settings.
+
+Do not restart instance-service before its received positions have been restored. Already published
+events and deleted data are not reversed by offset changes; investigate these before deciding
+whether rollback is appropriate.
 
 #### Malformed records and topic recreation
 
