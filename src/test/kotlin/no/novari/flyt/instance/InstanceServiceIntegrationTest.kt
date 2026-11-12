@@ -2,18 +2,35 @@ package no.novari.flyt.instance
 
 import jakarta.persistence.EntityNotFoundException
 import no.novari.flyt.history.Application
+import no.novari.flyt.history.EventService
+import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.JpaAuditingTestConfig
+import no.novari.flyt.history.mapping.InstanceFlowHeadersMappingService
+import no.novari.flyt.history.model.event.EventCategory
+import no.novari.flyt.history.repository.EventRepository
 import no.novari.flyt.instance.config.InstanceDatabaseConfiguration
 import no.novari.flyt.instance.config.InstanceJpaConfiguration
+import no.novari.flyt.instance.kafka.InstanceDeletedEventProducerService
 import no.novari.flyt.instance.model.InstanceMappingService
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.assertj.core.api.Assertions.within
+import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
+import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
@@ -26,6 +43,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.ContextConfiguration
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -35,10 +53,14 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.Date
+import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 @Testcontainers(disabledWithoutDocker = true)
 @DataJpaTest(
@@ -57,6 +79,9 @@ import java.util.Date
     InstanceDatabaseConfiguration::class,
     InstanceJpaConfiguration::class,
     InstanceService::class,
+    InstanceDeletionService::class,
+    InstanceFlowHeadersMappingService::class,
+    InstanceInfoEventService::class,
     InstanceMappingService::class,
     InstanceServiceIntegrationTest.FixedClockConfiguration::class,
 )
@@ -74,8 +99,19 @@ class InstanceServiceIntegrationTest {
     @Autowired
     lateinit var applicationContext: ApplicationContext
 
+    @Autowired lateinit var deletionService: InstanceDeletionService
+
+    @Autowired lateinit var eventService: EventService
+
+    @Autowired lateinit var infoEvents: InstanceInfoEventService
+
+    @Autowired lateinit var eventRepository: EventRepository
+
+    @MockitoBean lateinit var producer: InstanceDeletedEventProducerService
+
     @AfterEach
     fun cleanUp() {
+        eventRepository.deleteAll()
         TransactionTemplate(transactionManager).executeWithoutResult {
             jdbcTemplate.execute("DELETE FROM $INSTANCE_SCHEMA.instance_object_value_per_key")
             jdbcTemplate.execute("UPDATE $INSTANCE_SCHEMA.instance_object SET instance_object_collection_id = NULL")
@@ -203,6 +239,151 @@ class InstanceServiceIntegrationTest {
         }
     }
 
+    @Test
+    fun `deletion commits the full graph before publishing and publishes nothing on replay`() {
+        val saved = instanceService.save(instanceGraph())
+        val headers = deletionHeaders(saved.id!!)
+        doAnswer {
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
+            for (table in listOf("instance_object", "instance_object_collection", "instance_object_value_per_key")) {
+                assertThat(
+                    jdbcTemplate.queryForObject("SELECT count(*) FROM $INSTANCE_SCHEMA.$table", Long::class.java),
+                ).isZero()
+            }
+            null
+        }.whenever(producer).publish(any())
+
+        deletionService.delete(headers)
+        deletionService.delete(headers)
+
+        verify(producer, times(1)).publish(headers)
+    }
+
+    @Test
+    fun `concurrent deletions delete the graph and publish once`() {
+        val saved = instanceService.save(instanceGraph())
+        val headers = deletionHeaders(saved.id!!)
+        val transaction = TransactionTemplate(transactionManager)
+        val concurrent = Executors.newSingleThreadExecutor()
+        try {
+            val waiting =
+                transaction.execute {
+                    // The first deletion joins this transaction, so its row lock is held until the block ends.
+                    deletionService.delete(headers)
+                    val waiting = concurrent.submit { deletionService.delete(headers) }
+                    await().atMost(Duration.ofSeconds(10)).until {
+                        jdbcTemplate.queryForObject(
+                            "SELECT count(*) FROM pg_locks WHERE NOT granted",
+                            Long::class.java,
+                        )!! >
+                            0
+                    }
+                    assertThat(waiting).isNotDone()
+                    waiting
+                }!!
+            waiting.get(10, TimeUnit.SECONDS)
+        } finally {
+            concurrent.shutdownNow()
+        }
+
+        verify(producer, times(1)).publish(headers)
+        for (table in listOf("instance_object", "instance_object_collection", "instance_object_value_per_key")) {
+            assertThat(
+                jdbcTemplate.queryForObject("SELECT count(*) FROM $INSTANCE_SCHEMA.$table", Long::class.java),
+            ).isZero()
+        }
+    }
+
+    @Test
+    fun `a synchronous send failure happens after the delete has committed`() {
+        val saved = instanceService.save(instanceGraph())
+        doThrow(IllegalStateException("send failed")).whenever(producer).publish(any())
+
+        assertThatThrownBy { deletionService.delete(deletionHeaders(saved.id!!)) }
+            .isInstanceOf(IllegalStateException::class.java)
+        assertThat(
+            jdbcTemplate.queryForObject("SELECT count(*) FROM $INSTANCE_SCHEMA.instance_object", Long::class.java),
+        ).isZero()
+    }
+
+    @Test
+    fun `a failed delete rolls back the whole graph and publishes nothing`() {
+        val saved = instanceService.save(instanceGraph())
+        jdbcTemplate.execute(
+            "CREATE TABLE $INSTANCE_SCHEMA.delete_guard (instance_id bigint REFERENCES $INSTANCE_SCHEMA.instance_object(id))",
+        )
+        try {
+            jdbcTemplate.update("INSERT INTO $INSTANCE_SCHEMA.delete_guard VALUES (?)", saved.id)
+
+            assertThatThrownBy { deletionService.delete(deletionHeaders(saved.id!!)) }
+                .isInstanceOf(DataIntegrityViolationException::class.java)
+
+            assertThat(nodes(instanceService.getById(saved.id!!))).hasSize(3)
+            verifyNoInteractions(producer)
+        } finally {
+            jdbcTemplate.execute("DROP TABLE $INSTANCE_SCHEMA.delete_guard")
+        }
+    }
+
+    @Test
+    fun `dispatch without an instance identity deletes and publishes nothing`() {
+        val saved = instanceService.save(instanceGraph())
+
+        assertThatThrownBy { deletionService.delete(deletionHeaders(saved.id!!).toBuilder().instanceId(null).build()) }
+            .isInstanceOf(IllegalArgumentException::class.java)
+
+        assertThat(nodes(instanceService.getById(saved.id!!))).hasSize(3)
+        verifyNoInteractions(producer)
+    }
+
+    @Test
+    fun `cleanup uses only old roots and latest locally registered headers detached from the transaction`() {
+        val old = instanceService.save(instanceGraph())
+        val retained = instanceService.save(instanceGraph())
+        val cutoff = NOW.minus(30, ChronoUnit.DAYS)
+        jdbcTemplate.update(
+            "UPDATE $INSTANCE_SCHEMA.instance_object SET created_at = ?",
+            cutoff.minusSeconds(1).atOffset(ZoneOffset.UTC),
+        )
+        jdbcTemplate.update(
+            "UPDATE $INSTANCE_SCHEMA.instance_object SET created_at = ? WHERE id = ?",
+            cutoff.atOffset(ZoneOffset.UTC),
+            retained.id,
+        )
+        val originalHeaders = deletionHeaders(old.id!!)
+        val latestHeaders = originalHeaders.toBuilder().fileIds(listOf(UUID.randomUUID())).build()
+        infoEvents.registerEvent(
+            originalHeaders,
+            EventCategory.INSTANCE_REGISTERED,
+            NOW.minusSeconds(2),
+            "registration",
+        )
+        infoEvents.registerEvent(latestHeaders, EventCategory.INSTANCE_REGISTERED, NOW.minusSeconds(1), "registration")
+
+        val loadedHeaders = eventService.findInstanceFlowHeadersForLatestInstanceRegisteredEvent(old.id!!)
+        assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
+        assertThat(loadedHeaders!!.fileIds).containsExactlyElementsOf(latestHeaders.fileIds)
+        InstanceCleanupService(instanceService, eventService, deletionService, 30).cleanUp()
+
+        assertThatThrownBy { instanceService.getById(old.id!!) }.isInstanceOf(EntityNotFoundException::class.java)
+        assertThat(nodes(instanceService.getById(retained.id!!))).hasSize(3)
+        val published = argumentCaptor<InstanceFlowHeaders>()
+        verify(producer).publish(published.capture())
+        assertThat(published.firstValue).isEqualTo(latestHeaders)
+        assertThat(eventRepository.findAll().map { it.name }).containsOnly(EventCategory.INSTANCE_REGISTERED.eventName)
+    }
+
+    private fun deletionHeaders(instanceId: Long): InstanceFlowHeaders =
+        InstanceFlowHeaders
+            .builder()
+            .instanceId(instanceId)
+            .sourceApplicationId(1L)
+            .sourceApplicationIntegrationId("integration")
+            .sourceApplicationInstanceId("source-instance")
+            .fileIds(listOf(UUID.randomUUID()))
+            .correlationId(UUID.randomUUID())
+            .build()
+
     private fun instanceGraph(): InstanceObjectDto {
         val grandchild =
             InstanceObjectDto(
@@ -235,6 +416,12 @@ class InstanceServiceIntegrationTest {
     class FixedClockConfiguration {
         @Bean
         fun clock(): Clock = Clock.fixed(NOW, ZoneOffset.UTC)
+
+        @Bean
+        fun eventService(
+            repository: EventRepository,
+            headers: InstanceFlowHeadersMappingService,
+        ) = EventService(repository, mock(), headers, mock(), mock(), mock(), mock())
     }
 
     companion object {

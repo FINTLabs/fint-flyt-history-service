@@ -1,0 +1,1 @@
+DROP TABLE instance_registered_outbox;

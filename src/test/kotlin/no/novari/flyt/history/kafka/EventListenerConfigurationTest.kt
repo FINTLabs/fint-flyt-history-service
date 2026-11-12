@@ -6,7 +6,7 @@ import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.event.EventType
-import no.novari.flyt.instance.config.InstanceFunctionalityProperties
+import no.novari.flyt.instance.InstanceDeletionService
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowConsumerRecord
 import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
@@ -29,13 +29,14 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito.clearInvocations
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.isNull
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.same
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
@@ -48,6 +49,7 @@ import java.util.function.Consumer
 class EventListenerConfigurationTest {
     private val instanceErrorEventService: InstanceErrorEventService = mock()
     private val instanceInfoEventService: InstanceInfoEventService = mock()
+    private val instanceDeletionService: InstanceDeletionService = mock()
     private val instanceFlowListenerFactoryService: InstanceFlowListenerFactoryService = mock()
     private val errorHandlerFactory: ErrorHandlerFactory = mock()
     private val beanFactory: ConfigurableListableBeanFactory = mock()
@@ -111,44 +113,9 @@ class EventListenerConfigurationTest {
     }
 
     @Test
-    fun `instance registered listener is enabled when feature flag is missing`() {
+    fun `instance registered listener is enabled`() {
         assertThat(eventListenerContainers.keys).contains(EventCategory.INSTANCE_REGISTERED.eventName)
         verify(beanFactory).registerSingleton(eq("eventListener-instance-registered"), any())
-    }
-
-    @Test
-    fun `instance registered listener is enabled when feature flag is explicitly false`() {
-        clearInvocations(beanFactory)
-
-        val containers =
-            createEventListenerConfiguration(
-                instanceFunctionalityProperties = InstanceFunctionalityProperties(enabled = false),
-            ).eventListenerContainers()
-
-        assertThat(containers.keys).contains(EventCategory.INSTANCE_REGISTERED.eventName)
-        verify(beanFactory).registerSingleton(eq("eventListener-instance-registered"), any())
-    }
-
-    @Test
-    fun `instance registered listener and bean are not created when feature flag is true`() {
-        clearInvocations(beanFactory, infoListenerContainerFactory)
-
-        val containers =
-            createEventListenerConfiguration(
-                instanceFunctionalityProperties = InstanceFunctionalityProperties(enabled = true),
-            ).eventListenerContainers()
-
-        assertThat(containers.keys)
-            .doesNotContain(EventCategory.INSTANCE_REGISTERED.eventName)
-            .containsAll(otherInfoEventNames())
-            .containsAll(legacyErrorEventNames())
-
-        val topicCaptor = argumentCaptor<EventTopicNameParameters>()
-        verify(infoListenerContainerFactory, atLeastOnce()).createContainer(topicCaptor.capture())
-        assertThat(topicCaptor.allValues.map { it.eventName })
-            .doesNotContain(EventCategory.INSTANCE_REGISTERED.eventName)
-            .containsAll(otherInfoEventNames())
-        verify(beanFactory, never()).registerSingleton(eq("eventListener-instance-registered"), any())
     }
 
     @Test
@@ -164,20 +131,6 @@ class EventListenerConfigurationTest {
         legacyErrorEventNames().forEach { eventName ->
             verify(beanFactory, never()).registerSingleton(eq("eventListener-$eventName"), any())
         }
-    }
-
-    @Test
-    fun `legacy error listeners remain independently disabled when instance feature flag is true`() {
-        val containers =
-            createEventListenerConfiguration(
-                instanceFunctionalityProperties = InstanceFunctionalityProperties(enabled = true),
-                legacyErrorTopicListenersEnabled = false,
-            ).eventListenerContainers()
-
-        assertThat(containers.keys)
-            .doesNotContain(EventCategory.INSTANCE_REGISTERED.eventName)
-            .doesNotContainAnyElementsOf(legacyErrorEventNames())
-            .containsAll(otherInfoEventNames())
     }
 
     @Test
@@ -234,7 +187,6 @@ class EventListenerConfigurationTest {
             .thenReturn(listenerContainer)
 
         createEventListenerConfiguration(
-            instanceFunctionalityProperties = InstanceFunctionalityProperties(enabled = true),
             legacyErrorTopicListenersEnabled = false,
         ).instanceErrorListener()
 
@@ -295,6 +247,27 @@ class EventListenerConfigurationTest {
     }
 
     @Test
+    fun `instance dispatched listener registers the event and then deletes the instance`() {
+        val category = EventCategory.INSTANCE_DISPATCHED
+        val record = instanceFlowConsumerRecord(category, actor = null)
+
+        infoListenersByEventName
+            .getValue(category.eventName)
+            .accept(record)
+
+        inOrder(instanceInfoEventService, instanceDeletionService) {
+            verify(instanceInfoEventService).registerEvent(
+                same(record.instanceFlowHeaders),
+                eq(category),
+                eq(Instant.ofEpochMilli(record.consumerRecord.timestamp())),
+                eq("test-app"),
+                isNull(),
+            )
+            verify(instanceDeletionService).delete(same(record.instanceFlowHeaders))
+        }
+    }
+
+    @Test
     fun `other info event listeners ignore flyt actor header`() {
         val actor = Actor.User(UUID.fromString("53134ef2-4480-46d6-99a3-1920d36ea333"))
         val category = EventCategory.INSTANCE_MAPPED
@@ -311,6 +284,7 @@ class EventListenerConfigurationTest {
             eq("test-app"),
             isNull(),
         )
+        verifyNoInteractions(instanceDeletionService)
     }
 
     private fun instanceFlowConsumerRecord(
@@ -383,13 +357,12 @@ class EventListenerConfigurationTest {
             .build()
 
     private fun createEventListenerConfiguration(
-        instanceFunctionalityProperties: InstanceFunctionalityProperties = InstanceFunctionalityProperties(),
         legacyErrorTopicListenersEnabled: Boolean = true,
     ): EventListenerConfiguration =
         EventListenerConfiguration(
             instanceErrorEventService = instanceErrorEventService,
             instanceInfoEventService = instanceInfoEventService,
-            instanceFunctionalityProperties = instanceFunctionalityProperties,
+            instanceDeletionService = instanceDeletionService,
             instanceFlowListenerFactoryService = instanceFlowListenerFactoryService,
             errorHandlerFactory = errorHandlerFactory,
             beanFactory = beanFactory,

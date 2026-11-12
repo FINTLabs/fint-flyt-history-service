@@ -5,6 +5,9 @@ fint:
 
 novari:
   flyt:
+    instance:
+      database:
+        schema: fintlabs_no_instance
     web-resource-server:
       security:
         api:
