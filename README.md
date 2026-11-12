@@ -129,22 +129,22 @@ Both jobs default to 60 days, using event timestamps for scrubbing and instance 
 The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-web-resource-server,
 flyt-authorization-client, flyt-postgres) and exposes these key properties:
 
-| Property                                                                                   | Description                                                                                |
-|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service). |
-| novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                               |
-| novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                         |
-| novari.flyt.history-service.retention.time-to-keep-in-days                                 | Days to keep stored instances and error details before scheduled cleanup.                  |
-| novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                |
-| novari.flyt.instance-functionality.enabled                                                 | Enables instance registration, retry, deletion and cleanup (default true).                |
-| novari.flyt.instance.database.schema                                                       | Instance schema override; derived from the database user when empty.                       |
-| fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                               |
-| spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.         |
-| spring.security.oauth2.resourceserver.jwt.issuer-uri                                       | Authority used for JWT validation.                                                         |
-| fint.flyt.authorization.sso.client-id / client-secret                                      | OAuth2 client credentials for authorization-service.                                       |
-| no.novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API.                                |
-| server.max-http-request-header-size                                                        | Raised to 40KB to handle large JWTs.                                                       |
-| spring.jackson.time-zone                                                                   | Forces JSON serialization to UTC.                                                          |
+| Property                                                                                   | Description                                                                                            |
+|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
+| fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service).             |
+| novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                                           |
+| novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                                     |
+| novari.flyt.history-service.retention.time-to-keep-in-days                                 | Days to keep stored instances and error details before scheduled cleanup.                              |
+| novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                            |
+| novari.flyt.instance-functionality.enabled                                                 | Enables instance registration, retry and cleanup (default true). Deletion after dispatch always runs. |
+| novari.flyt.instance.database.schema                                                       | Instance schema override; derived from the database user when empty.                                   |
+| fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                                           |
+| spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.                     |
+| spring.security.oauth2.resourceserver.jwt.issuer-uri                                       | Authority used for JWT validation.                                                                     |
+| fint.flyt.authorization.sso.client-id / client-secret                                      | OAuth2 client credentials for authorization-service.                                                   |
+| no.novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API.                                            |
+| server.max-http-request-header-size                                                        | Raised to 40KB to handle large JWTs.                                                                   |
+| spring.jackson.time-zone                                                                   | Forces JSON serialization to UTC.                                                                      |
 
 Secrets referenced in the base Kustomize manifests must include DB credentials and OAuth client metadata.
 
@@ -154,6 +154,9 @@ Prerequisites: Java 25+, Gradle wrapper (bundled), and Docker.
 
 1. Start Postgres on localhost:5436 and Kafka on localhost:9092: `docker compose up -d`
 2. Export SPRING_PROFILES_ACTIVE=local-staging to pick up application-local-staging.yaml.
+   The profile sets the instance schema to `fintlabs_no_instance`, which Docker creates empty. With the
+   functionality flag enabled by default, startup runs its Flyway migrations before JPA. If the flag is
+   explicitly disabled, dispatched deletion still requires existing instance tables.
 
 Add `--profile tools` to also start Kafdrop on http://localhost:19000. Kafka topics and the database are empty on every start.
 
@@ -233,63 +236,85 @@ the old database owner role if ownership is inherited from it.
 
 ### Operations
 
-- This version enables instance functionality by default and adds the existing retry routes to
-  history-service in all overlays. Merge and deploy it only after instance-service has been removed
-  through Git/GitOps, its work has drained, and both sets of positions below are ready. Removing
-  the service must preserve its database schema, data, sequences and owner role.
+- Deploy instance-service #90 first, then history-service #142, before this takeover version.
+  Schema access, including `DELETE`, and Kafka rights for the `instance-deleted` producer must
+  already be in place: dispatched deletion runs even with the functionality flag off.
+- This version enables registration, retry and cleanup by default and adds the existing retry
+  routes in all overlays. Limit deployment to the organisation and environment being migrated;
+  the CD workflow currently lists all 30 targets. Other targets must keep their existing version
+  and routing until their cutover.
+- Before stopping instance-service, complete the #142 rollout and verify that instance-service's
+  dispatched consumer has no lag on the organisation's partitions. The history group may previously have
+  recorded those events without deleting instances, so let instance-service drain that backlog.
+- Stop instance-service through Git/GitOps and wait for its pod and in-flight work to finish.
+  Preserve its database schema, data, sequences, Flyway history and required owner role. Remove
+  the old deployment and retry ingress before deploying this version.
+- After instance-service has stopped, manually read and save its final committed offsets from
+  Aiven: group `fint-flyt-instance-service`, topic `<org>.flyt.event.instance-received`, separately
+  for each partition. Use the consumer group's committed/current offset, not the topic's log-end
+  offset. Committed offsets already identify the next record; do not add 1.
+- Every received partition needs an `instance_received_offset` row before activation:
+  - If the row is missing, insert it with the committed offset read from Aiven.
+  - If both exist, use the higher of the database position and the committed offset; update the
+    row when it is behind.
+  - If only the database row exists, use that position after the checks below.
+  - If both are missing, stop and investigate. Initialize a new, unused partition only after
+    verifying its start position. An empty topic alone does not prove it never had records.
+- Before writing a position, verify the cluster ID and topic ID against the recorded reference,
+  and check `earliestOffset <= next_offset <= endOffset`. Read back every inserted or updated row.
+  There is no requirement to wait through a retention period or for new traffic to create rows.
+- No `instance-dispatched` offsets are transferred. Deletion continues in the existing history
+  group's listener; the separate `<application-id>-instance-dispatched` group has been removed.
 - Consumer groups remain shared across organisations on the same cluster. Each listener subscribes
-  to its organisation's topic. Check the affected partitions; do not assume that stopping one
-  organisation empties the whole group. Kafka offset resets require the target group to be inactive,
-  so coordinate resets with other organisations already using that group.
-- Transfer the instance-service group's committed offset for every `instance-dispatched` partition to
-  `<application-id>-instance-dispatched`. This consumer uses Kafka commits, independently of the database position
-  used by `instance-received`.
-- Verify Kafka ACLs for the new consumer and `instance-deleted` producer, and the schema grants described above,
-  including `DELETE` on the instance tables.
-- Before the consumer is enabled, every partition needs a row. Set `next_offset` to the higher of
-  the row written by instance-service and the committed offset of the instance-service consumer
-  group, after instance-service has stopped. Copy committed offsets without adding 1. Check that
-  the cluster ID and topic ID match the recorded reference, and that
-  `next_offset` lies within the earliest and end offsets of the partition. If neither the row nor
-  the committed offset exists, stop and investigate.
-- Ensure only one service owns instance registration, dispatched handling and cleanup for each
-  organisation. Keep the schema overrides until actual database usernames have been verified.
-- Verify Kafka ACLs also allow history-service to create or modify `instance-received` with the
-  existing retention configuration. Verify both ingress routes, including organisation/beta prefixes,
-  authorization, registration, history, retry and dispatched deletion after deployment; readiness
-  alone does not prove progress.
+  to its organisation's topic. Stopping one organisation does not empty the whole group. Any manual
+  Kafka offset reset must be scoped to the relevant topic partitions and coordinated with other
+  members, because the target group must be inactive.
+- Before activation, verify Flyway/DDL rights on the instance schema and Kafka rights to create or
+  modify `instance-received`. Keep the schema overrides until actual database usernames are verified.
+- Only one service may own received registration and scheduled instance cleanup per organisation.
+  After deploying, verify both ingress routes, authorization, registration, history, retry, deletion
+  and checkpoint progress. Readiness alone does not prove progress.
 
 #### Rollback
 
-Stop and drain the new instance processing first, including cleanup. Disable the feature flag
-on all relevant history-service pods before restoring old processing. Preserve the schemas and
-Flyway histories. Capture the received position from the database and the dispatched committed
-position from the new group, validate identity and bounds, and transfer them to the old group
-without adding 1. Coordinate any reset with other members of the shared groups. Restore the old
-retry ingress and deployment through Git. Do not restart instance-service with stale offsets.
-Already published events and deleted data are not reversed by offset changes; investigate these
-before deciding whether rollback is appropriate.
+Stop and drain history-service for the affected organisation, including cleanup and dispatched
+handling. The functionality flag alone does not stop dispatched deletion. Preserve the schemas
+and both Flyway histories. Capture the received position from the database, validate identity and
+bounds, and transfer it to the old instance-service group's received partitions without adding 1.
+Coordinate any reset with other members of the shared group. Do not reset the history group's
+dispatched offsets or copy them into a separate group. Check that the old dispatched commits
+are still within retention; its #90 deletion logic can skip instances already deleted by history-service.
+Restore the old retry ingress and the patched instance-service deployment through Git. History-service
+can return to #142 with the functionality flag off. Do not restart instance-service with stale
+received offsets. Already published events and deleted data are not reversed by offset changes;
+investigate these before deciding whether rollback is appropriate.
 
 #### Malformed records and topic recreation
+
 - To skip a record that cannot be deserialized:
-  1. Scale history-service to 0 and wait until the `<application-id>-instance-received` group has
-     no members. Changing `next_offset` while the service runs has no effect, because the position
-     is read at partition assignment.
+  1. Stop history-service for the affected organisation and wait for its work to finish. Changing
+     `next_offset` while it runs has no effect, because the position is read at partition assignment.
   2. Find the offset in the log and inspect the record.
   3. If it is to be skipped, set `next_offset` to that offset + 1 for the partition.
   4. The `INSTANCE_RECEIVED` history listener reads the same topic in the default group. If it is
-     blocked by the same record, reset that group's committed offset to the same value with
-     `kafka-consumer-groups --reset-offsets`.
+     blocked by the same record, reset only that topic partition in the default group to the same
+     value. Coordinate inactivity of the shared group before `kafka-consumer-groups --reset-offsets`.
   5. Start history-service again.
 - If the topic is recreated, delete the rows and insert new ones before the service starts again.
   Otherwise an old `next_offset` that is still inside the new topic skips records.
 
 ## Instance deletion and cleanup
 
-The instance functionality flag also enables the `instance-dispatched` consumer, in its own group
-`<application-id>-instance-dispatched`, and scheduled cleanup of old root instances.
-Deletion commits the complete instance graph before publishing `instance-deleted` asynchronously
-with the original flow headers, no key and a null payload. The ordinary history listener records the event.
+Deletion after `instance-dispatched` runs regardless of the instance functionality flag. The ordinary history
+listener for `instance-dispatched` records the event and then deletes the instance, in the default group, so no
+offsets need to be carried over from instance-service at cutover. The flag enables scheduled cleanup of old root
+instances.
+Deletion locks the root row, commits the complete instance graph and then publishes `instance-deleted`
+asynchronously with the original flow headers, no key and a null payload. The ordinary history listener records
+the event.
+
+Until cutover, instance-service deletes dispatched instances too. Whichever service deletes the row publishes
+the event. The other waits for the row lock, finds nothing and publishes nothing.
 
 Dispatch handling uses `noRetries().skipFailedRecords()`, matching instance-service. A failed delete leaves
 an instance for the scheduled cleanup job, so the partition can continue. If deletion succeeds but publishing

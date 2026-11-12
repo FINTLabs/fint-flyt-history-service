@@ -7,7 +7,6 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories
 
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnInstanceFunctionality
 @EntityScan(basePackages = ["no.novari.flyt.history", "no.novari.flyt.instance"])
 @EnableJpaRepositories(
     basePackageClasses = [EventRepository::class, InstanceRepository::class],
