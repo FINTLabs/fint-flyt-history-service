@@ -1,14 +1,44 @@
 package no.novari.flyt.instance.config
 
+import org.flywaydb.core.Flyway
+import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy
+import org.springframework.boot.autoconfigure.flyway.FlywayProperties
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties
 import org.springframework.boot.autoconfigure.orm.jpa.HibernatePropertiesCustomizer
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import javax.sql.DataSource
 
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(InstanceDatabaseProperties::class)
 class InstanceDatabaseConfiguration {
+    @Bean
+    @ConditionalOnInstanceFunctionality
+    fun instanceMigrations(
+        dataSource: DataSource,
+        dataSourceProperties: DataSourceProperties,
+        properties: InstanceDatabaseProperties,
+        flywayProperties: FlywayProperties,
+    ): FlywayMigrationStrategy =
+        FlywayMigrationStrategy { historyFlyway ->
+            val schema =
+                requireNotNull(instanceSchema(properties.schema, dataSourceProperties.username)) {
+                    "Cannot derive the instance schema from the database user; set novari.flyt.instance.database.schema"
+                }
+            historyFlyway.migrate()
+            Flyway
+                .configure()
+                .dataSource(dataSource)
+                .defaultSchema(schema)
+                .schemas(schema)
+                .createSchemas(false)
+                .locations("classpath:db/instance-migration")
+                .lockRetryCount(flywayProperties.lockRetryCount)
+                .load()
+                .migrate()
+        }
+
     @Bean
     fun instanceSchemaNamingCustomizer(
         properties: InstanceDatabaseProperties,

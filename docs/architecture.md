@@ -47,8 +47,8 @@ C4Context
 - **Instance registration** is moving from instance-service to history-service. When
   `novari.flyt.instance-functionality.enabled=true`, history-service consumes `instance-received`,
   stores the instance and publishes `instance-registered`, which mapping-service consumes. It is
-  off by default. The same flag enables daily instance cleanup. Deletion after `instance-dispatched` runs
-  regardless of the flag, in parallel with instance-service until cutover.
+  enabled by default in the takeover version. The same flag enables daily instance cleanup. Deletion after
+  `instance-dispatched` runs regardless of the flag, in parallel with instance-service until cutover.
 - **Users** call the API from fint-flyt-frontend with a JWT. History-service asks
   authorization-service which source applications the user has access to, with a
   client_credentials token from NAM.
@@ -205,7 +205,9 @@ C4Component
 
 ### Instance registration
 
-Off by default (`novari.flyt.instance-functionality.enabled`). The rules for positions, retries and
+Enabled by default (`novari.flyt.instance-functionality.enabled`) after cutover from instance-service.
+History-service owns the received topic configuration and both schemas' Flyway histories, using one datasource.
+The rules for positions, retries and
 skipping records are in [Instance registration](../README.md#instance-registration).
 
 ```mermaid

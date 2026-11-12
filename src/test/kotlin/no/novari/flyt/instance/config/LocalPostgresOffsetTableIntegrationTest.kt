@@ -2,6 +2,7 @@ package no.novari.flyt.instance.config
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import no.novari.flyt.instance.InstanceReceivedOffsetRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Test
@@ -152,6 +153,37 @@ class LocalPostgresOffsetTableIntegrationTest {
                     String::class.java,
                 ),
             ).isNull()
+        }
+    }
+
+    @Test
+    fun `checkpoint reads and writes use the history schema with a different search path`() {
+        val config =
+            HikariConfig().apply {
+                jdbcUrl = postgreSQLContainer.jdbcUrl
+                username = postgreSQLContainer.username
+                password = postgreSQLContainer.password
+                schema = "public"
+            }
+        HikariDataSource(config).use { dataSource ->
+            Flyway
+                .configure()
+                .dataSource(dataSource)
+                .schemas("qualified_history")
+                .load()
+                .migrate()
+            val jdbc = JdbcTemplate(dataSource)
+            jdbc.update(
+                "INSERT INTO qualified_history.instance_received_offset (topic_name, partition_id, next_offset) VALUES (?, ?, ?)",
+                "instance-received",
+                0,
+                7L,
+            )
+            assertThat(jdbc.queryForObject("SHOW search_path", String::class.java)).isEqualTo("public")
+            val repository = InstanceReceivedOffsetRepository(jdbc, "qualified_history")
+            assertThat(repository.findNextOffset("instance-received", 0)).isEqualTo(7L)
+            repository.markProcessed("instance-received", 0, 9L)
+            assertThat(repository.findNextOffset("instance-received", 0)).isEqualTo(10L)
         }
     }
 

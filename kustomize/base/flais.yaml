@@ -30,6 +30,8 @@ spec:
     routes:
       - host: flyt.vigoiks.no
         path: /api/intern/instance-flow-tracking
+      - host: flyt.vigoiks.no
+        path: /api/intern/handlinger/instanser
   env:
     - name: JAVA_TOOL_OPTIONS
       value: '-XX:+ExitOnOutOfMemoryError -Xmx768M -Xms700M'
