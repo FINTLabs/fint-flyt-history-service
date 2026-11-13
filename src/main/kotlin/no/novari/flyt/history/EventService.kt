@@ -116,16 +116,24 @@ class EventService(
 
     fun findLatestArchiveInstanceId(
         sourceApplicationAggregateInstanceId: SourceApplicationAggregateInstanceId,
-    ): String? {
-        val archiveInstanceIdsOrderedByTimestamp =
-            eventRepository.findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
-                requireNotNull(sourceApplicationAggregateInstanceId.sourceApplicationId),
-                sourceApplicationAggregateInstanceId.sourceApplicationIntegrationId,
-                requireNotNull(sourceApplicationAggregateInstanceId.sourceApplicationInstanceId),
-            )
+    ): String? =
+        findLatestArchiveInstanceId(
+            requireNotNull(sourceApplicationAggregateInstanceId.sourceApplicationId),
+            sourceApplicationAggregateInstanceId.sourceApplicationIntegrationId,
+            requireNotNull(sourceApplicationAggregateInstanceId.sourceApplicationInstanceId),
+        )
 
-        return archiveInstanceIdsOrderedByTimestamp.firstOrNull()
-    }
+    fun findLatestArchiveInstanceId(
+        sourceApplicationId: Long,
+        sourceApplicationIntegrationId: String?,
+        sourceApplicationInstanceId: String,
+    ): String? =
+        eventRepository
+            .findArchiveInstanceIdBySourceApplicationAggregateInstanceIdOrderByTimestampDesc(
+                sourceApplicationId,
+                sourceApplicationIntegrationId,
+                sourceApplicationInstanceId,
+            ).firstOrNull()
 
     fun findLatestStatusEventBySourceApplicationAggregateInstanceId(
         sourceApplicationAggregateInstanceId: SourceApplicationAggregateInstanceId,
