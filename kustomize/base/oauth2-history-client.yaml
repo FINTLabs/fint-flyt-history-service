@@ -1,7 +1,0 @@
-apiVersion: "fintlabs.no/v1alpha1"
-kind: NamOAuthClientApplicationResource
-metadata:
-  name: fint-flyt-history-oauth2-client
-spec:
-  grantTypes:
-    - client_credentials

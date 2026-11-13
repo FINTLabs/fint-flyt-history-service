@@ -46,8 +46,7 @@ import java.time.Instant
 @ActiveProfiles("flyt-web-resource-server")
 @TestPropertySource(
     properties = [
-        "fint.sso.client-id=$HISTORY_CLIENT_ID",
-        "fint.flyt.authorization.sso.client-id=test-authorization-client",
+        "fint.flyt.authorization.sso.client-id=$INTERNAL_CLIENT_ID",
         "fint.flyt.authorization.sso.client-secret=test-secret",
     ],
 )
@@ -85,8 +84,8 @@ class ArchiveInstanceIdInternalClientSecurityTest {
     }
 
     @Test
-    fun `accepts token from history client`() {
-        givenTokenForClient(HISTORY_CLIENT_ID)
+    fun `accepts token from internal client`() {
+        givenTokenForClient(INTERNAL_CLIENT_ID)
         whenever(eventService.findLatestArchiveInstanceId(1L, null, "instance-1")).thenReturn("2024/123")
 
         mockMvc
@@ -96,8 +95,8 @@ class ArchiveInstanceIdInternalClientSecurityTest {
     }
 
     @Test
-    fun `accepts token from history client and returns 404 for unknown instance`() {
-        givenTokenForClient(HISTORY_CLIENT_ID)
+    fun `accepts token from internal client and returns 404 for unknown instance`() {
+        givenTokenForClient(INTERNAL_CLIENT_ID)
         whenever(eventService.findLatestArchiveInstanceId(1L, null, "instance-1")).thenReturn(null)
 
         mockMvc
@@ -118,6 +117,6 @@ class ArchiveInstanceIdInternalClientSecurityTest {
     }
 }
 
-private const val HISTORY_CLIENT_ID = "test-history-client"
+private const val INTERNAL_CLIENT_ID = "test-internal-client"
 private const val PATH =
     "/api/intern-klient/archive-instance-id?sourceApplicationId=1&sourceApplicationInstanceId=instance-1"

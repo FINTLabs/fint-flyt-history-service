@@ -7,4 +7,5 @@ novari:
             enabled: true
           internal-client:
             enabled: true
-            authorized-client-ids: ${fint.sso.client-id}
+            # Shared OAuth client for internal calls between FLYT services (FFS-2389).
+            authorized-client-ids: ${fint.flyt.authorization.sso.client-id}

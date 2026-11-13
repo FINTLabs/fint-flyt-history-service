@@ -95,7 +95,8 @@ C4Container
   [Instance schema](../README.md#instance-schema).
 - The token for authorization-service comes from NAM (not shown).
 - Gateways call `/api/intern-klient/archive-instance-id` inside the cluster with a token for
-  `fint-flyt-history-oauth2-client` (not shown). See [Internal client API](#internal-client-api).
+  `fint-flyt-authorization-oauth2-client`, the shared client for internal calls (not shown). See
+  [Internal client API](#internal-client-api).
 
 ## C4 level 3: Components
 
@@ -154,7 +155,8 @@ C4Component
 ### Internal client API
 
 Replaces the `archive-instance-id` request/reply consumer. Only callers with a token for
-`fint-flyt-history-oauth2-client` get through the `internal-client` filter chain in flyt-web-resource-server.
+`fint-flyt-authorization-oauth2-client`, the shared client for internal calls between FLYT services, get through the
+`internal-client` filter chain in flyt-web-resource-server.
 
 ```mermaid
 C4Component
@@ -163,7 +165,7 @@ C4Component
     System_Ext(gateways, "FLYT gateways", "flyt-gateway-starter, web-instance-gateway.")
     Container_Ext(idp, "NAM", "OAuth2", "Issues the client_credentials token.")
     Component(controller, "Archive ID controller", "Spring MVC", "Latest archive instance ID as plain text, 404 if unknown.")
-    Component(security, "internal-client filter chain", "flyt-web-resource-server", "Accepts only fint-flyt-history-oauth2-client.")
+    Component(security, "internal-client filter chain", "flyt-web-resource-server", "Accepts only the shared internal OAuth client.")
     Component(eventService, "EventService", "Service", "findLatestArchiveInstanceId.")
     Component(repository, "EventRepository", "Spring Data JPA", "Native SQL.")
     ContainerDb(db, "PostgreSQL", "History schema", "event")

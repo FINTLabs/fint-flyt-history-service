@@ -3,4 +3,3 @@ kind: Kustomization
 resources:
   - flais.yaml
   - oauth2-authorization-client.yaml
-  - oauth2-history-client.yaml

@@ -96,7 +96,8 @@ Validation failures respond with 422 Unprocessable Entity using the shared forma
 instance has none. Query parameters: `sourceApplicationId` and `sourceApplicationInstanceId` (required),
 `sourceApplicationIntegrationId` (optional).
 
-Only tokens from the OAuth client `fint-flyt-history-oauth2-client` are accepted. The endpoint replaces the
+Only tokens from `fint-flyt-authorization-oauth2-client` are accepted. It is the shared client for internal calls
+between FLYT services, because namerator does not create new NAM clients. The endpoint replaces the
 `archive-instance-id` request/reply topic, which is kept until all callers use HTTP.
 
 ### OpenAPI Documentation
@@ -139,23 +140,22 @@ Both jobs default to 60 days, using event timestamps for scrubbing and instance 
 The service layers Spring profiles (flyt-kafka, flyt-logging, flyt-web-resource-server,
 flyt-authorization-client, flyt-postgres) and exposes these key properties:
 
-| Property                                                                                   | Description                                                                                                      |
-|--------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
-| fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service).                       |
-| novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                                                     |
-| novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                                               |
-| novari.flyt.history-service.retention.time-to-keep-in-days                                 | Days to keep stored instances and error details before scheduled cleanup.                                        |
-| novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                                      |
-| novari.flyt.instance-functionality.enabled                                                 | Enables instance registration, retry and cleanup (default true). Deletion after dispatch always runs.            |
-| novari.flyt.instance.database.schema                                                       | Instance schema override; derived from the database user when empty.                                             |
-| fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                                                     |
-| spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.                               |
-| spring.security.oauth2.resourceserver.jwt.issuer-uri                                       | Authority used for JWT validation.                                                                               |
-| fint.flyt.authorization.sso.client-id / client-secret                                      | OAuth2 client credentials for authorization-service.                                                             |
-| fint.sso.client-id                                                                         | Client ID of `fint-flyt-history-oauth2-client` (via `envFrom`), the only client allowed on `/api/intern-klient`. |
-| no.novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API.                                                      |
-| server.max-http-request-header-size                                                        | Raised to 40KB to handle large JWTs.                                                                             |
-| spring.jackson.time-zone                                                                   | Forces JSON serialization to UTC.                                                                                |
+| Property                                                                                   | Description                                                                                                              |
+|--------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| fint.application-id                                                                        | Identifier included in events created by this service (default fint-flyt-history-service).                               |
+| novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time          | Retention for instance-processing event topics (default 4d).                                                             |
+| novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled                     | Enables listeners for the five legacy error topics (default true).                                                       |
+| novari.flyt.history-service.retention.time-to-keep-in-days                                 | Days to keep stored instances and error details before scheduled cleanup.                                                |
+| novari.flyt.history-service.retention.scrub-batch-size                                     | Maximum number of events scrubbed per database transaction.                                                              |
+| novari.flyt.instance-functionality.enabled                                                 | Enables instance registration, retry and cleanup (default true). Deletion after dispatch always runs.                    |
+| novari.flyt.instance.database.schema                                                       | Instance schema override; derived from the database user when empty.                                                     |
+| fint.database.url, fint.database.username, fint.database.password                          | PostgreSQL JDBC connection supplied via secrets/environment.                                                             |
+| spring.kafka.bootstrap-servers                                                             | Kafka cluster endpoint; application-local-staging.yaml defaults to localhost:9092.                                       |
+| spring.security.oauth2.resourceserver.jwt.issuer-uri                                       | Authority used for JWT validation.                                                                                       |
+| fint.flyt.authorization.sso.client-id / client-secret                                      | OAuth2 client credentials for authorization-service. The client ID is also the only one allowed on `/api/intern-klient`. |
+| no.novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json | Mapping of org IDs to roles that may call the internal API.                                                              |
+| server.max-http-request-header-size                                                        | Raised to 40KB to handle large JWTs.                                                                                     |
+| spring.jackson.time-zone                                                                   | Forces JSON serialization to UTC.                                                                                        |
 
 Secrets referenced in the base Kustomize manifests must include DB credentials and OAuth client metadata.
 
