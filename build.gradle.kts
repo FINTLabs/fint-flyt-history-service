@@ -103,7 +103,7 @@ dependencies {
 
     implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.16.0")
 
-    implementation("no.novari:flyt-web-resource-server:4.1.1")
+    implementation("no.novari:flyt-web-resource-server:5.0.0-rc-3")
     implementation("no.novari:flyt-kafka:7.4.1")
     implementation("no.novari:flyt-audit-starter:1.2.1")
 
