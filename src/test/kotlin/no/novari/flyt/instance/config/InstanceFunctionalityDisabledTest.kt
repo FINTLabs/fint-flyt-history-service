@@ -11,6 +11,8 @@ import no.novari.flyt.instance.InstanceService
 import no.novari.flyt.instance.kafka.InstanceDeletedEventProducerService
 import no.novari.flyt.instance.model.InstanceMappingService
 import org.assertj.core.api.Assertions.assertThat
+import org.flywaydb.core.Flyway
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext
@@ -64,5 +66,17 @@ class InstanceFunctionalityDisabledTest {
         @Container
         val postgreSQLContainer: PostgreSQLContainer<*> =
             PostgreSQLContainer("postgres:17").withInitScript("db/instance-fixture/init.sql")
+
+        @JvmStatic
+        @BeforeAll
+        fun prepareExistingInstanceSchema() {
+            Flyway
+                .configure()
+                .dataSource(postgreSQLContainer.jdbcUrl, postgreSQLContainer.username, postgreSQLContainer.password)
+                .defaultSchema("mapping_test_instance")
+                .locations("classpath:db/instance-migration")
+                .load()
+                .migrate()
+        }
     }
 }
