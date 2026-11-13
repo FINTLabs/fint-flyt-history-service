@@ -13,6 +13,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration
+import org.springframework.boot.autoconfigure.http.client.HttpClientAutoConfiguration
 import org.springframework.boot.autoconfigure.web.client.RestClientAutoConfiguration
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.context.annotation.Import
@@ -35,6 +36,7 @@ import java.time.Instant
  */
 @WebMvcTest(ArchiveInstanceIdInternalClientController::class)
 @ImportAutoConfiguration(
+    HttpClientAutoConfiguration::class,
     RestClientAutoConfiguration::class,
     AuthorizationServiceConfiguration::class,
     InternalClientApiConfiguration::class,
