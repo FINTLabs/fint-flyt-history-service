@@ -1,15 +1,14 @@
 # FINT Flyt History Service
 
 Spring Boot service that ingests instance-flow events from Kafka, persists them in PostgreSQL, and exposes an internal
-HTTP API for querying history, statistics, and manual remediation workflows. It also answers request/reply lookups so
-other Flyt services can fetch the latest metadata for specific instances.
+HTTP API for querying history, statistics, and manual remediation workflows. It also answers internal HTTP lookups so
+other Flyt services can fetch the archive instance ID of earlier instances.
 
 ## Highlights
 
 - **Instance-flow timeline API** — Spring MVC controller that serves summaries, paged timelines, and aggregate
 statistics for integrations.
-- **Kafka ingestion & request/reply bridges** — consumes every `EventCategory` topic plus request/reply topics for
-archive-instance and instance-header lookups.
+- **Kafka ingestion** — consumes every `EventCategory` topic.
 - **PostgreSQL persistence & Flyway migrations** — writes events through Spring Data JPA with native SQL projections
 tuned for analytics queries.
 - **Manual remediation workflows** — guarded endpoints let operators append “manually processed/rejected” or “status
@@ -21,18 +20,16 @@ and Prometheus support out of the box.
 
 C4 diagrams (level 1 to 3) are in [docs/architecture.md](docs/architecture.md).
 
-| Component                                                              | Responsibility                                                                                                                  |
-|------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `HistoryController`                                                    | Exposes `/api/intern/instance-flow-tracking` endpoints, performs validation, and shapes HTTP responses.                         |
-| `AuthorizationService`                                                 | Delegates to `UserAuthorizationService` to intersect requested source applications with the caller’s access rights.             |
-| `EventService`                                                         | Central orchestration for saving events, running summary/statistics queries, mapping projections, and fetching latest metadata. |
-| `ManualEventCreationService`                                           | Builds manual events, enforces “latest status must be ERROR,” injects correlation IDs, and persists via `EventService`.         |
-| `EventRepository`                                                      | Spring Data JPA repository with tuned SQL for counts, summaries, integration statistics, and request/reply lookups.             |
-| `EventListenerConfiguration`                                           | Registers one Kafka listener per `EventCategory`, mapping consumer records into `EventEntity` rows (info and error variants).   |
-| `InstanceFlowHeadersForRegisteredInstanceRequestConsumerConfiguration` | Request/reply consumer that returns the latest `InstanceFlowHeaders` for a given instance ID.                                   |
-| `ArchiveInstanceIdRequestConsumerConfiguration`                        | Request/reply consumer that resolves the latest archive instance ID for a `SourceApplicationAggregateInstanceId`.               |
-| `ArchiveInstanceIdInternalClientController`                            | Exposes `/api/intern-klient/archive-instance-id`, which resolves the same archive instance ID over HTTP.                        |
-| `ValidationErrorsFormattingService`                                    | Folds constraint violations into human-friendly 422 responses for filters and manual action payloads.                           |
+| Component                                   | Responsibility                                                                                                                  |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `HistoryController`                         | Exposes `/api/intern/instance-flow-tracking` endpoints, performs validation, and shapes HTTP responses.                         |
+| `AuthorizationService`                      | Delegates to `UserAuthorizationService` to intersect requested source applications with the caller’s access rights.             |
+| `EventService`                              | Central orchestration for saving events, running summary/statistics queries, mapping projections, and fetching latest metadata. |
+| `ManualEventCreationService`                | Builds manual events, enforces “latest status must be ERROR,” injects correlation IDs, and persists via `EventService`.         |
+| `EventRepository`                           | Spring Data JPA repository with tuned SQL for counts, summaries, integration statistics, and metadata lookups.                  |
+| `EventListenerConfiguration`                | Registers one Kafka listener per `EventCategory`, mapping consumer records into `EventEntity` rows (info and error variants).   |
+| `ArchiveInstanceIdInternalClientController` | Exposes `/api/intern-klient/archive-instance-id`, which resolves the same archive instance ID over HTTP.                        |
+| `ValidationErrorsFormattingService`         | Folds constraint violations into human-friendly 422 responses for filters and manual action payloads.                           |
 
 ## Instance retries
 
@@ -97,8 +94,8 @@ instance has none. Query parameters: `sourceApplicationId` and `sourceApplicatio
 `sourceApplicationIntegrationId` (optional).
 
 Only tokens from `fint-flyt-authorization-oauth2-client` are accepted. It is the shared client for internal calls
-between FLYT services, because namerator does not create new NAM clients. The endpoint replaces the
-`archive-instance-id` request/reply topic, which is kept until all callers use HTTP.
+between FLYT services, because namerator does not create new NAM clients. The endpoint replaced the
+`archive-instance-id` request/reply topic, which is removed (FFS-2400).
 
 ### OpenAPI Documentation
 
@@ -121,8 +118,6 @@ Swagger UI is then available at `http://localhost:8080/beta/fintlabs-no/swagger-
 ## Kafka Integration
 
 - Event ingestion: EventListenerConfiguration registers a listener per EventCategory. INFO events persist headers, timestamps, and application IDs; ERROR events also persist the attached ErrorCollection.
-- Request/reply for headers: instance-flow-headers-for-registered-instance topic replies with the latest InstanceFlowHeaders for a given instance ID (retention 5 minutes). Useful when downstream services only know DB IDs.
-- Request/reply for archive IDs: archive-instance-id topic replies with the newest archive instance ID for a SourceApplicationAggregateInstanceId. Deprecated in favour of the internal client API.
 - Operational defaults: Listeners reuse the shared ListenerConfiguration defaults (auto group ID, bounded poll sizes) and use ErrorHandlerFactory with “no retries, skip failed records.”
 
 ## Scheduled Tasks
@@ -407,7 +402,6 @@ Refresh interval: `novari.flyt.history-service.metrics.refresh-ms` (default `600
 - When adding a new EventCategory, decide whether Kafka should auto-create a listener (createKafkaListener=true) and update downstream categorization logic.
 - Filter DTOs are validated via custom annotations (OnlyOneStatusFilter, OnlyOneTimeFilterType); extend validators when you add new filter types.
 - Reuse ValidationErrorsFormattingService for consistent 422 payloads on new controllers.
-- Request/reply topics keep only 5 minutes of history; use them for fresh data, not bulk exports.
 - Use performanceTest task for heavier queries to avoid mixing them with the default test suite.
 
 ## Dependency Locking
