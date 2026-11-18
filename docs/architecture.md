@@ -20,7 +20,7 @@ C4Context
     System_Ext(idp, "NAM", "Issues OAuth2 tokens.")
 
     Rel(frontend, history, "Status, manual actions", "HTTPS")
-    BiRel(gateways, history, "Instances, archive IDs", "Kafka")
+    BiRel(gateways, history, "Instances, archive IDs", "Kafka, HTTP")
     BiRel(history, services, "Instance events", "Kafka")
     Rel(history, authz, "User access", "HTTP")
     Rel(history, idp, "Fetches token", "client_credentials")
@@ -40,7 +40,8 @@ C4Context
 ```
 
 - **Gateways** publish `instance-received` and `instance-receival-error`, and ask for the archive
-  instance ID of an earlier instance over request/reply (`archive-instance-id`).
+  instance ID of an earlier instance over HTTP (`/api/intern-klient/archive-instance-id`). The old
+  request/reply consumer on `archive-instance-id` stays until all gateways have switched (FFS-2400).
 - **Other FLYT services** publish the later events in the flow (`instance-registered`,
   `instance-mapped`, `instance-dispatched`, `instance-error`, `instance-deleted` and more).
   Instance-service asks for the instance flow headers of a registered instance over request/reply.
@@ -93,6 +94,9 @@ C4Container
 - The instance tables stay in the instance-service schema in the same database. See
   [Instance schema](../README.md#instance-schema).
 - The token for authorization-service comes from NAM (not shown).
+- Gateways call `/api/intern-klient/archive-instance-id` inside the cluster with a token for
+  `fint-flyt-authorization-oauth2-client`, the shared client for internal calls (not shown). See
+  [Internal client API](#internal-client-api).
 
 ## C4 level 3: Components
 
@@ -148,6 +152,51 @@ C4Component
   Kafka.
 - Invalid filters and payloads give 422 through `ValidationErrorsFormattingService`.
 
+### Internal client API
+
+Replaces the `archive-instance-id` request/reply consumer. Only callers with a token for
+`fint-flyt-authorization-oauth2-client`, the shared client for internal calls between FLYT services, get through the
+`internal-client` filter chain in flyt-web-resource-server.
+
+```mermaid
+C4Component
+    title Internal client API
+
+    System_Ext(gateways, "FLYT gateways", "flyt-gateway-starter, web-instance-gateway.")
+    Container_Ext(idp, "NAM", "OAuth2", "Issues the client_credentials token.")
+    Component(controller, "Archive ID controller", "Spring MVC", "Latest archive instance ID as plain text, 404 if unknown.")
+    Component(security, "internal-client filter chain", "flyt-web-resource-server", "Accepts only the shared internal OAuth client.")
+    Component(eventService, "EventService", "Service", "findLatestArchiveInstanceId.")
+    Component(repository, "EventRepository", "Spring Data JPA", "Native SQL.")
+    ContainerDb(db, "PostgreSQL", "History schema", "event")
+
+    Rel(gateways, controller, "GET archive-instance-id", "HTTP")
+    Rel(gateways, idp, "Token", "OAuth2")
+    Rel(controller, security, "Guarded by")
+    Rel(controller, eventService, "Looks up")
+    Rel(eventService, repository, "Uses")
+    Rel(repository, db, "SQL", "JDBC")
+
+    UpdateRelStyle(gateways, controller, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="10")
+    UpdateRelStyle(gateways, idp, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="-35", $offsetY="-30")
+    UpdateRelStyle(controller, security, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="-35", $offsetY="-30")
+    UpdateRelStyle(controller, eventService, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="10")
+    UpdateRelStyle(eventService, repository, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="-35", $offsetY="-30")
+    UpdateRelStyle(repository, db, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="20")
+    UpdateElementStyle(controller, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
+    UpdateElementStyle(security, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
+    UpdateElementStyle(eventService, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
+    UpdateElementStyle(repository, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
+    UpdateElementStyle(db, $bgColor="#C4B5FD", $fontColor="#1F2937", $borderColor="#8B5CF6")
+    UpdateElementStyle(gateways, $bgColor="#A5F3FC", $fontColor="#1F2937", $borderColor="#06B6D4")
+    UpdateElementStyle(idp, $bgColor="#A5F3FC", $fontColor="#1F2937", $borderColor="#06B6D4")
+    UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
+```
+
+- `ArchiveInstanceIdInternalClientController` takes `sourceApplicationId`, `sourceApplicationInstanceId` and optional
+  `sourceApplicationIntegrationId` as query parameters. A missing parameter gives 400.
+- The lookup is the same as the request/reply consumer uses, so both paths give the same answer.
+
 ### Event history and background jobs
 
 ```mermaid
@@ -157,7 +206,7 @@ C4Component
     Component(listeners, "Event listeners", "flyt-kafka", "One listener per event category, plus instance-error.")
     ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events, archive-instance-id, instance-flow-headers")
     Component(registration, "Info and error event services", "Service", "Map a record and its headers to an event.")
-    Component(requestReply, "Request/reply consumers", "flyt-kafka", "Latest archive instance ID and instance flow headers.")
+    Component(requestReply, "Request/reply consumers", "flyt-kafka", "Latest archive instance ID (until FFS-2400) and instance flow headers.")
     Component(repository, "EventRepository", "Spring Data JPA", "Native SQL for summaries and statistics.")
     Component(eventService, "EventService", "Service", "Queries and maps summaries, events and statistics.")
     ContainerDb(db, "PostgreSQL", "History schema", "event, error")
