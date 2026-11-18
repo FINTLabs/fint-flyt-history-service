@@ -19,13 +19,13 @@ import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeadersMapper
 import org.apache.kafka.clients.admin.Admin
 import org.apache.kafka.clients.admin.AdminClientConfig
-import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.admin.OffsetSpec
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.config.ConfigResource
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.assertj.core.api.Assertions.assertThat
@@ -70,6 +70,7 @@ import java.util.concurrent.TimeUnit
         "novari.kafka.topic.org-id=$ORG_ID",
         "novari.kafka.default-replicas=1",
         "fint.application-id=consumer-test",
+        "novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time=2d",
     ],
 )
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -144,6 +145,27 @@ class InstanceReceivedEventConsumerIntegrationTest {
         jdbc.execute("DELETE FROM instance_received_offset")
         jdbc.execute("DELETE FROM $INSTANCE_SCHEMA.instance_object_value_per_key")
         jdbc.execute("DELETE FROM $INSTANCE_SCHEMA.instance_object")
+    }
+
+    @Test
+    fun `creates the received topic with the configured retention`() {
+        val resource = ConfigResource(ConfigResource.Type.TOPIC, RECEIVED)
+        val config =
+            admin
+                .describeConfigs(listOf(resource))
+                .all()
+                .get(20, TimeUnit.SECONDS)
+                .getValue(resource)
+        assertThat(config.get("retention.ms").value()).isEqualTo(Duration.ofDays(2).toMillis().toString())
+        assertThat(
+            admin
+                .describeTopics(
+                    listOf(RECEIVED),
+                ).allTopicNames()
+                .get(20, TimeUnit.SECONDS)
+                .getValue(RECEIVED)
+                .partitions(),
+        ).hasSize(1)
     }
 
     @Test
@@ -396,10 +418,6 @@ class InstanceReceivedEventConsumerIntegrationTest {
         fun properties(registry: DynamicPropertyRegistry) {
             postgres.start()
             kafka.start()
-            // Created before the context starts, so the consumer never auto-creates it first.
-            Admin.create(mapOf(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrapServers)).use {
-                it.createTopics(listOf(NewTopic(RECEIVED, 1, 1))).all().get(20, TimeUnit.SECONDS)
-            }
             registry.add("fint.database.url", postgres::getJdbcUrl)
             registry.add("fint.database.username", postgres::getUsername)
             registry.add("fint.database.password", postgres::getPassword)

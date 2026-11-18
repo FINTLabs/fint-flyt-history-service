@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.server.ResponseStatusException
 
-@RestControllerAdvice
+@RestControllerAdvice(basePackageClasses = [Application::class])
 class GlobalExceptionHandler(
     private val validationErrorsFormattingService: ValidationErrorsFormattingService,
 ) {

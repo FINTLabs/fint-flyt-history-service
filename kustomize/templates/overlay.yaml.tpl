@@ -21,6 +21,9 @@ patches:
       - op: replace
         path: "/spec/ingress/routes/0/path"
         value: "$INGRESS_BASE_PATH"
+      - op: replace
+        path: "/spec/ingress/routes/1/path"
+        value: "$SERVLET_CONTEXT_PATH/api/intern/handlinger/instanser"
       - op: add
         path: "/spec/env/-"
         value:

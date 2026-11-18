@@ -1,6 +1,7 @@
 package no.novari.flyt.instance
 
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 
@@ -8,14 +9,17 @@ import org.springframework.stereotype.Repository
 @ConditionalOnInstanceFunctionality
 class InstanceReceivedOffsetRepository(
     private val jdbcTemplate: JdbcTemplate,
+    @Value($$"${spring.datasource.hikari.schema:${spring.datasource.username}}") schema: String,
 ) {
+    private val table = "\"${schema.replace("\"", "\"\"")}\".instance_received_offset"
+
     fun findNextOffset(
         topic: String,
         partition: Int,
     ): Long? =
         jdbcTemplate
             .queryForList(
-                "SELECT next_offset FROM instance_received_offset WHERE topic_name = ? AND partition_id = ?",
+                "SELECT next_offset FROM $table WHERE topic_name = ? AND partition_id = ?",
                 Long::class.java,
                 topic,
                 partition,
@@ -30,7 +34,7 @@ class InstanceReceivedOffsetRepository(
         val updated =
             jdbcTemplate.update(
                 """
-                UPDATE instance_received_offset SET next_offset = ?, updated_at = CURRENT_TIMESTAMP
+                UPDATE $table SET next_offset = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE topic_name = ? AND partition_id = ?
                 """.trimIndent(),
                 offset + 1,

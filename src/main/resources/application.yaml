@@ -13,7 +13,7 @@ novari:
       database:
         schema: ${NOVARI_FLYT_INSTANCE_DATABASE_SCHEMA:}
     instance-functionality:
-      enabled: false
+      enabled: true
     history-service:
       kafka:
         legacy-error-topic-listeners-enabled: true
