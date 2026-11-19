@@ -40,11 +40,9 @@ C4Context
 ```
 
 - **Gateways** publish `instance-received` and `instance-receival-error`, and ask for the archive
-  instance ID of an earlier instance over HTTP (`/api/intern-klient/archive-instance-id`). The old
-  request/reply consumer on `archive-instance-id` stays until all gateways have switched (FFS-2400).
+  instance ID of an earlier instance over HTTP (`/api/intern-klient/archive-instance-id`).
 - **Other FLYT services** publish the later events in the flow (`instance-registered`,
   `instance-mapped`, `instance-dispatched`, `instance-error`, `instance-deleted` and more).
-  Instance-service asks for the instance flow headers of a registered instance over request/reply.
 - **Instance registration** is moving from instance-service to history-service. When
   `novari.flyt.instance-functionality.enabled=true`, history-service consumes `instance-received`,
   stores the instance and publishes `instance-registered`, which mapping-service consumes. It is
@@ -63,14 +61,14 @@ C4Container
     title Containers
 
     System_Ext(frontend, "fint-flyt-frontend", "Browser app.")
-    ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events, request/reply, instance-received, instance-registered, instance-dispatched, instance-deleted")
+    ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events, instance-received, instance-registered, instance-dispatched, instance-deleted")
     Container(app, "fint-flyt-history-service", "Kotlin, Spring Boot 3, Java 25", "Consumes events, serves the internal API, registers and deletes instances.")
     System_Ext(prometheus, "Prometheus", "Metrics in the cluster.")
     ContainerDb(db, "PostgreSQL", "Flyway, JPA", "History schema: events, errors, next_offset. Instance-service schema: instances.")
     Container_Ext(authz, "authorization-service", "Spring Boot", "fint-flyt-authorization-service. User access to source applications.")
 
     Rel(frontend, app, "API", "HTTPS, JWT")
-    BiRel(app, kafka, "Events, replies", "flyt-kafka")
+    BiRel(app, kafka, "Events", "flyt-kafka")
     Rel(prometheus, app, "Scrapes", "HTTP")
     Rel(app, db, "Reads, writes", "JDBC")
     Rel(app, authz, "User access", "HTTP")
@@ -154,7 +152,7 @@ C4Component
 
 ### Internal client API
 
-Replaces the `archive-instance-id` request/reply consumer. Only callers with a token for
+Replaced the `archive-instance-id` request/reply consumer (removed in FFS-2400). Only callers with a token for
 `fint-flyt-authorization-oauth2-client`, the shared client for internal calls between FLYT services, get through the
 `internal-client` filter chain in flyt-web-resource-server.
 
@@ -195,7 +193,6 @@ C4Component
 
 - `ArchiveInstanceIdInternalClientController` takes `sourceApplicationId`, `sourceApplicationInstanceId` and optional
   `sourceApplicationIntegrationId` as query parameters. A missing parameter gives 400.
-- The lookup is the same as the request/reply consumer uses, so both paths give the same answer.
 
 ### Event history and background jobs
 
@@ -204,19 +201,16 @@ C4Component
     title Event history and background jobs
 
     Component(listeners, "Event listeners", "flyt-kafka", "One listener per event category, plus instance-error.")
-    ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events, archive-instance-id, instance-flow-headers")
+    ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events")
     Component(registration, "Info and error event services", "Service", "Map a record and its headers to an event.")
-    Component(requestReply, "Request/reply consumers", "flyt-kafka", "Latest archive instance ID (until FFS-2400) and instance flow headers.")
+    Component(jobs, "Scheduled jobs", "Spring @Scheduled", "StatisticsMetricsPublisher, ScheduledErrorScrubService.")
     Component(repository, "EventRepository", "Spring Data JPA", "Native SQL for summaries and statistics.")
     Component(eventService, "EventService", "Service", "Queries and maps summaries, events and statistics.")
     ContainerDb(db, "PostgreSQL", "History schema", "event, error")
-    Component(jobs, "Scheduled jobs", "Spring @Scheduled", "StatisticsMetricsPublisher, ScheduledErrorScrubService.")
 
     Rel(kafka, listeners, "Consumes")
     Rel(listeners, registration, "Registers")
     Rel(registration, repository, "Saves")
-    BiRel(kafka, requestReply, "Request, reply")
-    Rel(requestReply, eventService, "Looks up")
     Rel(eventService, repository, "Uses")
     Rel(repository, db, "SQL", "JDBC")
     Rel(jobs, eventService, "Statistics")
@@ -225,15 +219,12 @@ C4Component
     UpdateRelStyle(kafka, listeners, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="-35", $offsetY="-30")
     UpdateRelStyle(listeners, registration, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="10")
     UpdateRelStyle(registration, repository, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="10")
-    UpdateRelStyle(kafka, requestReply, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="10")
-    UpdateRelStyle(requestReply, eventService, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="10")
     UpdateRelStyle(eventService, repository, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="-35", $offsetY="-30")
     UpdateRelStyle(repository, db, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="10")
     UpdateRelStyle(jobs, eventService, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="10")
     UpdateRelStyle(jobs, repository, $textColor="#3B82F6", $lineColor="#3B82F6", $offsetX="20")
     UpdateElementStyle(listeners, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
     UpdateElementStyle(registration, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
-    UpdateElementStyle(requestReply, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
     UpdateElementStyle(repository, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
     UpdateElementStyle(eventService, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
     UpdateElementStyle(jobs, $bgColor="#93C5FD", $fontColor="#1F2937", $borderColor="#3B82F6")
