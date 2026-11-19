@@ -11,6 +11,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.NullAndEmptySource
+import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.argThat
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
@@ -88,9 +91,12 @@ class ManualEventCreationServiceTest {
         verifyNoMoreInteractions(uuidService, eventService)
     }
 
-    @Test
-    fun `given previous event is of type error when save then call event service save and return result`() {
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = [" \t\n", "  Behandlet manuelt  "])
+    fun `given previous error save event and normalize blank comments`(comment: String?) {
         val sourceApplicationAggregateInstanceId = testSourceApplicationAggregateInstanceId()
+        val expectedComment = if (comment == "  Behandlet manuelt  ") comment else null
 
         val latestEvent: Event = mock()
         whenever(latestEvent.type).thenReturn(EventType.ERROR)
@@ -108,7 +114,7 @@ class ManualEventCreationServiceTest {
         whenever(uuidService.generateUuid()).thenReturn(uuid)
         whenever(
             eventService.save(
-                argThat { eventMatches(this, uuid) },
+                argThat { eventMatches(this, uuid) && this.comment == expectedComment },
             ),
         ).thenReturn(newEvent)
 
@@ -117,12 +123,13 @@ class ManualEventCreationServiceTest {
                 sourceApplicationAggregateInstanceId,
                 EventCategory.INSTANCE_MANUALLY_PROCESSED,
                 "testArchiveInstanceId",
+                comment,
             )
 
         verify(eventService, times(1))
             .findLatestStatusEventBySourceApplicationAggregateInstanceId(sourceApplicationAggregateInstanceId)
         verify(uuidService, times(1)).generateUuid()
-        verify(eventService, times(1)).save(argThat { eventMatches(this, uuid) })
+        verify(eventService, times(1)).save(argThat { eventMatches(this, uuid) && this.comment == expectedComment })
         verifyNoMoreInteractions(uuidService, eventService)
         assertThat(result).isEqualTo(newEvent)
     }

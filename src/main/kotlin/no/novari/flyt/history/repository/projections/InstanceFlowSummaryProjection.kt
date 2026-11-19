@@ -12,6 +12,7 @@ data class InstanceFlowSummaryProjection(
     val latestStatusEventName: String? = null,
     val latestStorageStatusEventName: String? = null,
     val destinationInstanceIds: String? = null,
+    val comment: String? = null,
 ) {
     companion object {
         @JvmStatic
@@ -28,6 +29,7 @@ data class InstanceFlowSummaryProjection(
         private var latestStatusEventName: String? = null
         private var latestStorageStatusEventName: String? = null
         private var destinationInstanceIds: String? = null
+        private var comment: String? = null
 
         fun sourceApplicationId(sourceApplicationId: Long?) = apply { this.sourceApplicationId = sourceApplicationId }
 
@@ -62,6 +64,8 @@ data class InstanceFlowSummaryProjection(
                 this.destinationInstanceIds = destinationInstanceIds
             }
 
+        fun comment(comment: String?) = apply { this.comment = comment }
+
         fun build() =
             InstanceFlowSummaryProjection(
                 sourceApplicationId = sourceApplicationId,
@@ -73,6 +77,7 @@ data class InstanceFlowSummaryProjection(
                 latestStatusEventName = latestStatusEventName,
                 latestStorageStatusEventName = latestStorageStatusEventName,
                 destinationInstanceIds = destinationInstanceIds,
+                comment = comment,
             )
     }
 }

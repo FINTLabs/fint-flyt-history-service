@@ -15,4 +15,10 @@ data class ManuallyProcessedEventAction(
     override val sourceApplicationInstanceId: String = "",
     @field:NotEmpty
     val archiveInstanceId: String = "",
+    @field:Schema(
+        description = "Optional explanation for the manual status. Stored as null if blank. No fixed character limit.",
+        requiredMode = Schema.RequiredMode.NOT_REQUIRED,
+        nullable = true,
+    )
+    val comment: String? = null,
 ) : SourceApplicationAggregateInstanceId

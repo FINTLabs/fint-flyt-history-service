@@ -82,11 +82,16 @@ Manual action payloads:
   "sourceApplicationId": 123,
   "sourceApplicationIntegrationId": "integration-42",
   "sourceApplicationInstanceId": "instance-007",
-  "archiveInstanceId": "ark-abc-123"
+  "archiveInstanceId": "ark-abc-123",
+  "comment": "Confirmed with the case handler."
 }
 ```
 
 `archiveInstanceId` is only required for manually processed events.
+
+`comment` is optional on all three manual actions and has no fixed character limit. Omitted, `null`, empty and
+whitespace-only comments are stored as `null`. The created event and the history return the comment recorded on
+the event. A summary returns the comment from the event that sets its current status.
 
 Validation failures respond with 422 Unprocessable Entity using the shared formatting service.
 
