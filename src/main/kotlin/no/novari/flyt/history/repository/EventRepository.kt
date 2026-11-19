@@ -562,14 +562,9 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             AND e.instanceFlowHeaders.sourceApplicationIntegrationId = :#{#sourceApplicationAggregateInstanceId.sourceApplicationIntegrationId}
             AND e.instanceFlowHeaders.sourceApplicationInstanceId = :#{#sourceApplicationAggregateInstanceId.sourceApplicationInstanceId}
             AND e.name in :#{#allInstanceStatusEventNames}
-            AND e.timestamp >= ALL(
-                SELECT e1.timestamp
-                FROM EventEntity e1
-                WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
-                AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
-                AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
-                AND e1.name IN :#{#allInstanceStatusEventNames}
-            )
+            AND e.timestamp IS NOT NULL
+            ORDER BY e.timestamp DESC, e.id DESC
+            LIMIT 1
             """,
     )
     fun findLatestStatusEventBySourceApplicationAggregateInstanceId(

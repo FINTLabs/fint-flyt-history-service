@@ -9,6 +9,7 @@ import jakarta.persistence.EntityNotFoundException
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
 import no.novari.flyt.webresourceserver.UrlPaths.INTERNAL_API
 import org.springframework.http.HttpStatus
+import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -32,18 +33,23 @@ class InstanceRetryController(
         value = [
             ApiResponse(responseCode = "200", description = "Retry request accepted for publication"),
             ApiResponse(responseCode = "404", description = "Instance not found"),
+            ApiResponse(responseCode = "409", description = "Latest status event is missing or is not an error"),
             ApiResponse(responseCode = "500", description = "Retry request failed"),
         ],
     )
     fun retry(
         @PathVariable instanceId: Long,
-    ): ResponseEntity<Void> {
+    ): ResponseEntity<ProblemDetail> {
         try {
             instanceRetryService.retry(instanceId)
         } catch (_: EntityNotFoundException) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Could not find instance with id='$instanceId'")
         } catch (failure: MissingRetryHeadersException) {
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, failure.message)
+        } catch (failure: RetryStatusConflictException) {
+            return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, requireNotNull(failure.message)))
         } catch (failure: Exception) {
             logger.error(failure) { "Retry request failed for instanceId=$instanceId" }
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)

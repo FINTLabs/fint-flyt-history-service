@@ -9,6 +9,7 @@ import no.novari.flyt.history.model.SourceApplicationAggregateInstanceId
 import no.novari.flyt.history.model.event.Event
 import no.novari.flyt.history.model.event.EventCategorizationService
 import no.novari.flyt.history.model.event.EventCategory
+import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.history.model.instance.InstanceFlowSummariesFilter
 import no.novari.flyt.history.model.instance.InstanceFlowSummary
 import no.novari.flyt.history.model.statistics.IntegrationStatisticsFilter
@@ -143,6 +144,20 @@ class EventService(
                 sourceApplicationAggregateInstanceId,
                 eventCategorizationService.allInstanceStatusEventNames,
             )?.let(eventMappingService::toEvent)
+    }
+
+    fun findLatestStatusEventType(headers: InstanceFlowHeaders): EventType? {
+        val sourceInstance =
+            object : SourceApplicationAggregateInstanceId {
+                override val sourceApplicationId = headers.sourceApplicationId
+                override val sourceApplicationIntegrationId = headers.sourceApplicationIntegrationId
+                override val sourceApplicationInstanceId = headers.sourceApplicationInstanceId
+            }
+        return eventRepository
+            .findLatestStatusEventBySourceApplicationAggregateInstanceId(
+                sourceInstance,
+                eventCategorizationService.allInstanceStatusEventNames,
+            )?.type
     }
 
     fun getStatistics(sourceApplicationIds: Collection<Long>): InstanceStatisticsProjection {

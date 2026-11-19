@@ -36,6 +36,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.time.Instant
 import java.util.UUID
@@ -91,6 +92,17 @@ class InstanceRetryControllerWebMvcTest {
     }
 
     @Test
+    fun `single retry with an invalid status returns a conflict with an explanation`() {
+        token()
+        val conflict = RetryStatusConflictException(123L)
+        doThrow(conflict).whenever(service).retry(123L)
+        mvc
+            .perform(request(false).header("Authorization", "Bearer token"))
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.detail").value(conflict.message))
+    }
+
+    @Test
     fun `synchronous publication failure gives 500`() {
         token()
         doThrow(KafkaException("Publication failed")).whenever(service).retry(123L)
@@ -113,7 +125,7 @@ class InstanceRetryControllerWebMvcTest {
     @Test
     fun `batch continues sequentially after failures and returns no body`() {
         token()
-        doThrow(EntityNotFoundException()).whenever(service).retry(123L)
+        doThrow(RetryStatusConflictException(123L)).whenever(service).retry(123L)
         doThrow(KafkaException("Publication failed")).whenever(service).retry(124L)
         mvc
             .perform(request(true).header("Authorization", "Bearer token"))

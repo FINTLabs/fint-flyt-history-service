@@ -3,6 +3,7 @@ package no.novari.flyt.instance
 import no.novari.flyt.history.EventService
 import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.model.event.EventCategory
+import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
 import no.novari.flyt.instance.kafka.InstanceRequestedForRetryEventProducerService
 import no.novari.flyt.kafka.model.Error
@@ -26,13 +27,13 @@ class InstanceRetryService(
 ) {
     fun retry(instanceId: Long) {
         val instance = instanceService.getById(instanceId)
-        val headers =
-            eventService
-                .findInstanceFlowHeadersForLatestInstanceRegisteredEvent(instanceId)
-                ?.toBuilder()
-                ?.correlationId(UUID.randomUUID())
-                ?.build()
+        val registeredHeaders =
+            eventService.findInstanceFlowHeadersForLatestInstanceRegisteredEvent(instanceId)
                 ?: throw MissingRetryHeadersException(instanceId)
+        if (eventService.findLatestStatusEventType(registeredHeaders) != EventType.ERROR) {
+            throw RetryStatusConflictException(instanceId)
+        }
+        val headers = registeredHeaders.toBuilder().correlationId(UUID.randomUUID()).build()
         try {
             producer.publish(headers, instance)
         } catch (failure: Exception) {
@@ -55,3 +56,7 @@ class InstanceRetryService(
 class MissingRetryHeadersException(
     instanceId: Long,
 ) : RuntimeException("Could not find instance flow headers for registered instance with id=$instanceId")
+
+class RetryStatusConflictException(
+    instanceId: Long,
+) : RuntimeException("Instance $instanceId can only be retried when its latest status event is an error")
