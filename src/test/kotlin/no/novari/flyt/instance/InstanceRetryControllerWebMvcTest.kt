@@ -123,12 +123,12 @@ class InstanceRetryControllerWebMvcTest {
     }
 
     @Test
-    fun `batch continues sequentially after failures and returns no body`() {
+    fun `batch attempts each ID once in order and continues after failures`() {
         token()
         doThrow(RetryStatusConflictException(123L)).whenever(service).retry(123L)
         doThrow(KafkaException("Publication failed")).whenever(service).retry(124L)
         mvc
-            .perform(request(true).header("Authorization", "Bearer token"))
+            .perform(request(true).content("[123,124,125,125]").header("Authorization", "Bearer token"))
             .andExpect(status().isOk)
             .andExpect(content().string(""))
         org.mockito.kotlin.inOrder(service) {
@@ -136,6 +136,7 @@ class InstanceRetryControllerWebMvcTest {
             verify(service).retry(124L)
             verify(service).retry(125L)
         }
+        verifyNoMoreInteractions(service)
     }
 
     @Test

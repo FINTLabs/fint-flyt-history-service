@@ -138,27 +138,27 @@ class EventService(
 
     fun findLatestStatusEventBySourceApplicationAggregateInstanceId(
         sourceApplicationAggregateInstanceId: SourceApplicationAggregateInstanceId,
-    ): Event? {
-        return eventRepository
-            .findLatestStatusEventBySourceApplicationAggregateInstanceId(
-                sourceApplicationAggregateInstanceId,
-                eventCategorizationService.allInstanceStatusEventNames,
-            )?.let(eventMappingService::toEvent)
-    }
+    ): Event? = findLatestStatusEvent(sourceApplicationAggregateInstanceId)?.let(eventMappingService::toEvent)
 
-    fun findLatestStatusEventType(headers: InstanceFlowHeaders): EventType? {
+    fun hasLatestErrorStatus(
+        headers: InstanceFlowHeaders,
+        instanceId: Long,
+    ): Boolean {
         val sourceInstance =
             object : SourceApplicationAggregateInstanceId {
                 override val sourceApplicationId = headers.sourceApplicationId
                 override val sourceApplicationIntegrationId = headers.sourceApplicationIntegrationId
                 override val sourceApplicationInstanceId = headers.sourceApplicationInstanceId
             }
-        return eventRepository
-            .findLatestStatusEventBySourceApplicationAggregateInstanceId(
-                sourceInstance,
-                eventCategorizationService.allInstanceStatusEventNames,
-            )?.type
+        val status = findLatestStatusEvent(sourceInstance)
+        return status?.type == EventType.ERROR && status.instanceFlowHeaders?.instanceId == instanceId
     }
+
+    private fun findLatestStatusEvent(sourceInstance: SourceApplicationAggregateInstanceId): EventEntity? =
+        eventRepository.findLatestStatusEventBySourceApplicationAggregateInstanceId(
+            sourceInstance,
+            eventCategorizationService.allInstanceStatusEventNames,
+        )
 
     fun getStatistics(sourceApplicationIds: Collection<Long>): InstanceStatisticsProjection {
         return eventRepository.getTotalStatistics(

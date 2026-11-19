@@ -40,14 +40,16 @@ When `novari.flyt.instance-functionality.enabled=true`, history-service exposes 
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/api/intern/handlinger/instanser/{instanceId}/prov-igjen` | None | 200 after send returns; 404 missing instance; 409 latest status missing or not an error; 500 missing headers or synchronous failure. |
-| POST | `/api/intern/handlinger/instanser/prov-igjen/batch` | Array of IDs | 200 after checking each ID and attempting eligible retries; 500 if interrupted. |
+| POST | `/api/intern/handlinger/instanser/{instanceId}/prov-igjen` | None | 200 after send returns; 404 missing instance; 409 latest status missing or not an error for this instance; 500 missing headers or synchronous failure. |
+| POST | `/api/intern/handlinger/instanser/prov-igjen/batch` | Array of IDs | 200 after checking each distinct ID and attempting eligible retries; 500 if interrupted. |
 
-Retry requires a stored instance, registration headers and an error as the latest status event for the case.
-Storage events do not affect that status. Each accepted attempt generates a new correlation ID.
-HTTP 200 means the Kafka send call returned successfully; delivery and processing are asynchronous.
-Synchronous publication failures are stored locally as `INSTANCE_RETRY_REQUEST_ERROR`, and batch processing continues
-with later IDs. Batches have no application-level size limit and stop with HTTP 500 if the thread is interrupted.
+Retry requires a stored instance and registration headers. The latest status event for the case must be an
+error for the requested instance. Storage events do not affect that status. Each accepted attempt generates
+a new correlation ID. For a single retry, HTTP 200 means the Kafka send call returned successfully.
+Separate requests can both pass the check before the Kafka listener records that a retry has started.
+Synchronous publication failures are stored locally as `INSTANCE_RETRY_REQUEST_ERROR`.
+Batches continue with later IDs after individual rejections or failures, have no application-level size limit,
+and stop with HTTP 500 if the thread is interrupted.
 
 ## HTTP API
 

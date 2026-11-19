@@ -2,6 +2,8 @@ package no.novari.flyt.instance
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -9,6 +11,7 @@ import jakarta.persistence.EntityNotFoundException
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
 import no.novari.flyt.webresourceserver.UrlPaths.INTERNAL_API
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.ProblemDetail
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PathVariable
@@ -31,10 +34,23 @@ class InstanceRetryController(
     @Operation(summary = "Retry an instance", operationId = "retryInstance")
     @ApiResponses(
         value = [
-            ApiResponse(responseCode = "200", description = "Retry request accepted for publication"),
-            ApiResponse(responseCode = "404", description = "Instance not found"),
-            ApiResponse(responseCode = "409", description = "Latest status event is missing or is not an error"),
-            ApiResponse(responseCode = "500", description = "Retry request failed"),
+            ApiResponse(
+                responseCode = "200",
+                description = "Retry request accepted for publication",
+                content = [Content()],
+            ),
+            ApiResponse(responseCode = "404", description = "Instance not found", content = [Content()]),
+            ApiResponse(
+                responseCode = "409",
+                description = "Latest status event is missing or is not an error for this instance",
+                content = [
+                    Content(
+                        mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                        schema = Schema(implementation = ProblemDetail::class),
+                    ),
+                ],
+            ),
+            ApiResponse(responseCode = "500", description = "Retry request failed", content = [Content()]),
         ],
     )
     fun retry(
@@ -68,11 +84,15 @@ class InstanceRetryController(
     fun retry(
         @RequestBody instanceIds: List<Long>,
     ): ResponseEntity<Void> {
-        instanceIds.forEach { instanceId ->
+        instanceIds.distinct().forEach { instanceId ->
             try {
                 instanceRetryService.retry(instanceId)
             } catch (failure: Exception) {
-                logger.error(failure) { "Retry request failed for instanceId=$instanceId" }
+                if (failure is RetryStatusConflictException) {
+                    logger.info { failure.message }
+                } else {
+                    logger.error(failure) { "Retry request failed for instanceId=$instanceId" }
+                }
                 if (failure is InterruptedException || Thread.currentThread().isInterrupted) {
                     Thread.currentThread().interrupt()
                     throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Batch retry interrupted")
