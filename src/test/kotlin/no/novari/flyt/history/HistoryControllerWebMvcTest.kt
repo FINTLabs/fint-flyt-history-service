@@ -2,21 +2,25 @@ package no.novari.flyt.history
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import jakarta.validation.ConstraintViolation
-import jakarta.validation.Validator
-import jakarta.validation.ValidatorFactory
+import jakarta.validation.Validation
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.history.exceptions.LatestStatusEventNotOfTypeErrorException
 import no.novari.flyt.history.exceptions.NoPreviousStatusEventsFoundException
+import no.novari.flyt.history.model.action.InstanceStatusTransferredOverrideAction
 import no.novari.flyt.history.model.action.ManuallyProcessedEventAction
+import no.novari.flyt.history.model.action.ManuallyRejectedEventAction
 import no.novari.flyt.history.model.event.Event
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.history.repository.projections.IntegrationStatisticsProjection
 import no.novari.flyt.history.validation.ValidationErrorsFormattingService
+import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.EnumSource
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
@@ -45,8 +49,7 @@ class HistoryControllerWebMvcTest {
     private val authorizationService: AuthorizationService = mock()
     private val eventService: EventService = mock()
     private val manualEventCreationService: ManualEventCreationService = mock()
-    private val validationErrorsFormattingService: ValidationErrorsFormattingService = mock()
-    private val validator: Validator = mock()
+    private val validationErrorsFormattingService = ValidationErrorsFormattingService()
     private val authentication: Authentication = mock()
     private val objectMapper: ObjectMapper =
         jacksonObjectMapper()
@@ -57,15 +60,12 @@ class HistoryControllerWebMvcTest {
 
     @BeforeEach
     fun setUp() {
-        val validatorFactory = mock<ValidatorFactory>()
-        whenever(validatorFactory.validator).thenReturn(validator)
-
         val controller =
             HistoryController(
                 authorizationService,
                 eventService,
                 manualEventCreationService,
-                validatorFactory,
+                Validation.buildDefaultValidatorFactory(),
                 validationErrorsFormattingService,
             )
 
@@ -195,43 +195,65 @@ class HistoryControllerWebMvcTest {
             .andExpect(jsonPath("$.pageable").doesNotExist())
     }
 
-    @Test
-    fun `manually processed returns created event on success`() {
-        whenever(validator.validate(any<ManuallyProcessedEventAction>())).thenReturn(emptySet())
-        whenever(manualEventCreationService.addManuallyProcessedEvent(any())).thenReturn(Event())
+    @ParameterizedTest
+    @EnumSource(
+        value = EventCategory::class,
+        names = [
+            "INSTANCE_MANUALLY_PROCESSED",
+            "INSTANCE_MANUALLY_REJECTED",
+            "INSTANCE_STATUS_OVERRIDDEN_AS_TRANSFERRED",
+        ],
+    )
+    fun `manual status accepts omitted null and long comments`(category: EventCategory) {
+        whenever(manualEventCreationService.addManuallyProcessedEvent(any())).thenAnswer {
+            Event(comment = it.getArgument<ManuallyProcessedEventAction>(0).comment)
+        }
+        whenever(manualEventCreationService.addManuallyRejectedEvent(any())).thenAnswer {
+            Event(comment = it.getArgument<ManuallyRejectedEventAction>(0).comment)
+        }
+        whenever(manualEventCreationService.addInstanceStatusOverriddenAsTransferredEvent(any())).thenAnswer {
+            Event(comment = it.getArgument<InstanceStatusTransferredOverrideAction>(0).comment)
+        }
+
+        val payload = objectMapper.valueToTree<ObjectNode>(validAction())
+        if (category != EventCategory.INSTANCE_MANUALLY_PROCESSED) payload.remove("archiveInstanceId")
+        payload.remove("comment")
+        val request =
+            post("/api/intern/instance-flow-tracking/events/${category.eventName}")
+                .contentType(MediaType.APPLICATION_JSON)
+                .principal(authentication)
+        val longComment = "Avklart med saksbehandler. ".repeat(100)
 
         mockMvc
-            .perform(
-                post("/api/intern/instance-flow-tracking/events/instance-manually-processed")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(validAction()))
-                    .principal(authentication),
-            ).andExpect(status().isOk)
+            .perform(request.content(payload.toString()))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.comment").value(nullValue()))
+        mockMvc
+            .perform(request.content(payload.putNull("comment").toString()))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.comment").value(nullValue()))
+        mockMvc
+            .perform(request.content(payload.put("comment", longComment).toString()))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.comment").value(longComment))
     }
 
     @Test
     fun `manually processed returns 422 with formatted message on validation error`() {
-        whenever(validator.validate(any<ManuallyProcessedEventAction>()))
-            .thenReturn(setOf(mock<ConstraintViolation<ManuallyProcessedEventAction>>()))
-        whenever(
-            validationErrorsFormattingService.format(any<Set<ConstraintViolation<ManuallyProcessedEventAction>>>()),
-        ).thenReturn("Validation error: 'sourceApplicationId must be positive'")
-
         mockMvc
             .perform(
                 post("/api/intern/instance-flow-tracking/events/instance-manually-processed")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(validAction()))
+                    .content(objectMapper.writeValueAsString(validAction().copy(sourceApplicationId = 0L)))
                     .principal(authentication),
             ).andExpect(status().isUnprocessableEntity)
             .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
             .andExpect(jsonPath("$.status").value(422))
-            .andExpect(jsonPath("$.detail").value("Validation error: 'sourceApplicationId must be positive'"))
+            .andExpect(jsonPath("$.detail").value("Validation error: ['sourceApplicationId must be greater than 0']"))
     }
 
     @Test
     fun `manually processed returns 404 when no previous event exists`() {
-        whenever(validator.validate(any<ManuallyProcessedEventAction>())).thenReturn(emptySet())
         whenever(manualEventCreationService.addManuallyProcessedEvent(any()))
             .thenThrow(NoPreviousStatusEventsFoundException())
 
@@ -249,7 +271,6 @@ class HistoryControllerWebMvcTest {
 
     @Test
     fun `manually processed returns 400 when latest event is not of type error`() {
-        whenever(validator.validate(any<ManuallyProcessedEventAction>())).thenReturn(emptySet())
         whenever(manualEventCreationService.addManuallyProcessedEvent(any()))
             .thenThrow(LatestStatusEventNotOfTypeErrorException())
 
