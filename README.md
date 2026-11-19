@@ -89,9 +89,10 @@ Manual action payloads:
 
 `archiveInstanceId` is only required for manually processed events.
 
-`comment` is optional on all three manual actions and has no fixed character limit. Omitted, `null`, empty and
-whitespace-only comments are stored as `null`. The created event and the history return the comment recorded on
-the event. A summary returns the comment from the event that sets its current status.
+`comment` is optional on all three manual actions and has no fixed character limit. The service trims leading and
+trailing whitespace and stores omitted, `null`, empty and whitespace-only comments as `null`. The created event
+and the history return the comment recorded on the event. A summary returns the comment from the event that sets
+its current status.
 
 Validation failures respond with 422 Unprocessable Entity using the shared formatting service.
 
@@ -136,6 +137,7 @@ Swagger UI is then available at `http://localhost:8080/beta/fintlabs-no/swagger-
 (`novari.flyt.history-service.metrics.refresh-ms`, default `60000` ms).
 
 `ScheduledErrorScrubService` runs daily after an initial 2 minutes delay and scrubs old, unscrubbed events in batches.
+Scrubbing clears error argument values and retains manual status comments on their original events in the history.
 `InstanceCleanupService` runs 30 seconds after startup and then every 24 hours when the instance functionality flag
 is enabled. It deletes root instances older than the shared `novari.flyt.history-service.retention.time-to-keep-in-days`.
 Both jobs default to 60 days, using event timestamps for scrubbing and instance creation timestamps for cleanup.

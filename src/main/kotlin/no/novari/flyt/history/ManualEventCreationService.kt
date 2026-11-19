@@ -87,7 +87,7 @@ class ManualEventCreationService(
                 timestamp = OffsetDateTime.now(clock),
                 type = eventCategory.type,
                 applicationId = applicationId,
-                comment = comment?.takeUnless(String::isBlank),
+                comment = comment?.trim()?.ifEmpty { null },
             ),
         )
     }

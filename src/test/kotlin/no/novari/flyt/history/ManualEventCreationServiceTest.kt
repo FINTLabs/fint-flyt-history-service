@@ -12,8 +12,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.params.ParameterizedTest
-import org.junit.jupiter.params.provider.NullAndEmptySource
-import org.junit.jupiter.params.provider.ValueSource
+import org.junit.jupiter.params.provider.CsvSource
 import org.mockito.kotlin.argThat
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
@@ -92,11 +91,17 @@ class ManualEventCreationServiceTest {
     }
 
     @ParameterizedTest
-    @NullAndEmptySource
-    @ValueSource(strings = [" \t\n", "  Behandlet manuelt  "])
-    fun `given previous error save event and normalize blank comments`(comment: String?) {
+    @CsvSource(
+        ",",
+        "'',",
+        "' \t ',",
+        "'  Behandlet  manuelt  ', 'Behandlet  manuelt'",
+    )
+    fun `given previous error save event with normalized comment`(
+        comment: String?,
+        expectedComment: String?,
+    ) {
         val sourceApplicationAggregateInstanceId = testSourceApplicationAggregateInstanceId()
-        val expectedComment = if (comment == "  Behandlet manuelt  ") comment else null
 
         val latestEvent: Event = mock()
         whenever(latestEvent.type).thenReturn(EventType.ERROR)
