@@ -102,6 +102,7 @@ class EventMappingServiceTest {
                     .type(EventType.INFO)
                     .applicationId("testApplicationId")
                     .errors(listOf(errorEntity1, errorEntity2))
+                    .comment("Behandlet manuelt")
                     .build(),
                 createdAt,
                 createdBy,
@@ -126,6 +127,7 @@ class EventMappingServiceTest {
         assertThat(event.createdAt).isEqualTo(createdAt)
         assertThat(event.createdBy).isEqualTo("Ola Nordmann")
         assertThat(event.createdByActor).isEqualTo(createdBy)
+        assertThat(event.comment).isEqualTo("Behandlet manuelt")
     }
 
     @Test
@@ -273,6 +275,7 @@ class EventMappingServiceTest {
                     .type(EventType.INFO)
                     .applicationId("testApplicationId")
                     .errors(listOf(errorEntity1, errorEntity2))
+                    .comment("Behandlet manuelt")
                     .build(),
             )
 
@@ -287,6 +290,7 @@ class EventMappingServiceTest {
         assertThat(eventEntity.type).isEqualTo(EventType.INFO)
         assertThat(eventEntity.applicationId).isEqualTo("testApplicationId")
         assertThat(eventEntity.errors).containsExactly(errorEntity1, errorEntity2)
+        assertThat(eventEntity.comment).isEqualTo("Behandlet manuelt")
     }
 
     @Test

@@ -66,6 +66,7 @@ class InstanceFlowSummaryMappingServiceTest {
                     .latestStatusEventName("testStatusEventName")
                     .latestStorageStatusEventName("testStorageStatusEventName")
                     .destinationInstanceIds("testDestinationId")
+                    .comment("Behandlet manuelt")
                     .build(),
             )
 
@@ -86,6 +87,7 @@ class InstanceFlowSummaryMappingServiceTest {
                     .status(InstanceStatus.IN_PROGRESS)
                     .intermediateStorageStatus(InstanceStorageStatus.STORED)
                     .destinationInstanceIds("testDestinationId")
+                    .comment("Behandlet manuelt")
                     .build(),
             )
     }

@@ -9,6 +9,7 @@ import no.novari.flyt.history.model.SourceApplicationAggregateInstanceId
 import no.novari.flyt.history.model.event.Event
 import no.novari.flyt.history.model.event.EventCategorizationService
 import no.novari.flyt.history.model.event.EventCategory
+import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.history.model.instance.InstanceFlowSummariesFilter
 import no.novari.flyt.history.model.instance.InstanceFlowSummary
 import no.novari.flyt.history.model.statistics.IntegrationStatisticsFilter
@@ -137,13 +138,27 @@ class EventService(
 
     fun findLatestStatusEventBySourceApplicationAggregateInstanceId(
         sourceApplicationAggregateInstanceId: SourceApplicationAggregateInstanceId,
-    ): Event? {
-        return eventRepository
-            .findLatestStatusEventBySourceApplicationAggregateInstanceId(
-                sourceApplicationAggregateInstanceId,
-                eventCategorizationService.allInstanceStatusEventNames,
-            )?.let(eventMappingService::toEvent)
+    ): Event? = findLatestStatusEvent(sourceApplicationAggregateInstanceId)?.let(eventMappingService::toEvent)
+
+    fun hasLatestErrorStatus(
+        headers: InstanceFlowHeaders,
+        instanceId: Long,
+    ): Boolean {
+        val sourceInstance =
+            object : SourceApplicationAggregateInstanceId {
+                override val sourceApplicationId = headers.sourceApplicationId
+                override val sourceApplicationIntegrationId = headers.sourceApplicationIntegrationId
+                override val sourceApplicationInstanceId = headers.sourceApplicationInstanceId
+            }
+        val status = findLatestStatusEvent(sourceInstance)
+        return status?.type == EventType.ERROR && status.instanceFlowHeaders?.instanceId == instanceId
     }
+
+    private fun findLatestStatusEvent(sourceInstance: SourceApplicationAggregateInstanceId): EventEntity? =
+        eventRepository.findLatestStatusEventBySourceApplicationAggregateInstanceId(
+            sourceInstance,
+            eventCategorizationService.allInstanceStatusEventNames,
+        )
 
     fun getStatistics(sourceApplicationIds: Collection<Long>): InstanceStatisticsProjection {
         return eventRepository.getTotalStatistics(

@@ -65,14 +65,18 @@ class ScheduledErrorScrubServiceTest {
     }
 
     @Test
-    fun `scrubs old events in batches and ignores already scrubbed and new events`() {
+    fun `scrubs old events in batches, keeps manual comments, and ignores already scrubbed and new events`() {
         val oldErrorEvent =
             errorEvent(
                 timestamp = odt(2024, 1, 1, 12, 0),
                 args = mapOf("filename" to "old-document.pdf"),
             )
-        val oldInfoEvent =
-            infoEvent(timestamp = odt(2024, 1, 2, 12, 0))
+        val manualComment = "Confirmed with the case handler."
+        val oldManualEvent =
+            infoEvent(timestamp = odt(2024, 1, 2, 12, 0)).apply {
+                name = EventCategory.INSTANCE_MANUALLY_REJECTED.eventName
+                comment = manualComment
+            }
         val secondOldErrorEvent =
             errorEvent(
                 timestamp = odt(2024, 1, 3, 12, 0),
@@ -93,18 +97,19 @@ class ScheduledErrorScrubServiceTest {
             )
 
         eventRepository.saveAllAndFlush(
-            listOf(oldErrorEvent, oldInfoEvent, secondOldErrorEvent, alreadyScrubbedEvent, newErrorEvent),
+            listOf(oldErrorEvent, oldManualEvent, secondOldErrorEvent, alreadyScrubbedEvent, newErrorEvent),
         )
 
         val scrubbedCount = scheduledErrorScrubService.scrub()
 
         assertThat(scrubbedCount).isEqualTo(3)
-        listOf(oldErrorEvent.id, oldInfoEvent.id, secondOldErrorEvent.id).forEach { eventId ->
+        listOf(oldErrorEvent.id, oldManualEvent.id, secondOldErrorEvent.id).forEach { eventId ->
             assertThat(isScrubbed(eventId)).isTrue()
             assertThat(scrubbedAt(eventId)).isNotNull()
         }
         assertThat(errorArgValues(oldErrorEvent.id)).containsExactly("")
         assertThat(errorArgValues(secondOldErrorEvent.id)).containsExactly("")
+        assertThat(eventRepository.findById(oldManualEvent.id).orElseThrow().comment).isEqualTo(manualComment)
 
         assertThat(isScrubbed(alreadyScrubbedEvent.id)).isTrue()
         assertThat(scrubbedAt(alreadyScrubbedEvent.id)).isEqualTo(alreadyScrubbedAt)
