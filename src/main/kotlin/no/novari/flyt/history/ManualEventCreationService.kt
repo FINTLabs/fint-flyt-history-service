@@ -72,17 +72,16 @@ class ManualEventCreationService(
         return eventService.save(
             Event(
                 instanceFlowHeaders =
-                    InstanceFlowHeaders
-                        .builder()
-                        .sourceApplicationId(requireNotNull(sourceApplicationAggregateInstanceId.sourceApplicationId))
-                        .sourceApplicationIntegrationId(
+                    InstanceFlowHeaders(
+                        sourceApplicationId = requireNotNull(sourceApplicationAggregateInstanceId.sourceApplicationId),
+                        sourceApplicationIntegrationId =
                             requireNotNull(sourceApplicationAggregateInstanceId.sourceApplicationIntegrationId),
-                        ).sourceApplicationInstanceId(
+                        sourceApplicationInstanceId =
                             requireNotNull(sourceApplicationAggregateInstanceId.sourceApplicationInstanceId),
-                        ).integrationId(latestInstanceFlowHeaders.integrationId)
-                        .correlationId(uuidService.generateUuid())
-                        .archiveInstanceId(archiveInstanceId)
-                        .build(),
+                        integrationId = latestInstanceFlowHeaders.integrationId,
+                        correlationId = uuidService.generateUuid(),
+                        archiveInstanceId = archiveInstanceId,
+                    ),
                 category = eventCategory,
                 timestamp = OffsetDateTime.now(clock),
                 type = eventCategory.type,

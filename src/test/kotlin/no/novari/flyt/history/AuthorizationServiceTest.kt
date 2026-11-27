@@ -1,32 +1,34 @@
 package no.novari.flyt.history
 
-import no.novari.flyt.webresourceserver.security.user.UserAuthorizationService
+import no.novari.flyt.security.FlytAccess
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.BeforeEach
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.whenever
-import org.springframework.security.core.Authentication
+import org.springframework.web.server.ResponseStatusException
 
 class AuthorizationServiceTest {
-    private lateinit var authorizationService: AuthorizationService
-    private lateinit var userAuthorizationService: UserAuthorizationService
+    private val flytAccess: FlytAccess =
+        mock {
+            on { sourceApplicationIds() } doReturn setOf(2L, 1L, 5L)
+            on { hasSourceApplication(1L) } doReturn true
+        }
+    private val authorizationService = AuthorizationService(flytAccess)
 
-    @BeforeEach
-    fun setup() {
-        userAuthorizationService = mock()
-        authorizationService = AuthorizationService(userAuthorizationService)
+    @Test
+    fun `returns the requested source applications the user has, sorted`() {
+        assertThat(
+            authorizationService.getUserAuthorizedSourceApplicationIds(setOf(3L, 1L, 2L)),
+        ).containsExactly(1L, 2L)
     }
 
     @Test
-    fun `returns the source applications authorized by the web resource server`() {
-        val authentication: Authentication = mock()
-        val candidateIds = setOf(3L, 1L, 2L)
-        whenever(userAuthorizationService.getUserAuthorizedSourceApplicationIds(authentication, candidateIds))
-            .thenReturn(setOf(2L, 1L))
-
-        val result = authorizationService.getUserAuthorizedSourceApplicationIds(authentication, candidateIds)
-
-        assertThat(result).containsExactly(1L, 2L)
+    fun `a source application the user does not have gives 403`() {
+        authorizationService.validateUserIsAuthorizedForSourceApplication(1L)
+        assertThatThrownBy { authorizationService.validateUserIsAuthorizedForSourceApplication(3L) }
+            .isInstanceOfSatisfying(
+                ResponseStatusException::class.java,
+            ) { assertThat(it.statusCode.value()).isEqualTo(403) }
     }
 }

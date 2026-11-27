@@ -12,7 +12,7 @@ import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.instance.ActiveTimePeriod
 import no.novari.flyt.history.model.instance.InstanceStatus
 import no.novari.flyt.history.model.instance.InstanceStorageStatus
-import no.novari.flyt.webresourceserver.UrlPaths.INTERNAL_API
+import no.novari.flyt.security.UrlPaths.INTERNAL_API
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController

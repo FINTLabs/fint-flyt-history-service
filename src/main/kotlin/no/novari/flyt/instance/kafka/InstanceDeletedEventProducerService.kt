@@ -1,48 +1,44 @@
 package no.novari.flyt.instance.kafka
 
-import no.novari.flyt.history.kafka.eventTopicNameParameters
+import no.novari.flyt.history.kafka.eventTopicConfig
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowProducerRecord
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
-import no.novari.kafka.topic.EventTopicService
-import no.novari.kafka.topic.configuration.EventCleanupFrequency
-import no.novari.kafka.topic.configuration.EventTopicConfiguration
+import no.novari.flyt.kafka.instanceflow.producing.send
+import no.novari.kafka.starter.topic.EventTopicName
+import no.novari.kafka.starter.topic.KafkaTopics
+import org.apache.kafka.clients.admin.NewTopic
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Service
 import java.time.Duration
 
+@Configuration
+class InstanceDeletedTopicConfiguration {
+    @Bean
+    fun instanceDeletedTopic(topics: KafkaTopics): EventTopicName =
+        topics.event(EventCategory.INSTANCE_DELETED.eventName)
+
+    @Bean
+    fun instanceDeletedTopicCreation(
+        topics: KafkaTopics,
+        instanceDeletedTopic: EventTopicName,
+        @Value($$"${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
+        retentionTime: Duration,
+    ): NewTopic = topics.newTopic(instanceDeletedTopic, eventTopicConfig(retentionTime))
+}
+
 @Service
 class InstanceDeletedEventProducerService(
-    templateFactory: InstanceFlowTemplateFactory,
-    topicService: EventTopicService,
-    @Value($$"${novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time}")
-    retentionTime: Duration,
+    private val kafkaTemplate: KafkaTemplate<String, InstanceObjectDto>,
+    // By name: with one EventTopicName bean in a context, Spring would inject it whatever its name.
+    @param:Qualifier("instanceDeletedTopic")
+    private val instanceDeletedTopic: EventTopicName,
 ) {
-    private val template = templateFactory.createTemplate(InstanceObjectDto::class.java)
-    private val topic = eventTopicNameParameters(EventCategory.INSTANCE_DELETED)
-
-    init {
-        topicService.createOrModifyTopic(
-            topic,
-            EventTopicConfiguration
-                .stepBuilder()
-                .partitions(1)
-                .retentionTime(retentionTime)
-                .cleanupFrequency(EventCleanupFrequency.NORMAL)
-                .build(),
-        )
-    }
-
     fun publish(headers: InstanceFlowHeaders) {
-        template.send(
-            InstanceFlowProducerRecord
-                .builder<InstanceObjectDto>()
-                .instanceFlowHeaders(headers)
-                .topicNameParameters(topic)
-                .value(null)
-                .build(),
-        )
+        kafkaTemplate.send(instanceDeletedTopic, headers, null)
     }
 }

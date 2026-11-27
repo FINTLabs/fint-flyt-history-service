@@ -17,11 +17,13 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.NullSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.beans.factory.getBeansOfType
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Import
 import org.springframework.core.NestedExceptionUtils
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.queryForObject
 import org.springframework.orm.jpa.JpaTransactionManager
@@ -32,9 +34,9 @@ import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -78,10 +80,10 @@ class InstanceSchemaMappingIntegrationTest {
             entityTypes,
         ).contains(EventEntity::class.java, InstanceObject::class.java, InstanceObjectCollection::class.java)
         assertThat(
-            applicationContext.getBeansOfType(EntityManagerFactory::class.java),
+            applicationContext.getBeansOfType<EntityManagerFactory>(),
         ).containsOnlyKeys("entityManagerFactory")
         assertThat(
-            applicationContext.getBeansOfType(PlatformTransactionManager::class.java),
+            applicationContext.getBeansOfType<PlatformTransactionManager>(),
         ).containsOnlyKeys("transactionManager")
         assertThat((transactionManager as JpaTransactionManager).entityManagerFactory).isSameAs(entityManagerFactory)
         assertThat(eventRepository.count()).isZero()
@@ -105,7 +107,7 @@ class InstanceSchemaMappingIntegrationTest {
             val event = eventRepository.saveAndFlush(historyEvent())
             entityManager.clear()
 
-            val loaded = instanceRepository.findById(root.id!!).orElseThrow()
+            val loaded = checkNotNull(instanceRepository.findByIdOrNull(root.id!!))
             assertThat(loaded.valuePerKey).containsEntry("rootKey", "rootValue")
             val child =
                 loaded.objectCollectionPerKey
@@ -115,7 +117,7 @@ class InstanceSchemaMappingIntegrationTest {
             assertThat(child.valuePerKey).containsEntry("childKey", "childValue")
             assertThat(loaded.createdAt).isNotNull()
             assertThat(child.createdAt).isNotNull()
-            assertThat(eventRepository.findById(event.id).orElseThrow().name).isEqualTo(event.name)
+            assertThat(checkNotNull(eventRepository.findByIdOrNull(event.id)).name).isEqualTo(event.name)
             assertThat(rowCount("$INSTANCE_SCHEMA.instance_object", root.id!!)).isEqualTo(1L)
             assertThat(rowCount("$INSTANCE_SCHEMA.instance_object", child.id!!)).isEqualTo(1L)
             assertThat(
@@ -163,7 +165,7 @@ class InstanceSchemaMappingIntegrationTest {
             instanceRepository.saveAndFlush(root)
             entityManager.clear()
 
-            val updated = instanceRepository.findById(root.id!!).orElseThrow()
+            val updated = checkNotNull(instanceRepository.findByIdOrNull(root.id!!))
             assertThat(updated.valuePerKey).containsEntry("rootKey", "updatedValue")
             assertThat(updated.objectCollectionPerKey.getValue("children").objects).isEmpty()
             assertThat(rowCount("$INSTANCE_SCHEMA.instance_object", childId)).isZero()
@@ -172,7 +174,7 @@ class InstanceSchemaMappingIntegrationTest {
             instanceRepository.saveAndFlush(updated)
             entityManager.clear()
 
-            assertThat(instanceRepository.findById(root.id!!).orElseThrow().objectCollectionPerKey).isEmpty()
+            assertThat(checkNotNull(instanceRepository.findByIdOrNull(root.id!!)).objectCollectionPerKey).isEmpty()
             assertThat(rowCount("$INSTANCE_SCHEMA.instance_object_collection", collectionId)).isZero()
         }
     }
@@ -356,7 +358,7 @@ class InstanceSchemaMappingIntegrationTest {
 
         @JvmField
         @Container
-        val postgreSQLContainer: PostgreSQLContainer<*> =
+        val postgreSQLContainer: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17").withInitScript("db/instance-fixture/init.sql")
 
         @JvmStatic

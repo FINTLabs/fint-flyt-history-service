@@ -1,127 +1,100 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.gradle.api.tasks.testing.logging.TestLogEvent
-import org.gradle.jvm.toolchain.JavaLanguageVersion
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 buildscript {
-    repositories {
-        gradlePluginPortal()
-    }
     dependencies {
-        classpath(platform("com.fasterxml.jackson:jackson-bom:2.23.0"))
         constraints {
-            classpath("org.apache.httpcomponents.client5:httpclient5:5.6.5")
-            classpath("org.apache.httpcomponents.core5:httpcore5:5.5")
-            classpath("org.apache.httpcomponents.core5:httpcore5-h2:5.5")
-            classpath("org.apache.commons:commons-lang3:3.22.0")
+            classpath(libs.commons.lang3) {
+                because("Fixes CVE-2025-48924 in spring-boot-buildpack-platform")
+            }
         }
     }
 }
 
 plugins {
-    id("org.springframework.boot") version "3.5.16"
-    id("io.spring.dependency-management") version "1.1.7"
-    id("io.github.ben-manes.versions") version "0.67.0"
-    id("org.jlleitschuh.gradle.ktlint") version "14.2.0"
-    kotlin("jvm") version "2.4.10"
-    kotlin("plugin.spring") version "2.4.10"
-    kotlin("plugin.jpa") version "2.4.10"
-    kotlin("kapt") version "2.4.10"
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.spring)
+    alias(libs.plugins.kotlin.jpa)
+    alias(libs.plugins.kotlin.kapt)
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.ktlint)
 }
 
 group = "no.novari"
 version = "0.0.1-SNAPSHOT"
 
-var springdocOpenApiVersion = "2.10.0"
-
-val javaVersion =
-    providers
-        .gradleProperty("javaVersion")
-        .orElse("25")
-        .map(String::toInt)
-        .get()
-
 java {
     toolchain {
-        languageVersion.set(JavaLanguageVersion.of(javaVersion))
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
 // Dependabot resolves with JDK 21; an explicit release keeps JVM 25 as the resolution target so gradle.lockfile gets updated.
 tasks.withType<JavaCompile>().configureEach {
-    options.release.set(javaVersion)
+    options.release.set(25)
 }
 
-kotlin {
-    jvmToolchain(javaVersion)
-    compilerOptions {
-        jvmTarget.set(JvmTarget.fromTarget(javaVersion.toString()))
+repositories {
+    mavenCentral()
+    maven {
+        url = uri("https://repo.fintlabs.no/releases")
     }
+    mavenLocal()
 }
 
 tasks.jar {
     isEnabled = false
 }
 
-repositories {
-    mavenCentral()
-    maven("https://repo.fintlabs.no/releases")
-    mavenLocal()
-}
-
-extra["commons-lang3.version"] = "3.21.0"
-extra["jackson-bom.version"] = "2.22.4"
-extra["log4j2.version"] = "2.26.1"
-extra["postgresql.version"] = "42.7.12"
-extra["tomcat.version"] = "10.1.59"
-
 dependencyLocking {
     lockAllConfigurations()
 }
 
 dependencies {
+    // A platform instead of the dependency-management plugin, which puts Boot's Kotlin on ktlint's classpath.
+    implementation(platform(libs.spring.boot.dependencies))
+    kapt(platform(libs.spring.boot.dependencies))
+
     constraints {
-        implementation("at.yawk.lz4:lz4-java:1.14.1") {
-            because("Fixes CVE-2026-59949 in the kafka-clients transitive dependency")
-        }
-        implementation("org.xerial.snappy:snappy-java:1.1.10.12") {
-            because("Fixes CVE-2026-93451, CVE-2026-108106 and CVE-2026-116590 in kafka-clients")
-        }
-        testImplementation("org.apache.commons:commons-compress:1.28.0") {
-            because("Fixes CVE-2024-25710 and CVE-2024-26308 in the Testcontainers transitive dependency")
+        ktlint(libs.logback.core) {
+            because(
+                "ktlint 1.8.0 brings logback-core 1.3.16, which has CVE-2026-1225, CVE-2026-9828 and CVE-2026-10532. " +
+                    "Only the ktlint tool classpath",
+            )
         }
     }
 
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
+    implementation("org.springframework.boot:spring-boot-starter-security-oauth2-resource-server")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("io.github.oshai:kotlin-logging-jvm:8.0.7")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocOpenApiVersion")
-
-    implementation("io.hypersistence:hypersistence-utils-hibernate-63:3.16.0")
-
-    implementation("no.novari:flyt-web-resource-server:5.0.0")
-    implementation("no.novari:flyt-kafka:7.4.1")
-    implementation("no.novari:flyt-audit-starter:1.2.1")
-
-    implementation("org.flywaydb:flyway-core")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.flywaydb:flyway-database-postgresql")
+    implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation("tools.jackson.module:jackson-module-kotlin")
+
+    implementation(libs.flyt.kafka)
+    implementation(libs.flyt.security.starter)
+    implementation(libs.flyt.audit.starter)
+    implementation(libs.springdoc.openapi.webmvc.ui)
+    implementation(libs.kotlin.logging)
 
     runtimeOnly("io.micrometer:micrometer-registry-prometheus")
-    // Pinned to 8.x: 9.x pulls in Jackson 3 (tools.jackson), while Spring Boot 3.5 uses Jackson 2
-    runtimeOnly("net.logstash.logback:logstash-logback-encoder:8.1")
     runtimeOnly("org.postgresql:postgresql")
+    runtimeOnly(libs.logstash.logback.encoder)
     kapt("org.springframework.boot:spring-boot-configuration-processor")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.springframework.security:spring-security-core")
-    testImplementation("org.mockito.kotlin:mockito-kotlin:6.4.0")
-    testImplementation("org.testcontainers:junit-jupiter")
-    testImplementation("org.testcontainers:postgresql")
-    testImplementation("org.testcontainers:kafka")
+    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-security-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.boot:spring-boot-testcontainers")
+    testImplementation("org.springframework.kafka:spring-kafka-test")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
+    testImplementation("org.testcontainers:testcontainers-kafka")
+    testImplementation(libs.mockito.kotlin)
 }
 
 tasks.withType<Test>().configureEach {
@@ -160,7 +133,7 @@ tasks.register<Test>("performanceTest") {
 }
 
 ktlint {
-    version.set("1.8.0")
+    version = libs.versions.ktlint.cli
 }
 
 tasks.named("check") {

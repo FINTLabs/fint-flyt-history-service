@@ -1,6 +1,5 @@
 package no.novari.flyt.history.mapping
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.audit.actor.ActorDisplayProperties
 import no.novari.flyt.audit.actor.ActorDisplayResolver
@@ -24,6 +23,7 @@ import org.mockito.kotlin.whenever
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.test.util.ReflectionTestUtils
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset

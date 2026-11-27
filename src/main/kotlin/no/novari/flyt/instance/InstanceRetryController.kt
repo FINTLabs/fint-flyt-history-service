@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.persistence.EntityNotFoundException
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
-import no.novari.flyt.webresourceserver.UrlPaths.INTERNAL_API
+import no.novari.flyt.security.UrlPaths.INTERNAL_API
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ProblemDetail
@@ -39,6 +39,11 @@ class InstanceRetryController(
                 description = "Retry request accepted for publication",
                 content = [Content()],
             ),
+            ApiResponse(
+                responseCode = "403",
+                description = "The user does not have the instance's source application",
+                content = [Content()],
+            ),
             ApiResponse(responseCode = "404", description = "Instance not found", content = [Content()]),
             ApiResponse(
                 responseCode = "409",
@@ -62,6 +67,8 @@ class InstanceRetryController(
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Could not find instance with id='$instanceId'")
         } catch (failure: MissingRetryHeadersException) {
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, failure.message)
+        } catch (failure: ResponseStatusException) {
+            throw failure
         } catch (failure: RetryStatusConflictException) {
             return ResponseEntity
                 .status(HttpStatus.CONFLICT)
@@ -77,7 +84,12 @@ class InstanceRetryController(
     @Operation(summary = "Retry multiple instances", operationId = "retryInstances")
     @ApiResponses(
         value = [
-            ApiResponse(responseCode = "200", description = "Batch retry request processed"),
+            ApiResponse(
+                responseCode = "200",
+                description =
+                    "Batch retry request processed. Instances that cannot be retried, also those from a source " +
+                        "application the user does not have, are skipped",
+            ),
             ApiResponse(responseCode = "500", description = "Batch retry interrupted"),
         ],
     )
@@ -88,7 +100,7 @@ class InstanceRetryController(
             try {
                 instanceRetryService.retry(instanceId)
             } catch (failure: Exception) {
-                if (failure is RetryStatusConflictException) {
+                if (failure is RetryStatusConflictException || failure is ResponseStatusException) {
                     logger.info { failure.message }
                 } else {
                     logger.error(failure) { "Retry request failed for instanceId=$instanceId" }

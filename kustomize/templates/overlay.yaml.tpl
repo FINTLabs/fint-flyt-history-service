@@ -23,13 +23,7 @@ patches:
         value: "$INGRESS_BASE_PATH"
       - op: replace
         path: "/spec/ingress/routes/1/path"
-        value: "$SERVLET_CONTEXT_PATH/api/intern/handlinger/instanser"
-      - op: add
-        path: "/spec/env/-"
-        value:
-          name: "novari.flyt.web-resource-server.security.api.internal.authorized-org-id-role-pairs-json"
-          value: |
-$AUTHORIZED_ORG_ROLE_PAIRS
+        value: "$SERVLET_CONTEXT_PATH/api/intern/handlinger/instanser"$ADDITIONAL_ORG_IDS_PATCH
       - op: add
         path: "/spec/env/-"
         value:

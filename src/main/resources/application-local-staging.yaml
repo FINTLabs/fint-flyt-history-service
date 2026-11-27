@@ -10,16 +10,14 @@ novari:
     instance:
       database:
         schema: fintlabs_no_instance
-    web-resource-server:
-      security:
-        api:
-          internal:
-            authorized-org-id-role-pairs-json: "{\"vigo.no\":[\"DEVELOPER\", \"USER\"]}"
+    security:
+      user:
+        audience: local-frontend-client
 
   kafka:
-    default-replicas: 1
     topic:
       org-id: fintlabs-no
+      default-replicas: 1
 
 spring:
   kafka:

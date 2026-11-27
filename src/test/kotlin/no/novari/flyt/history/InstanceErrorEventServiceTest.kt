@@ -120,12 +120,11 @@ class InstanceErrorEventServiceTest {
         }
 
     private fun instanceFlowHeaders(): InstanceFlowHeaders =
-        InstanceFlowHeaders
-            .builder()
-            .sourceApplicationId(1L)
-            .sourceApplicationIntegrationId("sa-integration-1")
-            .sourceApplicationInstanceId("sa-instance-1")
-            .correlationId(UUID.fromString("2ee6f95e-44c3-11ed-b878-0242ac120002"))
-            .integrationId(100L)
-            .build()
+        InstanceFlowHeaders(
+            sourceApplicationId = 1L,
+            sourceApplicationIntegrationId = "sa-integration-1",
+            sourceApplicationInstanceId = "sa-instance-1",
+            correlationId = UUID.fromString("2ee6f95e-44c3-11ed-b878-0242ac120002"),
+            integrationId = 100L,
+        )
 }

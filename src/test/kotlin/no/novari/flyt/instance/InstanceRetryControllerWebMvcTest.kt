@@ -2,14 +2,12 @@ package no.novari.flyt.instance
 
 import jakarta.persistence.EntityNotFoundException
 import no.novari.flyt.history.GlobalExceptionHandler
+import no.novari.flyt.history.support.TestTokens
 import no.novari.flyt.history.validation.ValidationErrorsFormattingService
-import no.novari.flyt.webresourceserver.security.AuthorityMappingService
-import no.novari.flyt.webresourceserver.security.InternalUserApiConfiguration
-import no.novari.flyt.webresourceserver.security.SecurityConfiguration
-import no.novari.flyt.webresourceserver.security.SecurityFilterChainFactoryService
-import no.novari.flyt.webresourceserver.security.properties.InternalApiSecurityProperties
-import no.novari.flyt.webresourceserver.security.user.UserRole
+import no.novari.flyt.security.FlytSecurityAutoConfiguration
+import no.novari.flyt.security.UserRole
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -21,28 +19,29 @@ import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.verifyNoMoreInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
-import org.springframework.boot.test.context.TestConfiguration
-import org.springframework.context.annotation.Bean
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.context.annotation.Import
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.kafka.KafkaException
-import org.springframework.security.config.annotation.web.builders.HttpSecurity
-import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
-import org.springframework.security.web.SecurityFilterChain
 import org.springframework.test.context.ContextConfiguration
+import org.springframework.test.context.TestPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import java.time.Instant
-import java.util.UUID
+import org.springframework.web.server.ResponseStatusException
 
 @WebMvcTest(properties = ["novari.flyt.instance-functionality.enabled=true"])
-@ContextConfiguration(classes = [InstanceRetryController::class, InstanceRetryControllerWebMvcTest.Security::class])
+@ContextConfiguration(classes = [InstanceRetryController::class])
+@ImportAutoConfiguration(FlytSecurityAutoConfiguration::class)
+@TestPropertySource(
+    properties = [TestTokens.ORG_PROPERTY, TestTokens.INTERNAL_CLIENT_PROPERTY, TestTokens.USER_AUDIENCE_PROPERTY],
+)
 @Import(GlobalExceptionHandler::class)
 class InstanceRetryControllerWebMvcTest {
     @Autowired
@@ -68,7 +67,7 @@ class InstanceRetryControllerWebMvcTest {
     @ValueSource(booleans = [false, true])
     fun `authenticated callers without the internal user role are forbidden`(batch: Boolean) {
         token(authorized = false)
-        mvc.perform(request(batch).header("Authorization", "Bearer token")).andExpect(status().isForbidden)
+        mvc.perform(request(batch).header("Authorization", bearer)).andExpect(status().isForbidden)
         verifyNoInteractions(service)
     }
 
@@ -76,7 +75,7 @@ class InstanceRetryControllerWebMvcTest {
     fun `authorized single retry returns an empty success response`() {
         token()
         mvc
-            .perform(request(false).header("Authorization", "Bearer token"))
+            .perform(request(false).header("Authorization", bearer))
             .andExpect(status().isOk)
             .andExpect(content().string(""))
         verify(service).retry(123L)
@@ -86,9 +85,9 @@ class InstanceRetryControllerWebMvcTest {
     fun `missing instance gives 404 and missing headers gives 500`() {
         token()
         doThrow(EntityNotFoundException()).whenever(service).retry(123L)
-        mvc.perform(request(false).header("Authorization", "Bearer token")).andExpect(status().isNotFound)
+        mvc.perform(request(false).header("Authorization", bearer)).andExpect(status().isNotFound)
         doThrow(MissingRetryHeadersException(123L)).whenever(service).retry(123L)
-        mvc.perform(request(false).header("Authorization", "Bearer token")).andExpect(status().isInternalServerError)
+        mvc.perform(request(false).header("Authorization", bearer)).andExpect(status().isInternalServerError)
     }
 
     @Test
@@ -97,16 +96,23 @@ class InstanceRetryControllerWebMvcTest {
         val conflict = RetryStatusConflictException(123L)
         doThrow(conflict).whenever(service).retry(123L)
         mvc
-            .perform(request(false).header("Authorization", "Bearer token"))
+            .perform(request(false).header("Authorization", bearer))
             .andExpect(status().isConflict)
             .andExpect(jsonPath("$.detail").value(conflict.message))
+    }
+
+    @Test
+    fun `a source application the user does not have gives 403`() {
+        token()
+        doThrow(ResponseStatusException(HttpStatus.FORBIDDEN)).whenever(service).retry(123L)
+        mvc.perform(request(false).header("Authorization", bearer)).andExpect(status().isForbidden)
     }
 
     @Test
     fun `synchronous publication failure gives 500`() {
         token()
         doThrow(KafkaException("Publication failed")).whenever(service).retry(123L)
-        mvc.perform(request(false).header("Authorization", "Bearer token")).andExpect(status().isInternalServerError)
+        mvc.perform(request(false).header("Authorization", bearer)).andExpect(status().isInternalServerError)
     }
 
     @Test
@@ -116,7 +122,7 @@ class InstanceRetryControllerWebMvcTest {
             .perform(
                 post(
                     BATCH,
-                ).contentType(MediaType.APPLICATION_JSON).content("[").header("Authorization", "Bearer token"),
+                ).contentType(MediaType.APPLICATION_JSON).content("[").header("Authorization", bearer),
             ).andExpect(status().isBadRequest)
             .andExpect(content().string(""))
         verifyNoInteractions(service)
@@ -128,7 +134,23 @@ class InstanceRetryControllerWebMvcTest {
         doThrow(RetryStatusConflictException(123L)).whenever(service).retry(123L)
         doThrow(KafkaException("Publication failed")).whenever(service).retry(124L)
         mvc
-            .perform(request(true).content("[123,124,125,125]").header("Authorization", "Bearer token"))
+            .perform(request(true).content("[123,124,125,125]").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(content().string(""))
+        org.mockito.kotlin.inOrder(service) {
+            verify(service).retry(123L)
+            verify(service).retry(124L)
+            verify(service).retry(125L)
+        }
+        verifyNoMoreInteractions(service)
+    }
+
+    @Test
+    fun `batch skips an instance from a source application the user does not have and retries the rest`() {
+        token()
+        doThrow(ResponseStatusException(HttpStatus.FORBIDDEN)).whenever(service).retry(124L)
+        mvc
+            .perform(request(true).content("[123,124,125]").header("Authorization", bearer))
             .andExpect(status().isOk)
             .andExpect(content().string(""))
         org.mockito.kotlin.inOrder(service) {
@@ -146,7 +168,7 @@ class InstanceRetryControllerWebMvcTest {
             .perform(
                 post(
                     BATCH,
-                ).contentType(MediaType.APPLICATION_JSON).content("[]").header("Authorization", "Bearer token"),
+                ).contentType(MediaType.APPLICATION_JSON).content("[]").header("Authorization", bearer),
             ).andExpect(status().isOk)
             .andExpect(content().string(""))
         verifyNoInteractions(service)
@@ -158,7 +180,7 @@ class InstanceRetryControllerWebMvcTest {
         doThrow(InterruptedException("interrupted")).whenever(service).retry(123L)
         try {
             mvc
-                .perform(request(true).header("Authorization", "Bearer token"))
+                .perform(request(true).header("Authorization", bearer))
                 .andExpect(status().isInternalServerError)
             assertThat(Thread.currentThread().isInterrupted).isTrue()
         } finally {
@@ -178,7 +200,7 @@ class InstanceRetryControllerWebMvcTest {
                 post(BATCH)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(instanceIds.joinToString(prefix = "[", postfix = "]"))
-                    .header("Authorization", "Bearer token"),
+                    .header("Authorization", bearer),
             ).andExpect(status().isOk)
             .andExpect(content().string(""))
         val attempted = argumentCaptor<Long>()
@@ -194,43 +216,13 @@ class InstanceRetryControllerWebMvcTest {
             post("/api/intern/handlinger/instanser/123/prov-igjen")
         }
 
-    private fun token(authorized: Boolean = true) {
-        whenever(decoder.decode("token")).thenReturn(
-            Jwt
-                .withTokenValue("token")
-                .header("alg", "RS256")
-                .subject("user")
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(60))
-                .claim("organizationid", "afk.no")
-                .claim("objectidentifier", UUID.randomUUID().toString())
-                .claim("roles", if (authorized) listOf(UserRole.USER.claimValue) else emptyList<String>())
-                .build(),
-        )
-    }
+    private var bearer = ""
 
-    @TestConfiguration(proxyBeanMethods = false)
-    class Security {
-        @Bean
-        fun internalApi(http: HttpSecurity): SecurityFilterChain {
-            val properties =
-                InternalApiSecurityProperties().apply {
-                    authorizedOrgIdRolePairsJson = """{"afk.no":["USER"]}"""
-                    parseAndSetAuthorizedOrgIdRolePairs()
-                }
-            val config = InternalUserApiConfiguration()
-            val authorityMapping = config.userRoleAuthorityMappingService(AuthorityMappingService())
-            return SecurityConfiguration().internalUserApiFilterChain(
-                http,
-                config.userJwtConverter(
-                    config.userRoleFilteringService(properties),
-                    config.userRoleHierarchyService(),
-                    authorityMapping,
-                ),
-                authorityMapping,
-                SecurityFilterChainFactoryService(),
-            )
-        }
+    @BeforeEach
+    fun stubTokens() = TestTokens.stub(decoder)
+
+    private fun token(authorized: Boolean = true) {
+        bearer = "Bearer ${TestTokens.user(role = if (authorized) UserRole.USER else null)}"
     }
 
     companion object {

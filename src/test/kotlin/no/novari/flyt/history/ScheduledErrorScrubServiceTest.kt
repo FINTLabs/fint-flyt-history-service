@@ -10,11 +10,12 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -23,9 +24,9 @@ import org.springframework.test.context.TestPropertySource
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.util.unit.DataSize
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.sql.Timestamp
 import java.time.Clock
 import java.time.Instant
@@ -109,7 +110,7 @@ class ScheduledErrorScrubServiceTest {
         }
         assertThat(errorArgValues(oldErrorEvent.id)).containsExactly("")
         assertThat(errorArgValues(secondOldErrorEvent.id)).containsExactly("")
-        assertThat(eventRepository.findById(oldManualEvent.id).orElseThrow().comment).isEqualTo(manualComment)
+        assertThat(checkNotNull(eventRepository.findByIdOrNull(oldManualEvent.id)).comment).isEqualTo(manualComment)
 
         assertThat(isScrubbed(alreadyScrubbedEvent.id)).isTrue()
         assertThat(scrubbedAt(alreadyScrubbedEvent.id)).isEqualTo(alreadyScrubbedAt)
@@ -223,7 +224,7 @@ class ScheduledErrorScrubServiceTest {
     companion object {
         @JvmField
         @Container
-        val postgreSQLContainer: PostgreSQLContainer<*> =
+        val postgreSQLContainer: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17")
                 .withUrlParam("reWriteBatchedInserts", "true")
                 .withCreateContainerCmdModifier { createContainerCmd ->

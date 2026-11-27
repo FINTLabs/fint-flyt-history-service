@@ -1,214 +1,113 @@
 package no.novari.flyt.history.kafka
 
-import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.audit.actor.ActorHeader
 import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.InstanceInfoEventService
 import no.novari.flyt.history.model.event.EventCategory
-import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.instance.InstanceDeletionService
-import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowConsumerRecord
-import no.novari.flyt.kafka.instanceflow.consuming.InstanceFlowListenerFactoryService
+import no.novari.flyt.kafka.instanceflow.headers.INSTANCE_FLOW_HEADERS_KEY
+import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import no.novari.flyt.kafka.model.ErrorCollection
 import no.novari.flyt.kafka.model.InstanceErrorEvent
-import no.novari.kafka.OriginHeaderProducerInterceptor
-import no.novari.kafka.consuming.ErrorHandlerConfiguration
-import no.novari.kafka.consuming.ErrorHandlerFactory
-import no.novari.kafka.consuming.ListenerConfiguration
-import no.novari.kafka.topic.name.ErrorEventTopicNameParameters
-import no.novari.kafka.topic.name.TopicNamePrefixParameters
-import org.apache.kafka.common.header.Headers
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
+import no.novari.kafka.starter.producer.OriginHeaderProducerInterceptor.Companion.ORIGIN_APPLICATION_ID_RECORD_HEADER
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
-import java.nio.charset.StandardCharsets.UTF_8
+import org.springframework.kafka.annotation.KafkaListener
+import org.springframework.kafka.listener.CommonErrorHandler
+import org.springframework.kafka.listener.DefaultErrorHandler
+import org.springframework.kafka.support.KafkaHeaders
+import org.springframework.messaging.handler.annotation.Header
+import org.springframework.stereotype.Component
+import org.springframework.util.backoff.FixedBackOff
 import java.time.Instant
 
 @Configuration
-class EventListenerConfiguration(
-    private val instanceErrorEventService: InstanceErrorEventService,
+class EventListenerConfiguration {
+    /** One attempt, then log and skip, as `noRetries().skipFailedRecords()` did. instance-received has its own. */
+    @Bean
+    fun kafkaErrorHandler(): CommonErrorHandler = DefaultErrorHandler(FixedBackOff(0, 0))
+}
+
+/** History events, all in the application's group, as before. */
+@Component
+class HistoryEventListener(
+    private val historyEventTopics: HistoryEventTopics,
     private val instanceInfoEventService: InstanceInfoEventService,
+    private val instanceErrorEventService: InstanceErrorEventService,
     private val instanceDeletionService: InstanceDeletionService,
-    private val instanceFlowListenerFactoryService: InstanceFlowListenerFactoryService,
-    private val errorHandlerFactory: ErrorHandlerFactory,
-    private val beanFactory: ConfigurableListableBeanFactory,
-    @Value($$"${novari.flyt.history-service.kafka.legacy-error-topic-listeners-enabled:true}")
-    private val legacyErrorTopicListenersEnabled: Boolean,
 ) {
-    @Bean
-    fun eventListenerContainers(): Map<String, ConcurrentMessageListenerContainer<String, *>> {
-        return EventCategory.entries
-            .filter(EventCategory::createKafkaListener)
-            .filter(::isListenerEnabled)
-            .associateBy(EventCategory::eventName, ::registerListenerBean)
-    }
-
-    private fun isListenerEnabled(category: EventCategory): Boolean {
-        return legacyErrorTopicListenersEnabled || category !in LEGACY_ERROR_TOPIC_CATEGORIES
-    }
-
-    private fun registerListenerBean(category: EventCategory): ConcurrentMessageListenerContainer<String, *> {
-        val container = createEventListener(category)
-        beanFactory.registerSingleton("eventListener-${category.eventName}", container)
-        return container
-    }
-
-    private fun createEventListener(eventCategory: EventCategory): ConcurrentMessageListenerContainer<String, *> {
-        return when (eventCategory.type) {
-            EventType.INFO -> createInfoEventListener(eventCategory)
-            EventType.ERROR -> createErrorEventListener(eventCategory)
+    @KafkaListener(topics = ["#{@historyEventTopics.info}"])
+    fun onInfoEvent(
+        @Header(INSTANCE_FLOW_HEADERS_KEY) headers: InstanceFlowHeaders,
+        @Header(KafkaHeaders.RECEIVED_TOPIC) topic: String,
+        @Header(KafkaHeaders.RECEIVED_TIMESTAMP) timestamp: Long,
+        @Header(ORIGIN_APPLICATION_ID_RECORD_HEADER) origin: ByteArray,
+        @Header(name = ActorHeader.HEADER_NAME, required = false) actor: ByteArray?,
+    ) {
+        val category = historyEventTopics.category(topic)
+        instanceInfoEventService.registerEvent(
+            instanceFlowHeaders = headers,
+            eventCategory = category,
+            timestamp = Instant.ofEpochMilli(timestamp),
+            applicationId = origin.decodeToString(),
+            actor =
+                if (category ==
+                    EventCategory.INSTANCE_REQUESTED_FOR_RETRY
+                ) {
+                    ActorHeader.fromHeaderValueOrNull(actor)
+                } else {
+                    null
+                },
+        )
+        // Same group as the history event, so no separate offsets need to be carried over at cutover.
+        if (category == EventCategory.INSTANCE_DISPATCHED) {
+            instanceDeletionService.delete(headers)
         }
     }
 
-    private fun createInfoEventListener(category: EventCategory): ConcurrentMessageListenerContainer<String, Any> {
-        return instanceFlowListenerFactoryService
-            .createRecordListenerContainerFactory(
-                Any::class.java,
-                { instanceFlowConsumerRecord ->
-                    instanceInfoEventService.registerEvent(
-                        instanceFlowHeaders = instanceFlowConsumerRecord.instanceFlowHeaders,
-                        eventCategory = category,
-                        timestamp = Instant.ofEpochMilli(instanceFlowConsumerRecord.consumerRecord.timestamp()),
-                        applicationId = getApplicationId(instanceFlowConsumerRecord.consumerRecord.headers()),
-                        actor = retryActor(instanceFlowConsumerRecord, category),
-                    )
-                    // Same group as the history event, so no separate offsets need to be carried over at cutover.
-                    if (category == EventCategory.INSTANCE_DISPATCHED) {
-                        instanceDeletionService.delete(instanceFlowConsumerRecord.instanceFlowHeaders)
-                    }
-                },
-                ListenerConfiguration
-                    .stepBuilder()
-                    .groupIdApplicationDefault()
-                    .maxPollRecordsKafkaDefault()
-                    .maxPollIntervalKafkaDefault()
-                    .continueFromPreviousOffsetOnAssignment()
-                    .build(),
-                errorHandlerFactory.createErrorHandler(
-                    ErrorHandlerConfiguration
-                        .stepBuilder<Any>()
-                        .noRetries()
-                        .skipFailedRecords()
-                        .build(),
-                ),
-            ).createContainer(
-                eventTopicNameParameters(category),
-            )
-    }
-
-    private fun retryActor(
-        instanceFlowConsumerRecord: InstanceFlowConsumerRecord<Any>,
-        category: EventCategory,
-    ): Actor? {
-        if (category != EventCategory.INSTANCE_REQUESTED_FOR_RETRY) {
-            return null
-        }
-
-        return instanceFlowConsumerRecord
-            .consumerRecord
-            .headers()
-            .lastHeader(ActorHeader.HEADER_NAME)
-            ?.value()
-            ?.let(ActorHeader::fromHeaderValueOrNull)
-    }
-
-    private fun createErrorEventListener(
-        eventCategory: EventCategory,
-    ): ConcurrentMessageListenerContainer<String, ErrorCollection> {
-        return instanceFlowListenerFactoryService
-            .createRecordListenerContainerFactory(
-                ErrorCollection::class.java,
-                { instanceFlowConsumerRecord ->
-                    instanceErrorEventService.registerError(
-                        instanceFlowHeaders = instanceFlowConsumerRecord.instanceFlowHeaders,
-                        eventCategory = eventCategory,
-                        errorCollection = instanceFlowConsumerRecord.consumerRecord.value(),
-                        timestamp = Instant.ofEpochMilli(instanceFlowConsumerRecord.consumerRecord.timestamp()),
-                        applicationId = getApplicationId(instanceFlowConsumerRecord.consumerRecord.headers()),
-                    )
-                },
-                ListenerConfiguration
-                    .stepBuilder()
-                    .groupIdApplicationDefault()
-                    .maxPollRecordsKafkaDefault()
-                    .maxPollIntervalKafkaDefault()
-                    .continueFromPreviousOffsetOnAssignment()
-                    .build(),
-                errorHandlerFactory.createErrorHandler(
-                    ErrorHandlerConfiguration
-                        .stepBuilder<ErrorCollection>()
-                        .noRetries()
-                        .skipFailedRecords()
-                        .build(),
-                ),
-            ).createContainer(createErrorEventTopicNameParameters(eventCategory.eventName))
-    }
-
-    @Bean
-    fun instanceErrorListener(): ConcurrentMessageListenerContainer<String, InstanceErrorEvent> {
-        return instanceFlowListenerFactoryService
-            .createRecordListenerContainerFactory(
-                InstanceErrorEvent::class.java,
-                { instanceFlowConsumerRecord ->
-                    instanceErrorEventService.registerError(
-                        instanceFlowHeaders = instanceFlowConsumerRecord.instanceFlowHeaders,
-                        instanceErrorEvent = instanceFlowConsumerRecord.consumerRecord.value(),
-                        timestamp = Instant.ofEpochMilli(instanceFlowConsumerRecord.consumerRecord.timestamp()),
-                        applicationId = getApplicationId(instanceFlowConsumerRecord.consumerRecord.headers()),
-                    )
-                },
-                ListenerConfiguration
-                    .stepBuilder()
-                    .groupIdApplicationDefault()
-                    .maxPollRecordsKafkaDefault()
-                    .maxPollIntervalKafkaDefault()
-                    .continueFromPreviousOffsetOnAssignment()
-                    .build(),
-                errorHandlerFactory.createErrorHandler(
-                    ErrorHandlerConfiguration
-                        .stepBuilder<InstanceErrorEvent>()
-                        .noRetries()
-                        .skipFailedRecords()
-                        .build(),
-                ),
-            ).createContainer(createErrorEventTopicNameParameters("instance-error"))
-    }
-
-    private fun createErrorEventTopicNameParameters(errorEventName: String): ErrorEventTopicNameParameters {
-        return ErrorEventTopicNameParameters
-            .builder()
-            .errorEventName(errorEventName)
-            .topicNamePrefixParameters(topicNamePrefixParameters())
-            .build()
-    }
-
-    private fun topicNamePrefixParameters(): TopicNamePrefixParameters {
-        return TopicNamePrefixParameters
-            .stepBuilder()
-            .orgIdApplicationDefault()
-            .domainContextApplicationDefault()
-            .build()
-    }
-
-    private fun getApplicationId(headers: Headers): String {
-        return String(
-            requireNotNull(
-                headers.lastHeader(OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_RECORD_HEADER),
-            ).value(),
-            UTF_8,
+    @KafkaListener(topics = ["#{@historyEventTopics.instanceError}"])
+    fun onInstanceError(
+        event: InstanceErrorEvent,
+        @Header(INSTANCE_FLOW_HEADERS_KEY) headers: InstanceFlowHeaders,
+        @Header(KafkaHeaders.RECEIVED_TIMESTAMP) timestamp: Long,
+        @Header(ORIGIN_APPLICATION_ID_RECORD_HEADER) origin: ByteArray,
+    ) {
+        instanceErrorEventService.registerError(
+            instanceFlowHeaders = headers,
+            instanceErrorEvent = event,
+            timestamp = Instant.ofEpochMilli(timestamp),
+            applicationId = origin.decodeToString(),
         )
     }
+}
 
-    private companion object {
-        val LEGACY_ERROR_TOPIC_CATEGORIES =
-            setOf(
-                EventCategory.INSTANCE_RECEIVAL_ERROR,
-                EventCategory.INSTANCE_REGISTRATION_ERROR,
-                EventCategory.INSTANCE_RETRY_REQUEST_ERROR,
-                EventCategory.INSTANCE_MAPPING_ERROR,
-                EventCategory.INSTANCE_DISPATCHING_ERROR,
-            )
+/** The error topics before instance-error. Turned off with `legacy-error-topic-listeners-enabled: false`. */
+@Component
+@ConditionalOnProperty(
+    prefix = "novari.flyt.history-service.kafka",
+    name = ["legacy-error-topic-listeners-enabled"],
+    havingValue = "true",
+    matchIfMissing = true,
+)
+class LegacyErrorEventListener(
+    private val historyEventTopics: HistoryEventTopics,
+    private val instanceErrorEventService: InstanceErrorEventService,
+) {
+    @KafkaListener(topics = ["#{@historyEventTopics.legacyErrors}"])
+    fun onErrorEvent(
+        errors: ErrorCollection,
+        @Header(INSTANCE_FLOW_HEADERS_KEY) headers: InstanceFlowHeaders,
+        @Header(KafkaHeaders.RECEIVED_TOPIC) topic: String,
+        @Header(KafkaHeaders.RECEIVED_TIMESTAMP) timestamp: Long,
+        @Header(ORIGIN_APPLICATION_ID_RECORD_HEADER) origin: ByteArray,
+    ) {
+        instanceErrorEventService.registerError(
+            instanceFlowHeaders = headers,
+            eventCategory = historyEventTopics.category(topic),
+            errorCollection = errors,
+            timestamp = Instant.ofEpochMilli(timestamp),
+            applicationId = origin.decodeToString(),
+        )
     }
 }

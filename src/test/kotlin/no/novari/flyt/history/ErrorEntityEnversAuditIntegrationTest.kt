@@ -11,8 +11,8 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.queryForList
@@ -24,9 +24,9 @@ import org.springframework.test.context.TestPropertySource
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.util.unit.DataSize
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -65,7 +65,7 @@ class ErrorEntityEnversAuditIntegrationTest {
 
     @Test
     fun `error_args_aud-tabellen finnes ikke — @NotAudited hindrer at PII speiles i historikk`() {
-        val exists: Boolean =
+        val exists: Boolean? =
             jdbcTemplate.queryForObject<Boolean>(
                 """
                 SELECT EXISTS (
@@ -111,7 +111,7 @@ class ErrorEntityEnversAuditIntegrationTest {
         val liveArgs =
             jdbcTemplate.queryForList<String>(
                 """SELECT "value" FROM error_args WHERE error_id = ?""",
-                arrayOf(errorId),
+                errorId,
             )
         assertThat(liveArgs).allSatisfy { assertThat(it).isEmpty() }
 
@@ -125,7 +125,7 @@ class ErrorEntityEnversAuditIntegrationTest {
     private fun lastModifiedAt(errorId: Long): OffsetDateTime =
         jdbcTemplate.queryForObject<OffsetDateTime>(
             "SELECT last_modified_at FROM error WHERE id = ?",
-            arrayOf(errorId),
+            errorId,
         )!!
 
     private fun saveEventWithError(args: Map<String, String>): EventEntity {
@@ -149,28 +149,28 @@ class ErrorEntityEnversAuditIntegrationTest {
 
     private fun headers(event: EventEntity): InstanceFlowHeaders {
         val embedded = requireNotNull(event.instanceFlowHeaders)
-        return InstanceFlowHeaders
-            .builder()
-            .sourceApplicationId(requireNotNull(embedded.sourceApplicationId))
-            .sourceApplicationIntegrationId(requireNotNull(embedded.sourceApplicationIntegrationId))
-            .sourceApplicationInstanceId(requireNotNull(embedded.sourceApplicationInstanceId))
-            .correlationId(UUID.randomUUID())
-            .integrationId(requireNotNull(embedded.integrationId))
-            .build()
+        return InstanceFlowHeaders(
+            sourceApplicationId = requireNotNull(embedded.sourceApplicationId),
+            sourceApplicationIntegrationId = requireNotNull(embedded.sourceApplicationIntegrationId),
+            sourceApplicationInstanceId = requireNotNull(embedded.sourceApplicationInstanceId),
+            correlationId = UUID.randomUUID(),
+            integrationId = requireNotNull(embedded.integrationId),
+        )
     }
 
-    private fun countRevinfo(): Int = jdbcTemplate.queryForObject<Int>("SELECT COUNT(*) FROM revinfo")
+    private fun countRevinfo(): Int = requireNotNull(jdbcTemplate.queryForObject<Int>("SELECT COUNT(*) FROM revinfo"))
 
     private fun errorAudRevtypes(errorId: Long): List<Int> =
-        jdbcTemplate.queryForList<Int>(
-            "SELECT revtype FROM error_aud WHERE id = ? ORDER BY rev",
-            arrayOf(errorId),
-        )
+        jdbcTemplate
+            .queryForList<Int>(
+                "SELECT revtype FROM error_aud WHERE id = ? ORDER BY rev",
+                errorId,
+            ).filterNotNull()
 
     companion object {
         @JvmField
         @Container
-        val postgreSQLContainer: PostgreSQLContainer<*> =
+        val postgreSQLContainer: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17")
                 .withCreateContainerCmdModifier { createContainerCmd ->
                     requireNotNull(createContainerCmd.hostConfig)

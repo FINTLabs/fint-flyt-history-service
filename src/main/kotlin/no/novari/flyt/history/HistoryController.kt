@@ -19,10 +19,9 @@ import no.novari.flyt.history.model.response.IntegrationStatisticsResponse
 import no.novari.flyt.history.model.statistics.IntegrationStatisticsFilter
 import no.novari.flyt.history.repository.projections.InstanceStatisticsProjection
 import no.novari.flyt.history.validation.ValidationErrorsFormattingService
-import no.novari.flyt.webresourceserver.UrlPaths.INTERNAL_API
+import no.novari.flyt.security.UrlPaths.INTERNAL_API
 import org.springdoc.core.annotations.ParameterObject
 import org.springframework.data.domain.Pageable
-import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -44,10 +43,9 @@ class HistoryController(
 
     @GetMapping("statistics/total")
     @Operation(summary = "Get overall instance statistics")
-    fun getOverallStatistics(authentication: Authentication): InstanceStatisticsProjection {
+    fun getOverallStatistics(): InstanceStatisticsProjection {
         val userAuthorizedSourceApplicationIds =
             authorizationService.getUserAuthorizedSourceApplicationIds(
-                authentication,
                 eventService.findDistinctSourceApplicationIds(),
             )
 
@@ -57,7 +55,6 @@ class HistoryController(
     @GetMapping("statistics/integrations")
     @Operation(summary = "Get instance statistics grouped by integration")
     fun getIntegrationStatistics(
-        authentication: Authentication,
         @ParameterObject
         integrationStatisticsFilter: IntegrationStatisticsFilter,
         @ParameterObject
@@ -65,7 +62,6 @@ class HistoryController(
     ): IntegrationStatisticsResponse {
         val intersectionOfAuthorizedAndFilterSourceApplicationIds =
             getAuthorizedSourceApplicationIds(
-                authentication,
                 integrationStatisticsFilter.sourceApplicationIds,
             )
 
@@ -92,12 +88,10 @@ class HistoryController(
         ],
     )
     fun getInstanceFlowSummariesTotalCount(
-        authentication: Authentication,
         @ParameterObject
         instanceFlowSummariesFilter: InstanceFlowSummariesFilter,
     ): Long =
         getInstanceFlowSummariesData(
-            authentication = authentication,
             instanceFlowSummariesFilter = instanceFlowSummariesFilter,
             emptyValue = 0L,
             eventServiceCallFunction = eventService::getInstanceFlowSummariesTotalCount,
@@ -112,21 +106,18 @@ class HistoryController(
         ],
     )
     fun getInstanceFlowSummaries(
-        authentication: Authentication,
         @ParameterObject
         instanceFlowSummariesFilter: InstanceFlowSummariesFilter,
         @Parameter(description = "Maximum number of summaries to return")
         @RequestParam size: Int,
     ): List<InstanceFlowSummary> =
         getInstanceFlowSummariesData(
-            authentication = authentication,
             instanceFlowSummariesFilter = instanceFlowSummariesFilter,
             emptyValue = emptyList(),
             eventServiceCallFunction = { filter -> eventService.getInstanceFlowSummaries(filter, size) },
         )
 
     private fun <T> getInstanceFlowSummariesData(
-        authentication: Authentication,
         instanceFlowSummariesFilter: InstanceFlowSummariesFilter,
         emptyValue: T,
         eventServiceCallFunction: (InstanceFlowSummariesFilter) -> T,
@@ -135,7 +126,6 @@ class HistoryController(
 
         val intersectionOfAuthorizedAndFilterSourceApplicationIds =
             getAuthorizedSourceApplicationIds(
-                authentication,
                 instanceFlowSummariesFilter.sourceApplicationIds,
             )
 
@@ -151,12 +141,8 @@ class HistoryController(
         return eventServiceCallFunction(filterLimitedByUserAuthorization)
     }
 
-    private fun getAuthorizedSourceApplicationIds(
-        authentication: Authentication,
-        requestedSourceApplicationIds: Collection<Long>?,
-    ): Set<Long> {
+    private fun getAuthorizedSourceApplicationIds(requestedSourceApplicationIds: Collection<Long>?): Set<Long> {
         return authorizationService.getUserAuthorizedSourceApplicationIds(
-            authentication,
             requestedSourceApplicationIds?.toSet() ?: eventService.findDistinctSourceApplicationIds(),
         )
     }
@@ -173,7 +159,6 @@ class HistoryController(
         ],
     )
     fun getEventsWithSourceApplicationAggregateInstanceId(
-        authentication: Authentication,
         @Parameter(description = "Source application identifier")
         @RequestParam sourceApplicationId: Long,
         @Parameter(description = "Source application integration identifier")
@@ -183,7 +168,7 @@ class HistoryController(
         @ParameterObject
         pageable: Pageable,
     ): EventPageResponse {
-        authorizationService.validateUserIsAuthorizedForSourceApplication(authentication, sourceApplicationId)
+        authorizationService.validateUserIsAuthorizedForSourceApplication(sourceApplicationId)
         val events =
             eventService.getAllEventsBySourceApplicationAggregateInstanceId(
                 sourceApplicationId,
@@ -208,13 +193,11 @@ class HistoryController(
         ],
     )
     fun setManuallyProcessed(
-        authentication: Authentication,
         @RequestBody manuallyProcessedEventAction: ManuallyProcessedEventAction,
     ): Event {
         validate(manuallyProcessedEventAction)
 
         authorizationService.validateUserIsAuthorizedForSourceApplication(
-            authentication,
             manuallyProcessedEventAction.sourceApplicationId,
         )
 
@@ -232,13 +215,11 @@ class HistoryController(
         ],
     )
     fun setManuallyRejected(
-        authentication: Authentication,
         @RequestBody manuallyRejectedEventAction: ManuallyRejectedEventAction,
     ): Event {
         validate(manuallyRejectedEventAction)
 
         authorizationService.validateUserIsAuthorizedForSourceApplication(
-            authentication,
             manuallyRejectedEventAction.sourceApplicationId,
         )
 
@@ -256,13 +237,11 @@ class HistoryController(
         ],
     )
     fun setInstanceStatusTransferredOverride(
-        authentication: Authentication,
         @RequestBody instanceStatusTransferredOverrideAction: InstanceStatusTransferredOverrideAction,
     ): Event {
         validate(instanceStatusTransferredOverrideAction)
 
         authorizationService.validateUserIsAuthorizedForSourceApplication(
-            authentication,
             instanceStatusTransferredOverrideAction.sourceApplicationId,
         )
 

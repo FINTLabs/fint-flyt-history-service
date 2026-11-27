@@ -1,56 +1,28 @@
 package no.novari.flyt.history
 
+import no.novari.flyt.history.support.TestTokens
 import no.novari.flyt.history.validation.ValidationErrorsFormattingService
-import no.novari.flyt.webresourceserver.security.AuthorityMappingService
-import no.novari.flyt.webresourceserver.security.AuthorizationServiceConfiguration
-import no.novari.flyt.webresourceserver.security.InternalClientApiConfiguration
-import no.novari.flyt.webresourceserver.security.InternalUserApiConfiguration
-import no.novari.flyt.webresourceserver.security.SecurityConfiguration
-import no.novari.flyt.webresourceserver.security.SecurityFilterChainFactoryService
-import no.novari.flyt.webresourceserver.security.client.sourceapplication.SourceApplicationJwtConverter
+import no.novari.flyt.security.FlytSecurityAutoConfiguration
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration
-import org.springframework.boot.autoconfigure.http.client.HttpClientAutoConfiguration
-import org.springframework.boot.autoconfigure.web.client.RestClientAutoConfiguration
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
-import org.springframework.context.annotation.Import
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.http.HttpHeaders
-import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
-import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.TestPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import java.time.Instant
 
-/**
- * Runs the security filter chain from flyt-web-resource-server, configured by
- * application-flyt-web-resource-server.yaml, against `/api/intern-klient`.
- * Only token decoding is mocked; the subject of the decoded token is the OAuth client id.
- */
+/** The internal client chain of flyt-security-starter against `/api/intern-klient`. Only token decoding is stubbed. */
 @WebMvcTest(ArchiveInstanceIdInternalClientController::class)
-@ImportAutoConfiguration(
-    HttpClientAutoConfiguration::class,
-    RestClientAutoConfiguration::class,
-    AuthorizationServiceConfiguration::class,
-    InternalClientApiConfiguration::class,
-    InternalUserApiConfiguration::class,
-    SecurityConfiguration::class,
-)
-// Library components that @WebMvcTest filters out of the no.novari component scan.
-@Import(AuthorityMappingService::class, SecurityFilterChainFactoryService::class)
-@ActiveProfiles("flyt-web-resource-server")
+@ImportAutoConfiguration(FlytSecurityAutoConfiguration::class)
 @TestPropertySource(
-    properties = [
-        "fint.flyt.authorization.sso.client-id=$INTERNAL_CLIENT_ID",
-        "fint.flyt.authorization.sso.client-secret=test-secret",
-    ],
+    properties = ["fint.org-id=fintlabs.no", "fint.flyt.authorization.sso.client-id=test-internal-client"],
 )
 class ArchiveInstanceIdInternalClientSecurityTest {
     @Autowired
@@ -65,60 +37,53 @@ class ArchiveInstanceIdInternalClientSecurityTest {
     @MockitoBean
     lateinit var validationErrorsFormattingService: ValidationErrorsFormattingService
 
-    // Picked up by the no.novari component scan; its dependencies need Kafka.
-    @MockitoBean
-    lateinit var sourceApplicationJwtConverter: SourceApplicationJwtConverter
+    @BeforeEach
+    fun stubTokens() = TestTokens.stub(jwtDecoder)
 
     @Test
     fun `rejects request without token`() {
-        mockMvc
-            .perform(get(PATH))
-            .andExpect(status().isUnauthorized)
+        mockMvc.perform(get(PATH)).andExpect(status().isUnauthorized)
     }
 
     @Test
     fun `rejects token from another client`() {
-        givenTokenForClient("fint-flyt-some-other-oauth2-client")
-
         mockMvc
-            .perform(get(PATH).header(HttpHeaders.AUTHORIZATION, "Bearer token"))
-            .andExpect(status().isForbidden)
+            .perform(
+                get(
+                    PATH,
+                ).header(
+                    HttpHeaders.AUTHORIZATION,
+                    "Bearer ${TestTokens.client("fint-flyt-some-other-oauth2-client")}",
+                ),
+            ).andExpect(status().isForbidden)
+    }
+
+    @Test
+    fun `rejects a user token`() {
+        mockMvc
+            .perform(get(PATH).header(HttpHeaders.AUTHORIZATION, "Bearer ${TestTokens.user()}"))
+            .andExpect(status().isUnauthorized)
     }
 
     @Test
     fun `accepts token from internal client`() {
-        givenTokenForClient(INTERNAL_CLIENT_ID)
         whenever(eventService.findLatestArchiveInstanceId(1L, null, "instance-1")).thenReturn("2024/123")
 
         mockMvc
-            .perform(get(PATH).header(HttpHeaders.AUTHORIZATION, "Bearer token"))
+            .perform(get(PATH).header(HttpHeaders.AUTHORIZATION, "Bearer ${TestTokens.client()}"))
             .andExpect(status().isOk)
             .andExpect(content().string("2024/123"))
     }
 
     @Test
     fun `accepts token from internal client and returns 404 for unknown instance`() {
-        givenTokenForClient(INTERNAL_CLIENT_ID)
         whenever(eventService.findLatestArchiveInstanceId(1L, null, "instance-1")).thenReturn(null)
 
         mockMvc
-            .perform(get(PATH).header(HttpHeaders.AUTHORIZATION, "Bearer token"))
+            .perform(get(PATH).header(HttpHeaders.AUTHORIZATION, "Bearer ${TestTokens.client()}"))
             .andExpect(status().isNotFound)
-    }
-
-    private fun givenTokenForClient(clientId: String) {
-        whenever(jwtDecoder.decode(any())).thenReturn(
-            Jwt
-                .withTokenValue("token")
-                .header("alg", "none")
-                .subject(clientId)
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(60))
-                .build(),
-        )
     }
 }
 
-private const val INTERNAL_CLIENT_ID = "test-internal-client"
 private const val PATH =
     "/api/intern-klient/archive-instance-id?sourceApplicationId=1&sourceApplicationInstanceId=instance-1"

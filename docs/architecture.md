@@ -15,7 +15,7 @@ C4Context
     System_Ext(frontend, "fint-flyt-frontend", "Users follow instances and handle errors.")
     System_Ext(gateways, "FLYT gateways", "Receive instances from source applications.")
     System(history, "fint-flyt-history-service", "Stores the history of every instance and serves status and statistics.")
-    System_Ext(services, "Other FLYT services", "instance-service, mapping-service, archive-gateway.")
+    System_Ext(services, "Other FLYT services", "mapping-service, archive-gateway.")
     System_Ext(authz, "authorization-service", "fint-flyt-authorization-service. Which source applications a user has access to.")
     System_Ext(idp, "NAM", "Issues OAuth2 tokens.")
 
@@ -43,11 +43,9 @@ C4Context
   instance ID of an earlier instance over HTTP (`/api/intern-klient/archive-instance-id`).
 - **Other FLYT services** publish the later events in the flow (`instance-registered`,
   `instance-mapped`, `instance-dispatched`, `instance-error`, `instance-deleted` and more).
-- **Instance registration** is moving from instance-service to history-service. When
-  `novari.flyt.instance-functionality.enabled=true`, history-service consumes `instance-received`,
-  stores the instance and publishes `instance-registered`, which mapping-service consumes. It is
-  enabled by default in the takeover version. The same flag enables daily instance cleanup. Deletion after
-  `instance-dispatched` runs regardless of the flag, in parallel with instance-service until cutover.
+- **Instance registration:** history-service consumes `instance-received`, stores the instance and publishes
+  `instance-registered`, which mapping-service consumes. `novari.flyt.instance-functionality.enabled` (on by
+  default) turns registration and the daily instance cleanup on. Deletion after `instance-dispatched` always runs.
 - **Users** call the API from fint-flyt-frontend with a JWT. History-service asks
   authorization-service which source applications the user has access to, with a
   client_credentials token from NAM.
@@ -62,13 +60,13 @@ C4Container
 
     System_Ext(frontend, "fint-flyt-frontend", "Browser app.")
     ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events, instance-received, instance-registered, instance-dispatched, instance-deleted")
-    Container(app, "fint-flyt-history-service", "Kotlin, Spring Boot 3, Java 25", "Consumes events, serves the internal API, registers and deletes instances.")
+    Container(app, "fint-flyt-history-service", "Kotlin, Spring Boot 4, Java 25", "Consumes events, serves the internal API, registers and deletes instances.")
     System_Ext(prometheus, "Prometheus", "Metrics in the cluster.")
-    ContainerDb(db, "PostgreSQL", "Flyway, JPA", "History schema: events, errors, next_offset. Instance-service schema: instances.")
+    ContainerDb(db, "PostgreSQL", "Flyway, JPA", "History schema: events, errors, next_offset. Instance schema: instances.")
     Container_Ext(authz, "authorization-service", "Spring Boot", "fint-flyt-authorization-service. User access to source applications.")
 
     Rel(frontend, app, "API", "HTTPS, JWT")
-    BiRel(app, kafka, "Events", "flyt-kafka")
+    BiRel(app, kafka, "Events", "flyt-kafka 8")
     Rel(prometheus, app, "Scrapes", "HTTP")
     Rel(app, db, "Reads, writes", "JDBC")
     Rel(app, authz, "User access", "HTTP")
@@ -89,7 +87,8 @@ C4Container
 
 - The ingress only routes `/api/intern/instance-flow-tracking`. Swagger UI, OpenAPI and Actuator
   are only reachable inside the cluster.
-- The instance tables stay in the instance-service schema in the same database. See
+- The instance tables are in their own schema in the same database, `<tenant>_fint_flyt_instance_service_db`. The
+  name comes from fint-flyt-instance-service, which owned the tables before history-service took them over. See
   [Instance schema](../README.md#instance-schema).
 - The token for authorization-service comes from NAM (not shown).
 - Gateways call `/api/intern-klient/archive-instance-id` inside the cluster with a token for
@@ -154,7 +153,7 @@ C4Component
 
 Replaced the `archive-instance-id` request/reply consumer (removed in FFS-2400). Only callers with a token for
 `fint-flyt-authorization-oauth2-client`, the shared client for internal calls between FLYT services, get through the
-`internal-client` filter chain in flyt-web-resource-server.
+internal client filter chain in flyt-security-starter.
 
 ```mermaid
 C4Component
@@ -163,7 +162,7 @@ C4Component
     System_Ext(gateways, "FLYT gateways", "flyt-gateway-starter, web-instance-gateway.")
     Container_Ext(idp, "NAM", "OAuth2", "Issues the client_credentials token.")
     Component(controller, "Archive ID controller", "Spring MVC", "Latest archive instance ID as plain text, 404 if unknown.")
-    Component(security, "internal-client filter chain", "flyt-web-resource-server", "Accepts only the shared internal OAuth client.")
+    Component(security, "Internal client chain", "flyt-security-starter", "Accepts only the shared internal OAuth client.")
     Component(eventService, "EventService", "Service", "findLatestArchiveInstanceId.")
     Component(repository, "EventRepository", "Spring Data JPA", "Native SQL.")
     ContainerDb(db, "PostgreSQL", "History schema", "event")
@@ -200,7 +199,7 @@ C4Component
 C4Component
     title Event history and background jobs
 
-    Component(listeners, "Event listeners", "flyt-kafka", "One listener per event category, plus instance-error.")
+    Component(listeners, "Event listeners", "@KafkaListener", "Info events, legacy error topics and instance-error, in the default group.")
     ContainerQueue_Ext(kafka, "Kafka", "Topics", "Instance flow events")
     Component(registration, "Info and error event services", "Service", "Map a record and its headers to an event.")
     Component(jobs, "Scheduled jobs", "Spring @Scheduled", "StatisticsMetricsPublisher, ScheduledErrorScrubService.")
@@ -245,7 +244,7 @@ C4Component
 
 ### Instance registration
 
-Enabled by default (`novari.flyt.instance-functionality.enabled`) after cutover from instance-service.
+Enabled by default (`novari.flyt.instance-functionality.enabled`).
 History-service owns the received topic configuration and both schemas' Flyway histories, using one datasource.
 The rules for positions, retries and
 skipping records are in [Instance registration](../README.md#instance-registration).
@@ -256,8 +255,8 @@ C4Component
 
     ContainerQueue_Ext(kafkaIn, "Kafka", "Topic", "instance-received")
     ContainerQueue_Ext(kafkaOut, "Kafka", "Topic", "instance-registered")
-    Component(consumer, "Instance-received consumer", "fint-kafka", "Own consumer group. Retries every 10 s, never skips.")
-    Component(producer, "Producer", "flyt-kafka", "Publishes instance-registered and waits for the broker ack.")
+    Component(consumer, "Instance-received consumer", "Spring Kafka container", "Own consumer group. Retries every 10 s, never skips.")
+    Component(producer, "Producer", "flyt-kafka 8", "Publishes instance-registered and waits for the broker ack.")
     Component(registration, "Registration", "Service", "InstanceRegistrationService. Validates, saves, publishes, then moves the position.")
     Component(positions, "Positions", "Component", "InstanceReceivedPositions. next_offset per partition. Seeks on every assignment.")
     Component(instances, "InstanceService", "Spring Data JPA", "Saves the instance graph.")
@@ -298,7 +297,7 @@ C4Component
 For each record, in this order:
 
 1. `InstanceReceivedPositions` decides whether the record is the next one for its partition.
-2. `InstanceService` saves the instance in the instance-service schema.
+2. `InstanceService` saves the instance in the instance schema.
 3. `InstanceRegisteredEventProducerService` publishes `instance-registered` and waits for the broker acknowledgement.
 4. `next_offset` is set to the record offset + 1 in `instance_received_offset`.
 
@@ -318,12 +317,12 @@ C4Component
 
     ContainerQueue_Ext(dispatchedTopic, "Kafka", "Topic", "instance-dispatched")
     ContainerQueue_Ext(deletedTopic, "Kafka", "Topic", "instance-deleted")
-    Component(consumer, "Instance-dispatched history listener", "flyt-kafka", "Default group. Records the event, then deletes. No retries; skips failed records.")
+    Component(consumer, "Instance-dispatched history listener", "@KafkaListener", "Default group. Records the event, then deletes. No retries; skips failed records.")
     Component(cleanup, "InstanceCleanupService", "Spring @Scheduled", "Finds old root instances. Shared retention, default 60 days.")
     Component(deletion, "InstanceDeletionService", "Service", "Deletes the graph if it still exists, then publishes the deletion event.")
     Component(instances, "InstanceService", "Spring Data JPA", "Finds old roots and deletes complete graphs in transactions.")
     Component(headers, "EventService", "Service", "Latest registration headers from local history.")
-    Component(producer, "InstanceDeletedEventProducerService", "flyt-kafka", "Publishes asynchronously with the original headers and null payload.")
+    Component(producer, "InstanceDeletedEventProducerService", "flyt-kafka 8", "Publishes asynchronously with the original headers and null payload.")
     ContainerDb(db, "PostgreSQL", "Two schemas", "Instance graphs and event history.")
 
     Rel(dispatchedTopic, consumer, "Consumes")
@@ -349,8 +348,8 @@ C4Component
     UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
 ```
 
-Deletion runs in the ordinary history listener's group. Until cutover, instance-service also deletes dispatched
-instances: the root row lock makes the second deleter find nothing, so only the service that deleted publishes.
+Deletion runs in the ordinary history listener's group. The root row lock makes a second attempt to delete the same
+instance find nothing, so only the one that deleted it publishes `instance-deleted`.
 A failed delete leaves the instance for later scheduled cleanup. If publication fails after deletion,
 the event may be lost. Cleanup without registration headers deletes the graph and logs a warning.
 Immediate error-detail scrubbing remains disabled; scheduled scrubbing runs independently.

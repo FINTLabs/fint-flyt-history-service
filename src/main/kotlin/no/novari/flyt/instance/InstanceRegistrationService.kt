@@ -8,8 +8,8 @@ import no.novari.flyt.instance.kafka.InstanceRegisteredEventProducerService
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.kafka.instanceflow.headers.CouldNotReadInstanceFlowHeadersException
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeadersMapper
 import no.novari.flyt.kafka.instanceflow.headers.NoInstanceFlowHeadersException
+import no.novari.flyt.kafka.instanceflow.headers.instanceFlowHeaders
 import no.novari.flyt.kafka.model.Error
 import no.novari.flyt.kafka.model.ErrorCollection
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -18,6 +18,9 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
+import tools.jackson.databind.DatabindException
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.module.kotlin.readValue
 import java.time.Clock
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
@@ -30,7 +33,7 @@ class InstanceRegistrationService(
     private val instanceRegisteredEventProducerService: InstanceRegisteredEventProducerService,
     private val instanceReceivedOffsetRepository: InstanceReceivedOffsetRepository,
     private val positions: InstanceReceivedPositions,
-    private val headersMapper: InstanceFlowHeadersMapper,
+    private val jsonMapper: JsonMapper,
     private val clock: Clock,
     @param:Value($$"${fint.application-id}")
     private val applicationId: String,
@@ -47,11 +50,11 @@ class InstanceRegistrationService(
      * is saved and instance-registered is acknowledged, so it never gets ahead of processing. Technical failures are
      * thrown and retried by the error handler.
      */
-    fun register(record: ConsumerRecord<String, InstanceObjectDto?>) {
+    fun register(record: ConsumerRecord<String, String>) {
         if (!positions.isNext(record)) return
         val headers =
             try {
-                headersMapper.getInstanceFlowHeaders(record.headers()).also(InstanceInputValidator::validateHeaders)
+                record.headers().instanceFlowHeaders().also(InstanceInputValidator::validateHeaders)
             } catch (failure: Exception) {
                 if (failure !is NoInstanceFlowHeadersException &&
                     failure !is CouldNotReadInstanceFlowHeadersException &&
@@ -68,9 +71,23 @@ class InstanceRegistrationService(
                 markProcessed(record)
                 return
             }
-        val instance = record.value()
+        // A tombstone has no value at runtime, although the type says otherwise.
+        val value: String? = record.value()
+        // Unreadable JSON is thrown and retried, as a deserialization error was before. JSON that is readable but does not
+        // fit, such as a null where text is expected, is an input error, as it was when validation caught it.
+        val payload =
+            try {
+                Result.success(value?.let { jsonMapper.readValue<InstanceObjectDto>(it) })
+            } catch (failure: DatabindException) {
+                Result.failure(failure)
+            }
+        val instance: InstanceObjectDto? = payload.getOrNull()
         val inputError =
             when {
+                payload.isFailure -> {
+                    "invalid payload: ${payload.exceptionOrNull()}"
+                }
+
                 instance == null -> {
                     "missing payload"
                 }
@@ -91,7 +108,7 @@ class InstanceRegistrationService(
     }
 
     private fun register(
-        record: ConsumerRecord<String, InstanceObjectDto?>,
+        record: ConsumerRecord<String, String>,
         headers: InstanceFlowHeaders,
         instance: InstanceObjectDto,
     ) {
@@ -102,7 +119,7 @@ class InstanceRegistrationService(
         if (!progress.published) {
             val instanceId = checkNotNull(progress.instance.id) { "Persisted instance must have an id" }
             instanceRegisteredEventProducerService.publish(
-                headers.toBuilder().instanceId(instanceId).build(),
+                headers.copy(instanceId = instanceId),
                 progress.instance,
             )
             progress.published = true
@@ -112,7 +129,7 @@ class InstanceRegistrationService(
     }
 
     private fun reject(
-        record: ConsumerRecord<String, InstanceObjectDto?>,
+        record: ConsumerRecord<String, String>,
         headers: InstanceFlowHeaders,
         reason: String,
     ) {
@@ -121,7 +138,7 @@ class InstanceRegistrationService(
             instanceErrorEventService.registerError(
                 instanceFlowHeaders = headers,
                 eventCategory = EventCategory.INSTANCE_REGISTRATION_ERROR,
-                errorCollection = ErrorCollection(listOf(Error(ErrorCode.GENERAL_SYSTEM_ERROR.getCode(), null))),
+                errorCollection = ErrorCollection(listOf(Error(errorCode = ErrorCode.GENERAL_SYSTEM_ERROR.getCode()))),
                 timestamp = Instant.now(clock),
                 applicationId = applicationId,
             )

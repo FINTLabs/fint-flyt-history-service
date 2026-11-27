@@ -32,8 +32,9 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.beans.factory.getBeansOfType
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
@@ -49,9 +50,9 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -123,11 +124,11 @@ class InstanceServiceIntegrationTest {
 
     @Test
     fun `enabled flag creates both services without Kafka collaborators`() {
-        assertThat(applicationContext.getBeansOfType(InstanceService::class.java)).hasSize(1)
-        assertThat(applicationContext.getBeansOfType(InstanceMappingService::class.java)).hasSize(1)
+        assertThat(applicationContext.getBeansOfType<InstanceService>()).hasSize(1)
+        assertThat(applicationContext.getBeansOfType<InstanceMappingService>()).hasSize(1)
         assertThat(
             applicationContext
-                .getBeansOfType(Clock::class.java)
+                .getBeansOfType<Clock>()
                 .values
                 .single()
                 .instant(),
@@ -329,7 +330,7 @@ class InstanceServiceIntegrationTest {
     fun `dispatch without an instance identity deletes and publishes nothing`() {
         val saved = instanceService.save(instanceGraph())
 
-        assertThatThrownBy { deletionService.delete(deletionHeaders(saved.id!!).toBuilder().instanceId(null).build()) }
+        assertThatThrownBy { deletionService.delete(deletionHeaders(saved.id!!).copy(instanceId = null)) }
             .isInstanceOf(IllegalArgumentException::class.java)
 
         assertThat(nodes(instanceService.getById(saved.id!!))).hasSize(3)
@@ -351,7 +352,7 @@ class InstanceServiceIntegrationTest {
             retained.id,
         )
         val originalHeaders = deletionHeaders(old.id!!)
-        val latestHeaders = originalHeaders.toBuilder().fileIds(listOf(UUID.randomUUID())).build()
+        val latestHeaders = originalHeaders.copy(fileIds = listOf(UUID.randomUUID()))
         infoEvents.registerEvent(
             originalHeaders,
             EventCategory.INSTANCE_REGISTERED,
@@ -374,15 +375,14 @@ class InstanceServiceIntegrationTest {
     }
 
     private fun deletionHeaders(instanceId: Long): InstanceFlowHeaders =
-        InstanceFlowHeaders
-            .builder()
-            .instanceId(instanceId)
-            .sourceApplicationId(1L)
-            .sourceApplicationIntegrationId("integration")
-            .sourceApplicationInstanceId("source-instance")
-            .fileIds(listOf(UUID.randomUUID()))
-            .correlationId(UUID.randomUUID())
-            .build()
+        InstanceFlowHeaders(
+            instanceId = instanceId,
+            sourceApplicationId = 1L,
+            sourceApplicationIntegrationId = "integration",
+            sourceApplicationInstanceId = "source-instance",
+            fileIds = listOf(UUID.randomUUID()),
+            correlationId = UUID.randomUUID(),
+        )
 
     private fun instanceGraph(): InstanceObjectDto {
         val grandchild =
@@ -431,7 +431,7 @@ class InstanceServiceIntegrationTest {
 
         @JvmField
         @Container
-        val postgreSQLContainer: PostgreSQLContainer<*> =
+        val postgreSQLContainer: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17").withInitScript("db/instance-fixture/init.sql")
 
         @JvmStatic

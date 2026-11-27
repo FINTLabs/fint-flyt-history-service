@@ -6,8 +6,8 @@ import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
 import org.springframework.stereotype.Service
 
 /**
- * Active regardless of the instance functionality flag: until cutover, instance-service deletes dispatched instances
- * too. Whichever service deletes the row publishes the event; the other finds nothing and skips it.
+ * Active regardless of the instance functionality flag. Whichever attempt deletes the row publishes the event; a
+ * second attempt finds nothing and skips it.
  */
 @Service
 class InstanceDeletionService(

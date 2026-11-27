@@ -4,12 +4,13 @@ import jakarta.persistence.EntityManagerFactory
 import org.assertj.core.api.Assertions.assertThat
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.getBean
 import org.springframework.core.NestedExceptionUtils
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.DriverManagerDataSource
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 import javax.sql.DataSource
 
 @Testcontainers(disabledWithoutDocker = true)
@@ -73,7 +74,7 @@ class InstanceMigrationTakeoverIntegrationTest {
             assertThat(context).hasNotFailed()
             assertThat(context).hasSingleBean(DataSource::class.java)
             assertThat(context).hasSingleBean(EntityManagerFactory::class.java)
-            val jdbc = JdbcTemplate(context.getBean(DataSource::class.java))
+            val jdbc = JdbcTemplate(context.getBean<DataSource>())
             assertThat(
                 jdbc.queryForObject(
                     "SELECT value FROM legacy_instances.instance_object_value_per_key WHERE instance_object_id = ?",
@@ -125,6 +126,6 @@ class InstanceMigrationTakeoverIntegrationTest {
     companion object {
         @JvmField
         @Container
-        val postgres: PostgreSQLContainer<*> = PostgreSQLContainer("postgres:17")
+        val postgres: PostgreSQLContainer = PostgreSQLContainer("postgres:17")
     }
 }

@@ -25,7 +25,7 @@ class InstanceService(
         instanceRepository.deleteById(instanceId)
     }
 
-    /** Returns false when the instance is already gone, for example deleted by instance-service. */
+    /** Returns false when the instance is already gone, for example deleted by the scheduled cleanup. */
     @Transactional
     fun deleteIfExists(instanceId: Long): Boolean {
         val instance = instanceRepository.findForDeletionById(instanceId) ?: return false
