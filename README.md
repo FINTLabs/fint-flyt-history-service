@@ -289,7 +289,7 @@ Both instance cleanup and error-detail scrubbing use the shared retention settin
 ## Security
 
 - Runs as an OAuth2 resource server (JWT) with flyt-security-starter. `/api/intern/**` takes FLYT user tokens (`aud` is `novari.flyt.security.user.audience`), and `/api/intern-klient/**` only the shared internal client.
-- AuthorizationService uses `FlytAccess`, one call to authorization-service per request, before returning data or executing manual actions. Unfiltered lists first obtain distinct candidates from the event database.
+- AuthorizationService uses `FlytAccess`, one call to authorization-service per request, before returning data or executing manual actions. A retry is checked against the source application of the stored instance (FFS-2431). Unfiltered lists first obtain distinct candidates from the event database.
 - Manual event endpoints validate payloads, re-check authorization, ensure the latest status is ERROR, and return 404/400 for inconsistent histories.
 
 ## Observability & Operations

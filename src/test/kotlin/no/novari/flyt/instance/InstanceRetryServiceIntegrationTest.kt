@@ -3,6 +3,7 @@ package no.novari.flyt.instance
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.audit.actor.ActorContext
 import no.novari.flyt.history.Application
+import no.novari.flyt.history.AuthorizationService
 import no.novari.flyt.history.EventService
 import no.novari.flyt.history.InstanceErrorEventService
 import no.novari.flyt.history.InstanceInfoEventService
@@ -36,6 +37,7 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
@@ -47,6 +49,7 @@ import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.data.domain.AuditorAware
+import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.kafka.KafkaException
 import org.springframework.kafka.core.KafkaTemplate
@@ -61,10 +64,12 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate
+import org.springframework.web.server.ResponseStatusException
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Optional
@@ -125,6 +130,8 @@ class InstanceRetryServiceIntegrationTest {
     @MockitoBean lateinit var producer: InstanceRequestedForRetryEventProducerService
 
     @MockitoSpyBean lateinit var errors: InstanceErrorEventService
+
+    @MockitoBean lateinit var authorizationService: AuthorizationService
 
     @AfterEach
     fun cleanUp() {
@@ -238,6 +245,22 @@ class InstanceRetryServiceIntegrationTest {
         assertThatThrownBy { retry.retry(saved.id!!) }.isInstanceOf(MissingRetryHeadersException::class.java)
         verifyNoInteractions(producer, errors)
         assertThat(events.count()).isZero()
+    }
+
+    @Test
+    fun `a user without the stored instance's source application gets 403 and nothing is sent or stored`() {
+        val (saved, headers) = registered()
+        whenever(authorizationService.validateUserIsAuthorizedForSourceApplication(headers.sourceApplicationId))
+            .thenThrow(ResponseStatusException(HttpStatus.FORBIDDEN))
+        val eventsBefore = events.count()
+
+        assertThatThrownBy { retry.retry(saved.id!!) }
+            .isInstanceOfSatisfying(
+                ResponseStatusException::class.java,
+            ) { assertThat(it.statusCode.value()).isEqualTo(403) }
+        verifyNoInteractions(producer)
+        verify(errors, never()).registerError(any(), any<EventCategory>(), any(), any(), any())
+        assertThat(events.count()).isEqualTo(eventsBefore)
     }
 
     @Test

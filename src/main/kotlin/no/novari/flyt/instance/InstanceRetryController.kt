@@ -62,6 +62,8 @@ class InstanceRetryController(
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Could not find instance with id='$instanceId'")
         } catch (failure: MissingRetryHeadersException) {
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, failure.message)
+        } catch (failure: ResponseStatusException) {
+            throw failure
         } catch (failure: RetryStatusConflictException) {
             return ResponseEntity
                 .status(HttpStatus.CONFLICT)
@@ -88,7 +90,7 @@ class InstanceRetryController(
             try {
                 instanceRetryService.retry(instanceId)
             } catch (failure: Exception) {
-                if (failure is RetryStatusConflictException) {
+                if (failure is RetryStatusConflictException || failure is ResponseStatusException) {
                     logger.info { failure.message }
                 } else {
                     logger.error(failure) { "Retry request failed for instanceId=$instanceId" }

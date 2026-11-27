@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.context.annotation.Import
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.kafka.KafkaException
 import org.springframework.security.oauth2.jwt.JwtDecoder
@@ -33,6 +34,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.web.server.ResponseStatusException
 
 @WebMvcTest(properties = ["novari.flyt.instance-functionality.enabled=true"])
 @ContextConfiguration(classes = [InstanceRetryController::class])
@@ -97,6 +99,13 @@ class InstanceRetryControllerWebMvcTest {
             .perform(request(false).header("Authorization", bearer))
             .andExpect(status().isConflict)
             .andExpect(jsonPath("$.detail").value(conflict.message))
+    }
+
+    @Test
+    fun `a source application the user does not have gives 403`() {
+        token()
+        doThrow(ResponseStatusException(HttpStatus.FORBIDDEN)).whenever(service).retry(123L)
+        mvc.perform(request(false).header("Authorization", bearer)).andExpect(status().isForbidden)
     }
 
     @Test
