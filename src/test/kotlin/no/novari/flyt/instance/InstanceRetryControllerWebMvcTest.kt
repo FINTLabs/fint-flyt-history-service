@@ -146,6 +146,22 @@ class InstanceRetryControllerWebMvcTest {
     }
 
     @Test
+    fun `batch skips an instance from a source application the user does not have and retries the rest`() {
+        token()
+        doThrow(ResponseStatusException(HttpStatus.FORBIDDEN)).whenever(service).retry(124L)
+        mvc
+            .perform(request(true).content("[123,124,125]").header("Authorization", bearer))
+            .andExpect(status().isOk)
+            .andExpect(content().string(""))
+        org.mockito.kotlin.inOrder(service) {
+            verify(service).retry(123L)
+            verify(service).retry(124L)
+            verify(service).retry(125L)
+        }
+        verifyNoMoreInteractions(service)
+    }
+
+    @Test
     fun `empty batch performs no retries`() {
         token()
         mvc

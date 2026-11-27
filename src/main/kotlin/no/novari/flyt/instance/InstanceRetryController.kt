@@ -39,6 +39,11 @@ class InstanceRetryController(
                 description = "Retry request accepted for publication",
                 content = [Content()],
             ),
+            ApiResponse(
+                responseCode = "403",
+                description = "The user does not have the instance's source application",
+                content = [Content()],
+            ),
             ApiResponse(responseCode = "404", description = "Instance not found", content = [Content()]),
             ApiResponse(
                 responseCode = "409",
@@ -79,7 +84,12 @@ class InstanceRetryController(
     @Operation(summary = "Retry multiple instances", operationId = "retryInstances")
     @ApiResponses(
         value = [
-            ApiResponse(responseCode = "200", description = "Batch retry request processed"),
+            ApiResponse(
+                responseCode = "200",
+                description =
+                    "Batch retry request processed. Instances that cannot be retried, also those from a source " +
+                        "application the user does not have, are skipped",
+            ),
             ApiResponse(responseCode = "500", description = "Batch retry interrupted"),
         ],
     )
