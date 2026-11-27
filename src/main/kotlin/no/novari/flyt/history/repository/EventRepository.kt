@@ -196,6 +196,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                      statusEvent.instance_id                       AS latestInstanceId,
                      statusEvent.timestamp                         AS latestUpdate,
                      statusEvent.name                              AS latestStatusEventName,
+                     statusEvent.comment                           AS comment,
                      storageEvent.name                             AS latestStorageStatusEventName,
                      array_to_string(nameAndArchiveInstanceIdAgg.archiveInstanceIds, '||') AS destinationInstanceIds
              FROM event statusEvent
@@ -320,6 +321,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                      statusEvent.instance_id                       AS latestInstanceId,
                      statusEvent.timestamp                         AS latestUpdate,
                      statusEvent.name                              AS latestStatusEventName,
+                     statusEvent.comment                           AS comment,
                      storageEvent.name                             AS latestStorageStatusEventName,
                      array_to_string(nameAndArchiveInstanceIdAgg.archiveInstanceIds, '||') AS destinationInstanceIds
              FROM event statusEvent
@@ -538,6 +540,7 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
                         "latestUpdate was null for sourceApplicationInstanceId=${nativeProjection.getSourceApplicationInstanceId()}"
                     }.atOffset(ZoneOffset.UTC),
                 ).latestStatusEventName(nativeProjection.getLatestStatusEventName())
+                .comment(nativeProjection.getComment())
                 .latestStorageStatusEventName(nativeProjection.getLatestStorageStatusEventName())
                 .destinationInstanceIds(
                     nativeProjection
@@ -559,14 +562,9 @@ interface EventRepository : JpaRepository<EventEntity, Long> {
             AND e.instanceFlowHeaders.sourceApplicationIntegrationId = :#{#sourceApplicationAggregateInstanceId.sourceApplicationIntegrationId}
             AND e.instanceFlowHeaders.sourceApplicationInstanceId = :#{#sourceApplicationAggregateInstanceId.sourceApplicationInstanceId}
             AND e.name in :#{#allInstanceStatusEventNames}
-            AND e.timestamp >= ALL(
-                SELECT e1.timestamp
-                FROM EventEntity e1
-                WHERE e1.instanceFlowHeaders.sourceApplicationId = e.instanceFlowHeaders.sourceApplicationId
-                AND e1.instanceFlowHeaders.sourceApplicationIntegrationId = e.instanceFlowHeaders.sourceApplicationIntegrationId
-                AND e1.instanceFlowHeaders.sourceApplicationInstanceId = e.instanceFlowHeaders.sourceApplicationInstanceId
-                AND e1.name IN :#{#allInstanceStatusEventNames}
-            )
+            AND e.timestamp IS NOT NULL
+            ORDER BY e.timestamp DESC, e.id DESC
+            LIMIT 1
             """,
     )
     fun findLatestStatusEventBySourceApplicationAggregateInstanceId(

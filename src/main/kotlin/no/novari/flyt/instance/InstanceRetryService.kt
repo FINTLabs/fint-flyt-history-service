@@ -26,13 +26,13 @@ class InstanceRetryService(
 ) {
     fun retry(instanceId: Long) {
         val instance = instanceService.getById(instanceId)
-        val headers =
-            eventService
-                .findInstanceFlowHeadersForLatestInstanceRegisteredEvent(instanceId)
-                ?.toBuilder()
-                ?.correlationId(UUID.randomUUID())
-                ?.build()
+        val registeredHeaders =
+            eventService.findInstanceFlowHeadersForLatestInstanceRegisteredEvent(instanceId)
                 ?: throw MissingRetryHeadersException(instanceId)
+        if (!eventService.hasLatestErrorStatus(registeredHeaders, instanceId)) {
+            throw RetryStatusConflictException(instanceId)
+        }
+        val headers = registeredHeaders.toBuilder().correlationId(UUID.randomUUID()).build()
         try {
             producer.publish(headers, instance)
         } catch (failure: Exception) {
@@ -55,3 +55,7 @@ class InstanceRetryService(
 class MissingRetryHeadersException(
     instanceId: Long,
 ) : RuntimeException("Could not find instance flow headers for registered instance with id=$instanceId")
+
+class RetryStatusConflictException(
+    instanceId: Long,
+) : RuntimeException("Retry requires the latest status event for the case to be an error for instance $instanceId")

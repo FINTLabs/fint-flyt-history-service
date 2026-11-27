@@ -37,13 +37,16 @@ When `novari.flyt.instance-functionality.enabled=true`, history-service exposes 
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/api/intern/handlinger/instanser/{instanceId}/prov-igjen` | None | 200 after send returns; 404 missing instance; 500 missing headers or synchronous failure. |
-| POST | `/api/intern/handlinger/instanser/prov-igjen/batch` | Array of IDs | 200 after attempting each ID; 500 if interrupted. |
+| POST | `/api/intern/handlinger/instanser/{instanceId}/prov-igjen` | None | 200 after send returns; 404 missing instance; 409 latest status missing or not an error for this instance; 500 missing headers or synchronous failure. |
+| POST | `/api/intern/handlinger/instanser/prov-igjen/batch` | Array of IDs | 200 after checking each distinct ID and attempting eligible retries; 500 if interrupted. |
 
-Each attempt loads the stored graph and latest registration headers locally and generates a new correlation ID.
-HTTP 200 means the Kafka send call returned successfully; delivery and processing are asynchronous.
-Synchronous publication failures are stored locally as `INSTANCE_RETRY_REQUEST_ERROR`, and batch processing continues
-with later IDs. Batches have no application-level size limit and stop with HTTP 500 if the thread is interrupted.
+Retry requires a stored instance and registration headers. The latest status event for the case must be an
+error for the requested instance. Storage events do not affect that status. Each accepted attempt generates
+a new correlation ID. For a single retry, HTTP 200 means the Kafka send call returned successfully.
+Separate requests can both pass the check before the Kafka listener records that a retry has started.
+Synchronous publication failures are stored locally as `INSTANCE_RETRY_REQUEST_ERROR`.
+Batches continue with later IDs after individual rejections or failures, have no application-level size limit,
+and stop with HTTP 500 if the thread is interrupted.
 
 ## HTTP API
 
@@ -79,11 +82,17 @@ Manual action payloads:
   "sourceApplicationId": 123,
   "sourceApplicationIntegrationId": "integration-42",
   "sourceApplicationInstanceId": "instance-007",
-  "archiveInstanceId": "ark-abc-123"
+  "archiveInstanceId": "ark-abc-123",
+  "comment": "Confirmed with the case handler."
 }
 ```
 
 `archiveInstanceId` is only required for manually processed events.
+
+`comment` is optional on all three manual actions and has no fixed character limit. The service trims leading and
+trailing whitespace and stores omitted, `null`, empty and whitespace-only comments as `null`. The created event
+and the history return the comment recorded on the event. A summary returns the comment from the event that sets
+its current status.
 
 Validation failures respond with 422 Unprocessable Entity using the shared formatting service.
 
@@ -126,6 +135,7 @@ Swagger UI is then available at `http://localhost:8080/beta/fintlabs-no/swagger-
 (`novari.flyt.history-service.metrics.refresh-ms`, default `60000` ms).
 
 `ScheduledErrorScrubService` runs daily after an initial 2 minutes delay and scrubs old, unscrubbed events in batches.
+Scrubbing clears error argument values and retains manual status comments on their original events in the history.
 `InstanceCleanupService` runs 30 seconds after startup and then every 24 hours when the instance functionality flag
 is enabled. It deletes root instances older than the shared `novari.flyt.history-service.retention.time-to-keep-in-days`.
 Both jobs default to 60 days, using event timestamps for scrubbing and instance creation timestamps for cleanup.

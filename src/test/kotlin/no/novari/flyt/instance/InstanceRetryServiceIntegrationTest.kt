@@ -16,6 +16,7 @@ import no.novari.flyt.history.model.event.EventCategorizationService
 import no.novari.flyt.history.model.event.EventCategory
 import no.novari.flyt.history.model.event.EventType
 import no.novari.flyt.history.repository.EventRepository
+import no.novari.flyt.history.repository.entities.EventEntity
 import no.novari.flyt.instance.config.InstanceDatabaseConfiguration
 import no.novari.flyt.instance.config.InstanceJpaConfiguration
 import no.novari.flyt.instance.kafka.InstanceRequestedForRetryEventProducerService
@@ -93,6 +94,7 @@ import java.util.concurrent.CompletableFuture
     InstanceInfoEventService::class,
     InstanceErrorEventService::class,
     InstanceFlowHeadersMappingService::class,
+    EventCategorizationService::class,
     InstanceRetryServiceIntegrationTest.FixedClock::class,
 )
 @MockitoBean(
@@ -101,7 +103,6 @@ import java.util.concurrent.CompletableFuture
         InstanceFlowSummariesFilterMappingService::class,
         InstanceFlowSummaryMappingService::class,
         IntegrationStatisticsFilterMappingService::class,
-        EventCategorizationService::class,
     ],
 )
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
@@ -140,7 +141,7 @@ class InstanceRetryServiceIntegrationTest {
                 .fileIds(emptyList())
                 .configurationId(9L)
                 .build()
-        info.registerEvent(older, EventCategory.INSTANCE_REGISTERED, NOW.minusSeconds(1), "old-app")
+        info.registerEvent(older, EventCategory.INSTANCE_REGISTERED, NOW.minusSeconds(3), "old-app")
         doAnswer {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
             assertThat(it.getArgument<InstanceObjectDto>(1)).usingRecursiveComparison().isEqualTo(saved)
@@ -160,24 +161,28 @@ class InstanceRetryServiceIntegrationTest {
             assertThat(it.toBuilder().correlationId(headers.correlationId).build()).isEqualTo(headers)
         }
         assertThat(instances.getById(instanceId)).usingRecursiveComparison().isEqualTo(saved)
-        assertThat(events.count()).isEqualTo(2)
+        assertThat(events.count()).isEqualTo(3)
         assertThat(
             jdbc.queryForObject("SELECT count(*) FROM retry_test_history.instance_received_offset", Long::class.java)!!,
         ).isZero()
     }
 
     @Test
-    fun `failed publication commits one local retry error with clock origin and request actor`() {
+    fun `a failed publication records a local error and allows another retry`() {
         val (saved, headers) = registered()
+        val instanceId = requireNotNull(saved.id)
         val failure = KafkaException("send failed synchronously")
         val actor = Actor.User(UUID.randomUUID())
-        doThrow(failure).whenever(producer).publish(any(), any())
-        assertThatThrownBy { ActorContext.withActor(actor) { retry.retry(saved.id!!) } }.isSameAs(failure)
+        doThrow(failure).doNothing().whenever(producer).publish(any(), any())
+
+        assertThatThrownBy { ActorContext.withActor(actor) { retry.retry(instanceId) } }.isSameAs(failure)
+        retry.retry(instanceId)
+
         val sent = argumentCaptor<InstanceFlowHeaders>()
-        verify(producer).publish(sent.capture(), any())
+        verify(producer, times(2)).publish(sent.capture(), any())
         TransactionTemplate(transactionManager).executeWithoutResult {
-            val error = events.findAll().single { it.type == EventType.ERROR }
-            assertThat(error.name).isEqualTo(EventCategory.INSTANCE_RETRY_REQUEST_ERROR.eventName)
+            val error = events.findAll().single { it.name == EventCategory.INSTANCE_RETRY_REQUEST_ERROR.eventName }
+            assertThat(error.type).isEqualTo(EventType.ERROR)
             assertThat(error.timestamp!!.toInstant()).isEqualTo(NOW)
             assertThat(error.applicationId).isEqualTo("retry-history-app")
             assertThat(error.createdBy).isEqualTo(actor)
@@ -185,9 +190,9 @@ class InstanceRetryServiceIntegrationTest {
             assertThat(error.errors.single().errorCode).isEqualTo(ErrorCode.GENERAL_SYSTEM_ERROR.getCode())
             assertThat(error.errors.single().args).isNullOrEmpty()
         }
-        assertThat(instances.getById(saved.id!!)).usingRecursiveComparison().isEqualTo(saved)
+        assertThat(instances.getById(instanceId)).usingRecursiveComparison().isEqualTo(saved)
         assertThat(sent.firstValue.correlationId).isNotEqualTo(headers.correlationId)
-        assertThat(events.count()).isEqualTo(2)
+        assertThat(events.count()).isEqualTo(3)
     }
 
     @Test
@@ -218,7 +223,7 @@ class InstanceRetryServiceIntegrationTest {
         future.completeExceptionally(KafkaException("Asynchronous delivery failure"))
 
         verifyNoInteractions(errors)
-        assertThat(events.count()).isEqualTo(1)
+        assertThat(events.count()).isEqualTo(2)
     }
 
     @Test
@@ -245,7 +250,46 @@ class InstanceRetryServiceIntegrationTest {
         assertThat(events.count()).isZero()
     }
 
-    private fun registered(): Pair<InstanceObjectDto, InstanceFlowHeaders> {
+    @Test
+    fun `a more recent manual status overrides an earlier error`() {
+        val (saved, headers) = registered()
+        info.registerEvent(
+            headers.toBuilder().instanceId(null).build(),
+            EventCategory.INSTANCE_MANUALLY_PROCESSED,
+            NOW.plusSeconds(1),
+            "history-app",
+        )
+
+        assertThatThrownBy { retry.retry(saved.id!!) }.isInstanceOf(RetryStatusConflictException::class.java)
+        verifyNoInteractions(producer, errors)
+    }
+
+    @Test
+    fun `registration without a status event cannot be retried`() {
+        val (saved, _) = registered(withError = false)
+
+        assertThatThrownBy { retry.retry(saved.id!!) }.isInstanceOf(RetryStatusConflictException::class.java)
+        verifyNoInteractions(producer, errors)
+    }
+
+    @Test
+    fun `a newer failed instance does not allow retrying an older instance for the same case`() {
+        val (older, _) = registered(registeredAt = NOW.minusSeconds(4))
+        val (latest, _) = registered()
+
+        assertThatThrownBy { retry.retry(older.id!!) }.isInstanceOf(RetryStatusConflictException::class.java)
+        verifyNoInteractions(producer, errors)
+
+        retry.retry(latest.id!!)
+        val sent = argumentCaptor<InstanceFlowHeaders>()
+        verify(producer).publish(sent.capture(), any())
+        assertThat(sent.firstValue.instanceId).isEqualTo(latest.id)
+    }
+
+    private fun registered(
+        withError: Boolean = true,
+        registeredAt: Instant = NOW.minusSeconds(2),
+    ): Pair<InstanceObjectDto, InstanceFlowHeaders> {
         val graph =
             retryInstance().copy(
                 id = null,
@@ -257,7 +301,17 @@ class InstanceRetryServiceIntegrationTest {
             )
         val saved = instances.save(graph)
         val headers = retryHeaders(requireNotNull(saved.id))
-        info.registerEvent(headers, EventCategory.INSTANCE_REGISTERED, NOW, "registration-app")
+        info.registerEvent(headers, EventCategory.INSTANCE_REGISTERED, registeredAt, "registration-app")
+        if (withError) {
+            events.save(
+                EventEntity(
+                    instanceFlowHeaders = headersMapper.toEmbeddable(headers),
+                    name = EventCategory.INSTANCE_MAPPING_ERROR.eventName,
+                    type = EventType.ERROR,
+                    timestamp = registeredAt.plusSeconds(1).atOffset(ZoneOffset.UTC),
+                ),
+            )
+        }
         return saved to headers
     }
 
