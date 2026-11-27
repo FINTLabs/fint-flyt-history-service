@@ -23,8 +23,8 @@ import no.novari.flyt.instance.kafka.InstanceRequestedForRetryEventProducerServi
 import no.novari.flyt.instance.model.InstanceMappingService
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplate
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
+import no.novari.kafka.starter.topic.EventTopicName
+import org.apache.kafka.clients.producer.ProducerRecord
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.AfterEach
@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Timeout
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
@@ -40,14 +41,15 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyNoInteractions
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Import
 import org.springframework.data.domain.AuditorAware
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.kafka.KafkaException
+import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.support.SendResult
 import org.springframework.test.context.ContextConfiguration
 import org.springframework.test.context.DynamicPropertyRegistry
@@ -59,11 +61,10 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.Clock
-import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Optional
@@ -137,10 +138,7 @@ class InstanceRetryServiceIntegrationTest {
         val instanceId = requireNotNull(saved.id)
         val older =
             headers
-                .toBuilder()
-                .fileIds(emptyList())
-                .configurationId(9L)
-                .build()
+                .copy(fileIds = emptyList(), configurationId = 9L)
         info.registerEvent(older, EventCategory.INSTANCE_REGISTERED, NOW.minusSeconds(3), "old-app")
         doAnswer {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse()
@@ -158,7 +156,7 @@ class InstanceRetryServiceIntegrationTest {
             sent.allValues.map { it.correlationId },
         ).doesNotHaveDuplicates().doesNotContain(headers.correlationId)
         sent.allValues.forEach {
-            assertThat(it.toBuilder().correlationId(headers.correlationId).build()).isEqualTo(headers)
+            assertThat(it.copy(correlationId = headers.correlationId)).isEqualTo(headers)
         }
         assertThat(instances.getById(instanceId)).usingRecursiveComparison().isEqualTo(saved)
         assertThat(events.count()).isEqualTo(3)
@@ -200,19 +198,11 @@ class InstanceRetryServiceIntegrationTest {
     fun `asynchronous delivery failure does not create a local retry error`() {
         val (saved, _) = registered()
         val future = CompletableFuture<SendResult<String, InstanceObjectDto>>()
-        val template: InstanceFlowTemplate<InstanceObjectDto> = mock()
-        whenever(template.send(any())).thenReturn(future)
-        val factory: InstanceFlowTemplateFactory =
-            mock {
-                on { createTemplate(InstanceObjectDto::class.java) }.thenReturn(template)
-            }
+        val template: KafkaTemplate<String, InstanceObjectDto> = mock()
+        whenever(template.send(any<ProducerRecord<String, InstanceObjectDto>>())).thenReturn(future)
+        val topic: EventTopicName = mock { on { name } doReturn "test-org.flyt.event.instance-requested-for-retry" }
         val libraryProducer =
-            InstanceRequestedForRetryEventProducerService(
-                factory,
-                mock(),
-                AuditorAware { Optional.of(Actor.System) },
-                Duration.ofDays(4),
-            )
+            InstanceRequestedForRetryEventProducerService(template, topic, AuditorAware { Optional.of(Actor.System) })
         doAnswer {
             libraryProducer.publish(it.getArgument(0), it.getArgument(1))
             null
@@ -254,7 +244,7 @@ class InstanceRetryServiceIntegrationTest {
     fun `a more recent manual status overrides an earlier error`() {
         val (saved, headers) = registered()
         info.registerEvent(
-            headers.toBuilder().instanceId(null).build(),
+            headers.copy(instanceId = null),
             EventCategory.INSTANCE_MANUALLY_PROCESSED,
             NOW.plusSeconds(1),
             "history-app",

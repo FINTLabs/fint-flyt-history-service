@@ -28,7 +28,7 @@ class GlobalExceptionHandler(
             cause = exception
         }
         return createProblemDetail(
-            status = HttpStatus.UNPROCESSABLE_ENTITY,
+            status = HttpStatus.UNPROCESSABLE_CONTENT,
             title = "Unprocessable Entity",
             detail = exception.formattedMessage,
         )
@@ -41,7 +41,7 @@ class GlobalExceptionHandler(
             cause = exception
         }
         return createProblemDetail(
-            status = HttpStatus.UNPROCESSABLE_ENTITY,
+            status = HttpStatus.UNPROCESSABLE_CONTENT,
             title = "Unprocessable Entity",
             detail = validationErrorsFormattingService.format(exception),
         )
@@ -54,7 +54,7 @@ class GlobalExceptionHandler(
             cause = exception
         }
         return createProblemDetail(
-            status = HttpStatus.UNPROCESSABLE_ENTITY,
+            status = HttpStatus.UNPROCESSABLE_CONTENT,
             title = "Unprocessable Entity",
             detail = "Validation error: malformed request body",
         )

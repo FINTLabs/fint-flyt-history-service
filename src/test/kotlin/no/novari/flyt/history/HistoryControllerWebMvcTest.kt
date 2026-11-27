@@ -1,9 +1,5 @@
 package no.novari.flyt.history
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
-import com.fasterxml.jackson.databind.node.ObjectNode
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import jakarta.validation.Validation
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.history.exceptions.LatestStatusEventNotOfTypeErrorException
@@ -31,7 +27,7 @@ import org.springframework.data.domain.SliceImpl
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter
 import org.springframework.security.core.Authentication
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -41,6 +37,10 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPat
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.server.ResponseStatusException
+import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.node.ObjectNode
+import tools.jackson.module.kotlin.jsonMapper
+import tools.jackson.module.kotlin.kotlinModule
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -51,10 +51,8 @@ class HistoryControllerWebMvcTest {
     private val manualEventCreationService: ManualEventCreationService = mock()
     private val validationErrorsFormattingService = ValidationErrorsFormattingService()
     private val authentication: Authentication = mock()
-    private val objectMapper: ObjectMapper =
-        jacksonObjectMapper()
-            .findAndRegisterModules()
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+    private val objectMapper: JsonMapper =
+        jsonMapper { addModule(kotlinModule()) }
 
     private lateinit var mockMvc: MockMvc
 
@@ -74,7 +72,7 @@ class HistoryControllerWebMvcTest {
                 .standaloneSetup(controller)
                 .setControllerAdvice(GlobalExceptionHandler(validationErrorsFormattingService))
                 .setCustomArgumentResolvers(PageableHandlerMethodArgumentResolver())
-                .setMessageConverters(MappingJackson2HttpMessageConverter(objectMapper))
+                .setMessageConverters(JacksonJsonHttpMessageConverter(objectMapper))
                 .build()
     }
 
@@ -156,10 +154,7 @@ class HistoryControllerWebMvcTest {
         val candidateSourceApplicationIds = setOf(1L)
         whenever(eventService.findDistinctSourceApplicationIds()).thenReturn(candidateSourceApplicationIds)
         whenever(
-            authorizationService.getUserAuthorizedSourceApplicationIds(
-                authentication,
-                candidateSourceApplicationIds,
-            ),
+            authorizationService.getUserAuthorizedSourceApplicationIds(candidateSourceApplicationIds),
         ).thenReturn(setOf(1L))
         whenever(eventService.getIntegrationStatistics(any(), any()))
             .thenReturn(SliceImpl(listOf(testProjection()), PageRequest.of(0, 20), false))
@@ -180,10 +175,7 @@ class HistoryControllerWebMvcTest {
         val candidateSourceApplicationIds = setOf(1L)
         whenever(eventService.findDistinctSourceApplicationIds()).thenReturn(candidateSourceApplicationIds)
         whenever(
-            authorizationService.getUserAuthorizedSourceApplicationIds(
-                authentication,
-                candidateSourceApplicationIds,
-            ),
+            authorizationService.getUserAuthorizedSourceApplicationIds(candidateSourceApplicationIds),
         ).thenReturn(emptySet())
 
         mockMvc
@@ -289,7 +281,7 @@ class HistoryControllerWebMvcTest {
     @Test
     fun `events endpoint propagates forbidden status from authorization as problem detail`() {
         whenever(
-            authorizationService.validateUserIsAuthorizedForSourceApplication(any(), eq(1L)),
+            authorizationService.validateUserIsAuthorizedForSourceApplication(eq(1L)),
         ).thenThrow(ResponseStatusException(HttpStatus.FORBIDDEN, "No access"))
 
         mockMvc

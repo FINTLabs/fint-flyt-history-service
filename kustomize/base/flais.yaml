@@ -45,6 +45,11 @@ spec:
         secretKeyRef:
           name: fint-flyt-authorization-oauth2-client
           key: fint.sso.client-secret
+    - name: novari.flyt.security.user.audience
+      valueFrom:
+        secretKeyRef:
+          name: fint-flyt-auth-forward-sso
+          key: fint.sso.client-id
   resources:
     limits:
       memory: "1024Mi"

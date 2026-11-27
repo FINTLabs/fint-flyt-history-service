@@ -1,13 +1,15 @@
 package no.novari.flyt.instance.model.dtos
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.ObjectNode
 import no.novari.flyt.history.Application
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.json.JsonTest
 import org.springframework.test.context.ContextConfiguration
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.node.ObjectNode
+import tools.jackson.module.kotlin.readValue
+import tools.jackson.module.kotlin.treeToValue
 import java.time.Instant
 import java.util.Date
 
@@ -32,7 +34,7 @@ class InstanceObjectDtoSerializationTest(
             .containsEntry("fileName", "application.pdf")
         assertThat(document.objectCollectionPerKey).isEmpty()
 
-        val emptyInstance = objectMapper.readValue("{}", InstanceObjectDto::class.java)
+        val emptyInstance = objectMapper.readValue<InstanceObjectDto>("{}")
         assertThat(emptyInstance.valuePerKey).isEmpty()
         assertThat(emptyInstance.objectCollectionPerKey).isEmpty()
     }
@@ -75,7 +77,7 @@ class InstanceObjectDtoSerializationTest(
         val fixtureWithUnknownField = objectMapper.readTree(fixture("instance-received.json")) as ObjectNode
         fixtureWithUnknownField.put("futureField", "ignored")
 
-        val instance = objectMapper.treeToValue(fixtureWithUnknownField, InstanceObjectDto::class.java)
+        val instance = objectMapper.treeToValue<InstanceObjectDto>(fixtureWithUnknownField)
 
         assertThat(instance.valuePerKey).containsEntry("caseNumber", "2026-123")
         assertThat(requireNotNull(instance.objectCollectionPerKey["documents"]).single().valuePerKey)

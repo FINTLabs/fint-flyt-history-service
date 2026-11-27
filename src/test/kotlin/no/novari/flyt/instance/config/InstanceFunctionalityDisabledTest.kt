@@ -16,9 +16,9 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 
 @Testcontainers(disabledWithoutDocker = true)
 class InstanceFunctionalityDisabledTest {
@@ -64,7 +64,7 @@ class InstanceFunctionalityDisabledTest {
     companion object {
         @JvmField
         @Container
-        val postgreSQLContainer: PostgreSQLContainer<*> =
+        val postgreSQLContainer: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17").withInitScript("db/instance-fixture/init.sql")
 
         @JvmStatic

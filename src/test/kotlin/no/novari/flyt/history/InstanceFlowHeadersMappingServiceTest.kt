@@ -14,17 +14,16 @@ class InstanceFlowHeadersMappingServiceTest {
     @Test
     fun testToEmbeddable() {
         val instanceFlowHeaders =
-            InstanceFlowHeaders
-                .builder()
-                .sourceApplicationId(1L)
-                .sourceApplicationIntegrationId("integrationId")
-                .sourceApplicationInstanceId("instanceId")
-                .correlationId(UUID.randomUUID())
-                .integrationId(1L)
-                .instanceId(1L)
-                .configurationId(1L)
-                .archiveInstanceId("archiveId")
-                .build()
+            InstanceFlowHeaders(
+                sourceApplicationId = 1L,
+                sourceApplicationIntegrationId = "integrationId",
+                sourceApplicationInstanceId = "instanceId",
+                correlationId = UUID.randomUUID(),
+                integrationId = 1L,
+                instanceId = 1L,
+                configurationId = 1L,
+                archiveInstanceId = "archiveId",
+            )
 
         val embeddable = mapper.toEmbeddable(instanceFlowHeaders)
 

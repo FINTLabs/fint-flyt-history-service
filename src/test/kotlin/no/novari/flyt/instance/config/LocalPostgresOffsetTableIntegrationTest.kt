@@ -7,9 +7,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.flywaydb.core.Flyway
 import org.junit.jupiter.api.Test
 import org.springframework.jdbc.core.JdbcTemplate
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.sql.DriverManager
 
 @Testcontainers(disabledWithoutDocker = true)
@@ -190,7 +190,7 @@ class LocalPostgresOffsetTableIntegrationTest {
     companion object {
         @JvmField
         @Container
-        val postgreSQLContainer: PostgreSQLContainer<*> =
+        val postgreSQLContainer: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17")
     }
 }

@@ -22,14 +22,13 @@ class InstanceCleanupServiceTest {
     private val deletion: InstanceDeletionService = mock()
     private val cleanup = InstanceCleanupService(instances, events, deletion, 17)
     private val headers =
-        InstanceFlowHeaders
-            .builder()
-            .instanceId(1L)
-            .sourceApplicationId(1L)
-            .sourceApplicationIntegrationId("integration")
-            .sourceApplicationInstanceId("source-instance")
-            .correlationId(UUID.randomUUID())
-            .build()
+        InstanceFlowHeaders(
+            instanceId = 1L,
+            sourceApplicationId = 1L,
+            sourceApplicationIntegrationId = "integration",
+            sourceApplicationInstanceId = "source-instance",
+            correlationId = UUID.randomUUID(),
+        )
 
     @AfterEach
     fun clearInterrupt() {

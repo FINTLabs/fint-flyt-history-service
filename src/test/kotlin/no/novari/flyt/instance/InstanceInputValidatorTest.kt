@@ -53,18 +53,17 @@ class InstanceInputValidatorTest {
     @Test
     fun `invalid history headers stop processing without becoming a graph input error`() {
         val headers =
-            InstanceFlowHeaders
-                .builder()
-                .sourceApplicationId(1L)
-                .sourceApplicationIntegrationId("integration")
-                .sourceApplicationInstanceId("instance")
-                .correlationId(UUID.randomUUID())
-                .build()
+            InstanceFlowHeaders(
+                sourceApplicationId = 1L,
+                sourceApplicationIntegrationId = "integration",
+                sourceApplicationInstanceId = "instance",
+                correlationId = UUID.randomUUID(),
+            )
         InstanceInputValidator.validateHeaders(headers)
         listOf(
-            headers.toBuilder().sourceApplicationIntegrationId("x".repeat(256)).build(),
-            headers.toBuilder().sourceApplicationInstanceId("x\u0000").build(),
-            headers.toBuilder().archiveInstanceId("x".repeat(256)).build(),
+            headers.copy(sourceApplicationIntegrationId = "x".repeat(256)),
+            headers.copy(sourceApplicationInstanceId = "x\u0000"),
+            headers.copy(archiveInstanceId = "x".repeat(256)),
         ).forEach { invalid ->
             assertThat(assertThrows<IllegalArgumentException> { InstanceInputValidator.validateHeaders(invalid) })
                 .hasMessage("Invalid instance flow headers")

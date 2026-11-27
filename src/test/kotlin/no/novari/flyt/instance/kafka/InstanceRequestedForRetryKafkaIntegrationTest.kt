@@ -1,132 +1,103 @@
 package no.novari.flyt.instance.kafka
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.audit.actor.ActorHeader
-import no.novari.flyt.instance.model.dtos.InstanceObjectDto
 import no.novari.flyt.instance.retryHeaders
 import no.novari.flyt.instance.retryInstance
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeadersMapper
-import no.novari.flyt.kafka.instanceflow.producing.InstanceFlowTemplateFactory
-import no.novari.kafka.OriginHeaderProducerInterceptor
-import no.novari.kafka.producing.ParameterizedTemplateFactory
-import no.novari.kafka.producing.ProducerFactory
-import no.novari.kafka.producing.TemplateFactory
-import no.novari.kafka.topic.name.TopicNameService
-import org.apache.kafka.clients.admin.Admin
-import org.apache.kafka.clients.admin.NewTopic
+import no.novari.flyt.kafka.instanceflow.headers.instanceFlowHeaders
+import no.novari.kafka.starter.producer.OriginHeaderProducerInterceptor.Companion.ORIGIN_APPLICATION_ID_RECORD_HEADER
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.KafkaConsumer
-import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.ByteArrayDeserializer
-import org.apache.kafka.common.serialization.StringSerializer
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.any
-import org.mockito.kotlin.doAnswer
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.spy
-import org.mockito.kotlin.whenever
+import org.springframework.beans.factory.getBean
+import org.springframework.boot.autoconfigure.AutoConfigurations
+import org.springframework.boot.convert.ApplicationConversionService
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
+import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.data.domain.AuditorAware
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder
-import org.springframework.kafka.core.DefaultKafkaProducerFactory
-import org.springframework.kafka.support.serializer.JsonSerializer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.kafka.KafkaContainer
 import org.testcontainers.utility.DockerImageName
+import tools.jackson.databind.json.JsonMapper
 import java.time.Duration
 import java.util.Optional
 import java.util.UUID
 
+/** The record mapping-service reads: value, instance flow headers, flyt.actor and a single origin header. */
 @Testcontainers(disabledWithoutDocker = true)
 class InstanceRequestedForRetryKafkaIntegrationTest {
     @Test
-    fun `library publishes the existing retry contract and metadata`() {
-        val mapper = Jackson2ObjectMapperBuilder.json().build<ObjectMapper>()
-        val headersMapper = InstanceFlowHeadersMapper(mapper)
-        val config =
-            ProducerConfig(
-                mapOf(
-                    ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrapServers,
-                    ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to StringSerializer::class.java,
-                    ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to JsonSerializer::class.java,
-                    ProducerConfig.INTERCEPTOR_CLASSES_CONFIG to
-                        listOf(OriginHeaderProducerInterceptor::class.java.name),
-                    OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_PRODUCER_CONFIG to "history-app",
+    fun `publishes the existing retry contract and metadata`() {
+        val actor = Actor.User(UUID.randomUUID())
+        ApplicationContextRunner()
+            .withInitializer { it.beanFactory.conversionService = ApplicationConversionService.getSharedInstance() }
+            // NovariKafkaAutoConfiguration and FlytKafkaAutoConfiguration are internal, so they are loaded by name.
+            .withConfiguration(
+                AutoConfigurations.of(
+                    JacksonAutoConfiguration::class.java,
+                    KafkaAutoConfiguration::class.java,
+                    Class.forName("no.novari.kafka.starter.autoconfigure.NovariKafkaAutoConfiguration"),
+                    Class.forName("no.novari.flyt.kafka.autoconfigure.FlytKafkaAutoConfiguration"),
                 ),
-            )
-        val factories = mutableListOf<DefaultKafkaProducerFactory<*, *>>()
-        val libraryProducerFactory = spy(ProducerFactory(config, mapper))
-        doAnswer { invocation ->
-            (invocation.callRealMethod() as DefaultKafkaProducerFactory<*, *>).also { factories.add(it) }
-        }.whenever(libraryProducerFactory).createFactory(InstanceObjectDto::class.java)
-        val topic = "retry-${UUID.randomUUID()}"
-        try {
-            Admin.create(mapOf("bootstrap.servers" to kafka.bootstrapServers)).use {
-                it.createTopics(listOf(NewTopic(topic, 1, 1))).all().get()
-            }
-            val names: TopicNameService = mock()
-            whenever(names.validateAndMapToTopicName(any())).thenReturn(topic)
-            val actor = Actor.User(UUID.randomUUID())
-            ApplicationContextRunner()
-                .withUserConfiguration(
-                    TemplateFactory::class.java,
-                    ParameterizedTemplateFactory::class.java,
-                    InstanceFlowTemplateFactory::class.java,
-                ).withBean(ProducerFactory::class.java, { libraryProducerFactory })
-                .withBean(TopicNameService::class.java, { names })
-                .withBean(InstanceFlowHeadersMapper::class.java, { headersMapper })
-                .run { context ->
-                    assertThat(context).hasNotFailed()
-                    val producer =
-                        InstanceRequestedForRetryEventProducerService(
-                            context.getBean(InstanceFlowTemplateFactory::class.java),
-                            mock(),
-                            AuditorAware { Optional.of(actor) },
-                            Duration.ofDays(4),
-                        )
-                    val headers = retryHeaders()
-                    val instance = retryInstance()
-                    producer.publish(headers, instance)
-                    KafkaConsumer<ByteArray, ByteArray>(
-                        mapOf(
-                            ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrapServers,
-                            ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to ByteArrayDeserializer::class.java,
-                            ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to ByteArrayDeserializer::class.java,
-                            ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG to false,
-                        ),
-                    ).use { consumer ->
-                        val partition = TopicPartition(topic, 0)
-                        consumer.assign(listOf(partition))
-                        consumer.seekToBeginning(listOf(partition))
-                        val record = consumer.poll(Duration.ofSeconds(15)).single()
-                        assertThat(record.key()).isNull()
-                        assertThat(
-                            mapper.readTree(record.value()),
-                        ).isEqualTo(mapper.readTree(mapper.writeValueAsBytes(instance)))
-                        assertThat(headersMapper.getInstanceFlowHeaders(record.headers())).isEqualTo(headers)
-                        assertThat(
-                            ActorHeader.fromHeaderValue(record.headers().lastHeader(ActorHeader.HEADER_NAME).value()),
-                        ).isEqualTo(actor)
-                        val origins =
-                            record
-                                .headers()
-                                .headers(
-                                    OriginHeaderProducerInterceptor.ORIGIN_APPLICATION_ID_RECORD_HEADER,
-                                ).toList()
-                        assertThat(origins).hasSize(1)
-                        assertThat(String(origins.single().value())).isEqualTo("history-app")
-                    }
+            ).withUserConfiguration(
+                InstanceRequestedForRetryTopicConfiguration::class.java,
+                InstanceRequestedForRetryEventProducerService::class.java,
+            ).withBean(AuditorAware::class.java, { AuditorAware { Optional.of(actor) } })
+            .withPropertyValues(
+                "spring.kafka.bootstrap-servers=${kafka.bootstrapServers}",
+                "novari.flyt.instance-functionality.enabled=true",
+                "novari.kafka.application-id=history-app",
+                // Set by kafka-starter's EnvironmentPostProcessor, which an ApplicationContextRunner does not run.
+                "spring.kafka.producer.value-serializer=org.springframework.kafka.support.serializer.JacksonJsonSerializer",
+                "spring.kafka.producer.properties[interceptor.classes]=no.novari.kafka.starter.producer.OriginHeaderProducerInterceptor",
+                "spring.kafka.producer.properties[origin.application.id]=history-app",
+                "novari.kafka.topic.org-id=$ORG",
+                "novari.kafka.topic.domain-context=flyt",
+                "novari.kafka.topic.default-replicas=1",
+                "novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time=4d",
+            ).run { context ->
+                assertThat(context).hasNotFailed()
+                val mapper = context.getBean<JsonMapper>()
+                val headers = retryHeaders()
+                val instance = retryInstance()
+
+                context.getBean<InstanceRequestedForRetryEventProducerService>().publish(headers, instance)
+
+                KafkaConsumer<ByteArray, ByteArray>(
+                    mapOf(
+                        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to kafka.bootstrapServers,
+                        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to ByteArrayDeserializer::class.java,
+                        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to ByteArrayDeserializer::class.java,
+                        ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG to false,
+                    ),
+                ).use { consumer ->
+                    val partition = TopicPartition(TOPIC, 0)
+                    consumer.assign(listOf(partition))
+                    consumer.seekToBeginning(listOf(partition))
+                    val record = consumer.poll(Duration.ofSeconds(15)).single()
+                    assertThat(record.key()).isNull()
+                    assertThat(
+                        mapper.readTree(record.value()),
+                    ).isEqualTo(mapper.readTree(mapper.writeValueAsBytes(instance)))
+                    assertThat(record.headers().instanceFlowHeaders()).isEqualTo(headers)
+                    assertThat(
+                        ActorHeader.fromHeaderValue(record.headers().lastHeader(ActorHeader.HEADER_NAME).value()),
+                    ).isEqualTo(actor)
+                    val origins = record.headers().headers(ORIGIN_APPLICATION_ID_RECORD_HEADER).toList()
+                    assertThat(origins.map { String(it.value()) }).containsExactly("history-app")
                 }
-        } finally {
-            factories.forEach { it.destroy() }
-        }
+            }
     }
 
     companion object {
+        private const val ORG = "retry-test"
+        private const val TOPIC = "$ORG.flyt.event.instance-requested-for-retry"
+
         @JvmField @Container
         val kafka = KafkaContainer(DockerImageName.parse("apache/kafka:3.9.1"))
     }

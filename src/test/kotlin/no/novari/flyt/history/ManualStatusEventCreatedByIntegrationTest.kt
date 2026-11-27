@@ -1,6 +1,5 @@
 package no.novari.flyt.history
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import jakarta.validation.Validation
 import no.novari.flyt.audit.actor.Actor
 import no.novari.flyt.audit.actor.ActorDisplayProperties
@@ -21,32 +20,26 @@ import no.novari.flyt.history.repository.EventRepository
 import no.novari.flyt.history.repository.entities.EventEntity
 import no.novari.flyt.history.repository.entities.InstanceFlowHeadersEmbeddable
 import no.novari.flyt.history.validation.ValidationErrorsFormattingService
-import no.novari.flyt.webresourceserver.security.AuthorityMappingService
-import no.novari.flyt.webresourceserver.security.properties.InternalApiSecurityProperties
-import no.novari.flyt.webresourceserver.security.user.UserClaim
-import no.novari.flyt.webresourceserver.security.user.UserJwtConverter
-import no.novari.flyt.webresourceserver.security.user.UserRoleAuthorityMappingService
-import no.novari.flyt.webresourceserver.security.user.UserRoleFilteringService
-import no.novari.flyt.webresourceserver.security.user.UserRoleHierarchyService
 import org.assertj.core.api.Assertions.assertThat
 import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.context.annotation.Import
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver
 import org.springframework.http.MediaType
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter
+import org.springframework.http.converter.json.JacksonJsonHttpMessageConverter
 import org.springframework.security.core.Authentication
+import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.springframework.test.annotation.DirtiesContext
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
@@ -61,9 +54,11 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.util.unit.DataSize
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
+import tools.jackson.module.kotlin.jsonMapper
+import tools.jackson.module.kotlin.kotlinModule
 import java.time.Clock
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -84,7 +79,7 @@ class ManualStatusEventCreatedByIntegrationTest {
     lateinit var transactionManager: PlatformTransactionManager
 
     private val clock: Clock = Clock.fixed(Instant.parse("2024-01-01T12:00:00Z"), ZoneOffset.UTC)
-    private val objectMapper = jacksonObjectMapper().findAndRegisterModules()
+    private val objectMapper = jsonMapper { addModule(kotlinModule()) }
     private lateinit var mockMvc: MockMvc
 
     @BeforeEach
@@ -95,7 +90,7 @@ class ManualStatusEventCreatedByIntegrationTest {
             MockMvcBuilders
                 .standaloneSetup(controller())
                 .setCustomArgumentResolvers(PageableHandlerMethodArgumentResolver())
-                .setMessageConverters(MappingJackson2HttpMessageConverter(objectMapper))
+                .setMessageConverters(JacksonJsonHttpMessageConverter(objectMapper))
                 .build()
     }
 
@@ -227,7 +222,7 @@ class ManualStatusEventCreatedByIntegrationTest {
         whenever(uuidService.generateUuid()).thenReturn(UUID.fromString("7864b8da-04ba-4e62-a224-dbd938cfdc53"))
         val authorizationService: AuthorizationService = mock()
         val sourceApplicationIds = setOf(SOURCE_APPLICATION_ID)
-        whenever(authorizationService.getUserAuthorizedSourceApplicationIds(any(), eq(sourceApplicationIds)))
+        whenever(authorizationService.getUserAuthorizedSourceApplicationIds(eq(sourceApplicationIds)))
             .thenReturn(sourceApplicationIds)
 
         return HistoryController(
@@ -266,18 +261,15 @@ class ManualStatusEventCreatedByIntegrationTest {
     }
 
     private fun userAuthentication(oid: UUID): Authentication =
-        UserJwtConverter(
-            userRoleFilteringService = UserRoleFilteringService(InternalApiSecurityProperties()),
-            userRoleHierarchyService = UserRoleHierarchyService(),
-            userRoleAuthorityMappingService = UserRoleAuthorityMappingService(AuthorityMappingService()),
-        ).convert(
+        JwtAuthenticationToken(
             Jwt
                 .withTokenValue("token")
                 .header("alg", "none")
                 .subject("internal-user")
-                .claim(UserClaim.ORGANIZATION_ID.tokenClaimName, "test-org")
-                .claim(UserClaim.OBJECT_IDENTIFIER.tokenClaimName, oid.toString())
+                .claim("organizationid", "test-org")
+                .claim("objectidentifier", oid.toString())
                 .build(),
+            listOf(SimpleGrantedAuthority("ROLE_USER")),
         )
 
     private fun manuallyProcessedAction() =
@@ -313,7 +305,7 @@ class ManualStatusEventCreatedByIntegrationTest {
 
         @JvmField
         @Container
-        val postgreSQLContainer: PostgreSQLContainer<*> =
+        val postgreSQLContainer: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17")
                 .withUrlParam("reWriteBatchedInserts", "true")
                 .withCreateContainerCmdModifier { createContainerCmd ->

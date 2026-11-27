@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.persistence.EntityNotFoundException
 import no.novari.flyt.instance.config.ConditionalOnInstanceFunctionality
-import no.novari.flyt.webresourceserver.UrlPaths.INTERNAL_API
+import no.novari.flyt.security.UrlPaths.INTERNAL_API
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ProblemDetail

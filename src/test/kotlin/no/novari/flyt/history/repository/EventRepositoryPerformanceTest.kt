@@ -34,8 +34,8 @@ import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.Import
 import org.springframework.data.domain.PageRequest
@@ -46,9 +46,9 @@ import org.springframework.test.context.DynamicPropertySource
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.util.unit.DataSize
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.Duration
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -280,7 +280,7 @@ class EventRepositoryPerformanceTest {
     companion object {
         @JvmField
         @Container
-        val postgreSQLContainer: PostgreSQLContainer<*> =
+        val postgreSQLContainer: PostgreSQLContainer =
             PostgreSQLContainer("postgres:16")
                 .withUrlParam("reWriteBatchedInserts", "true")
                 .withCreateContainerCmdModifier { createContainerCmd ->

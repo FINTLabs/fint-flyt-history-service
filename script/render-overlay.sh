@@ -5,14 +5,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATE_DIR="$ROOT/kustomize/templates"
 DEFAULT_TEMPLATE="$TEMPLATE_DIR/overlay.yaml.tpl"
 
-USER_ROLE_URL="USER"
-DEVELOPER_ROLE_URL="DEVELOPER"
-
 extra_user_orgs_for_namespace() {
   local namespace="$1"
   case "$namespace" in
     afk-no|bfk-no|ofk-no)
-      printf 'viken.no frid-iks.no'
+      printf 'viken.no,frid-iks.no'
       ;;
     *)
       printf ''
@@ -30,38 +27,6 @@ app_instance_suffix() {
       printf '%s' "${namespace//-/_}"
       ;;
   esac
-}
-
-authorized_org_id() {
-  local namespace="$1"
-  case "$namespace" in
-    *)
-      printf '%s' "${namespace//-/.}"
-      ;;
-  esac
-}
-
-render_authorized_role_pairs() {
-  local org_id="$1"
-  shift
-
-  local entries=("\"${org_id}\":[\"${USER_ROLE_URL}\"]")
-  for extra_org in "$@"; do
-    entries+=("\"${extra_org}\":[\"${USER_ROLE_URL}\"]")
-  done
-  entries+=("\"vigo.no\":[\"${DEVELOPER_ROLE_URL}\",\"${USER_ROLE_URL}\"]")
-  entries+=("\"novari.no\":[\"${DEVELOPER_ROLE_URL}\",\"${USER_ROLE_URL}\"]")
-
-  local total="${#entries[@]}"
-  printf '            {\n'
-  for idx in "${!entries[@]}"; do
-    local comma=","
-    if [[ "$idx" == "$((total - 1))" ]]; then
-      comma=""
-    fi
-    printf '              %s%s\n' "${entries[$idx]}" "$comma"
-  done
-  printf '            }\n'
 }
 
 choose_template() {
@@ -94,14 +59,6 @@ while IFS= read -r file; do
   path_prefix="/$namespace"
   if [[ -n "$env_path" && "$env_path" != "api" ]]; then
     path_prefix="/${env_path}/$namespace"
-  fi
-
-  declare -a additional_user_orgs=()
-  extra_orgs="$(extra_user_orgs_for_namespace "$namespace")"
-  if [[ -n "$extra_orgs" ]]; then
-    for extra_org in $extra_orgs; do
-      additional_user_orgs+=("$extra_org")
-    done
   fi
 
   AUTHORIZATION_SSO_PATCHES=""
@@ -142,12 +99,14 @@ EOF
   export READINESS_PATH="${path_prefix}/actuator/health/readiness"
   export LIVENESS_PATH="${path_prefix}/actuator/health/liveness"
   export METRICS_PATH="${path_prefix}/actuator/prometheus"
-  if ((${#additional_user_orgs[@]})); then
-    AUTHORIZED_ORG_ROLE_PAIRS="$(render_authorized_role_pairs "$(authorized_org_id "$namespace")" "${additional_user_orgs[@]}")"
-  else
-    AUTHORIZED_ORG_ROLE_PAIRS="$(render_authorized_role_pairs "$(authorized_org_id "$namespace")")"
+  extra_orgs="$(extra_user_orgs_for_namespace "$namespace")"
+  ADDITIONAL_ORG_IDS_PATCH=""
+  if [[ -n "$extra_orgs" ]]; then
+    ADDITIONAL_ORG_IDS_PATCH=$'\n      - op: add\n        path: "/spec/env/-"\n        value:\n'
+    ADDITIONAL_ORG_IDS_PATCH+=$'          name: "novari.flyt.security.tenant.additional-org-ids"\n'
+    ADDITIONAL_ORG_IDS_PATCH+=$'          value: "'"${extra_orgs}"$'"'
   fi
-  export AUTHORIZED_ORG_ROLE_PAIRS
+  export ADDITIONAL_ORG_IDS_PATCH
   export NOVARI_KAFKA_TOPIC_ORGID="$namespace"
 
   template="$(choose_template "$env_path")"
@@ -155,7 +114,7 @@ EOF
   mkdir -p "$target_dir"
 
   tmp="$(mktemp "$target_dir/.kustomization.yaml.XXXXXX")"
-  envsubst '$AUTHORIZATION_SSO_PATCHES $NAMESPACE $APP_INSTANCE_LABEL $ORG_ID $KAFKA_TOPIC $INGRESS_BASE_PATH $SERVLET_CONTEXT_PATH $STARTUP_PATH $READINESS_PATH $LIVENESS_PATH $METRICS_PATH $AUTHORIZED_ORG_ROLE_PAIRS $NOVARI_KAFKA_TOPIC_ORGID $INSTANCE_DATABASE_SCHEMA $LEGACY_ERROR_LISTENER_PATCHES' \
+  envsubst '$AUTHORIZATION_SSO_PATCHES $NAMESPACE $APP_INSTANCE_LABEL $ORG_ID $KAFKA_TOPIC $INGRESS_BASE_PATH $SERVLET_CONTEXT_PATH $STARTUP_PATH $READINESS_PATH $LIVENESS_PATH $METRICS_PATH $ADDITIONAL_ORG_IDS_PATCH $NOVARI_KAFKA_TOPIC_ORGID $INSTANCE_DATABASE_SCHEMA $LEGACY_ERROR_LISTENER_PATCHES' \
     < "$template" > "$tmp"
   mv "$tmp" "$target_dir/kustomization.yaml"
 done < <(

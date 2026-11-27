@@ -21,20 +21,18 @@ class InstanceFlowHeadersMappingService {
     }
 
     fun toInstanceFlowHeaders(embeddable: InstanceFlowHeadersEmbeddable): InstanceFlowHeaders {
-        val builder =
-            InstanceFlowHeaders
-                .builder()
-                .sourceApplicationId(requireNotNull(embeddable.sourceApplicationId))
-                .sourceApplicationIntegrationId(requireNotNull(embeddable.sourceApplicationIntegrationId))
-                .sourceApplicationInstanceId(requireNotNull(embeddable.sourceApplicationInstanceId))
-                .fileIds(embeddable.fileIds.toList())
-                .integrationId(embeddable.integrationId)
-                .instanceId(embeddable.instanceId)
-                .configurationId(embeddable.configurationId)
-                .archiveInstanceId(embeddable.archiveInstanceId)
-
-        embeddable.correlationId?.let(builder::correlationId)
-
-        return builder.build()
+        return InstanceFlowHeaders(
+            sourceApplicationId = requireNotNull(embeddable.sourceApplicationId),
+            // The same exception as the v7 builder for a missing correlationId.
+            correlationId =
+                embeddable.correlationId ?: throw NullPointerException("correlationId is marked non-null but is null"),
+            sourceApplicationIntegrationId = requireNotNull(embeddable.sourceApplicationIntegrationId),
+            sourceApplicationInstanceId = requireNotNull(embeddable.sourceApplicationInstanceId),
+            fileIds = embeddable.fileIds.toList(),
+            integrationId = embeddable.integrationId,
+            instanceId = embeddable.instanceId,
+            configurationId = embeddable.configurationId,
+            archiveInstanceId = embeddable.archiveInstanceId,
+        )
     }
 }

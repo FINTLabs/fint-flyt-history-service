@@ -1,6 +1,5 @@
 package no.novari.flyt.instance.kafka
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import no.novari.flyt.history.Application
 import no.novari.flyt.history.ClockConfiguration
 import no.novari.flyt.history.InstanceErrorEventService
@@ -15,8 +14,8 @@ import no.novari.flyt.instance.config.InstanceDatabaseConfiguration
 import no.novari.flyt.instance.config.InstanceJpaConfiguration
 import no.novari.flyt.instance.model.InstanceMappingService
 import no.novari.flyt.instance.model.dtos.InstanceObjectDto
+import no.novari.flyt.kafka.instanceflow.headers.INSTANCE_FLOW_HEADERS_KEY
 import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeaders
-import no.novari.flyt.kafka.instanceflow.headers.InstanceFlowHeadersMapper
 import org.apache.kafka.clients.admin.Admin
 import org.apache.kafka.clients.admin.AdminClientConfig
 import org.apache.kafka.clients.admin.OffsetSpec
@@ -26,6 +25,7 @@ import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.config.ConfigResource
+import org.apache.kafka.common.header.internals.RecordHeader
 import org.apache.kafka.common.serialization.ByteArraySerializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.assertj.core.api.Assertions.assertThat
@@ -38,13 +38,13 @@ import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.whenever
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
-import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase
-import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest
-import org.springframework.boot.test.context.TestConfiguration
-import org.springframework.context.annotation.ComponentScan
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
+import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
+import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration
 import org.springframework.context.annotation.Import
+import org.springframework.context.annotation.ImportSelector
+import org.springframework.core.type.AnnotationMetadata
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.kafka.listener.ConcurrentMessageListenerContainer
 import org.springframework.test.context.ContextConfiguration
@@ -53,11 +53,12 @@ import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.kafka.KafkaContainer
+import org.testcontainers.postgresql.PostgreSQLContainer
 import org.testcontainers.utility.DockerImageName
+import tools.jackson.databind.ObjectMapper
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -68,7 +69,7 @@ import java.util.concurrent.TimeUnit
     properties = [
         "novari.flyt.instance-functionality.enabled=true",
         "novari.kafka.topic.org-id=$ORG_ID",
-        "novari.kafka.default-replicas=1",
+        "novari.kafka.topic.default-replicas=1",
         "fint.application-id=consumer-test",
         "novari.flyt.history-service.kafka.topic.instance-processing-events-retention-time=2d",
     ],
@@ -88,6 +89,7 @@ import java.util.concurrent.TimeUnit
     InstanceReceivedOffsetRepository::class,
     InstanceReceivedPositions::class,
     InstanceRegistrationService::class,
+    InstanceRegisteredTopicConfiguration::class,
     InstanceRegisteredEventProducerService::class,
     InstanceReceivedEventConsumerConfiguration::class,
     InstanceReceivedEventConsumerIntegrationTest.KafkaLibraries::class,
@@ -95,7 +97,7 @@ import java.util.concurrent.TimeUnit
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class InstanceReceivedEventConsumerIntegrationTest {
     @Autowired
-    lateinit var consumer: ConcurrentMessageListenerContainer<String, InstanceObjectDto>
+    lateinit var consumer: ConcurrentMessageListenerContainer<String, String>
 
     @Autowired
     lateinit var jdbc: JdbcTemplate
@@ -105,9 +107,6 @@ class InstanceReceivedEventConsumerIntegrationTest {
 
     @Autowired
     lateinit var objectMapper: ObjectMapper
-
-    @Autowired
-    lateinit var headersMapper: InstanceFlowHeadersMapper
 
     @MockitoSpyBean
     lateinit var producerService: InstanceRegisteredEventProducerService
@@ -337,7 +336,7 @@ class InstanceReceivedEventConsumerIntegrationTest {
         value: ByteArray?,
         headers: InstanceFlowHeaders?,
     ) = ProducerRecord<String, ByteArray>(RECEIVED, value).apply {
-        headers?.let { headers().add(headersMapper.toHeader(it)) }
+        headers?.let { headers().add(RecordHeader(INSTANCE_FLOW_HEADERS_KEY, objectMapper.writeValueAsBytes(it))) }
     }
 
     private fun transactionalProducer() =
@@ -376,25 +375,30 @@ class InstanceReceivedEventConsumerIntegrationTest {
     }
 
     private fun labels(): List<String> =
-        jdbc.queryForList(
-            "SELECT value FROM $INSTANCE_SCHEMA.instance_object_value_per_key WHERE key = 'label'",
-            String::class.java,
-        )
+        jdbc
+            .queryForList(
+                "SELECT value FROM $INSTANCE_SCHEMA.instance_object_value_per_key WHERE key = 'label'",
+                String::class.java,
+            ).filterNotNull()
 
     private fun instance(label: String) = InstanceObjectDto(valuePerKey = mutableMapOf("label" to label))
 
     private fun headers(): InstanceFlowHeaders =
-        InstanceFlowHeaders
-            .builder()
-            .sourceApplicationId(1L)
-            .sourceApplicationIntegrationId("integration")
-            .sourceApplicationInstanceId("source-instance")
-            .correlationId(UUID.randomUUID())
-            .build()
+        InstanceFlowHeaders(
+            sourceApplicationId = 1L,
+            sourceApplicationIntegrationId = "integration",
+            sourceApplicationInstanceId = "source-instance",
+            correlationId = UUID.randomUUID(),
+        )
 
-    @TestConfiguration(proxyBeanMethods = false)
-    @ComponentScan(basePackages = ["no.novari.kafka", "no.novari.flyt.kafka"])
-    class KafkaLibraries
+    /** The auto-configurations of kafka-starter and flyt-kafka, which are internal and therefore named. */
+    class KafkaLibraries : ImportSelector {
+        override fun selectImports(importingClassMetadata: AnnotationMetadata) =
+            arrayOf(
+                "no.novari.kafka.starter.autoconfigure.NovariKafkaAutoConfiguration",
+                "no.novari.flyt.kafka.autoconfigure.FlytKafkaAutoConfiguration",
+            )
+    }
 
     companion object {
         private const val INSTANCE_SCHEMA = "mapping_test_instance"
@@ -404,7 +408,7 @@ class InstanceReceivedEventConsumerIntegrationTest {
 
         @JvmField
         @Container
-        val postgres: PostgreSQLContainer<*> =
+        val postgres: PostgreSQLContainer =
             PostgreSQLContainer("postgres:17").withInitScript("db/instance-fixture/init.sql")
 
         @JvmField

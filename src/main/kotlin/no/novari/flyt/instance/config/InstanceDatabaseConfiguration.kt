@@ -1,11 +1,11 @@
 package no.novari.flyt.instance.config
 
 import org.flywaydb.core.Flyway
-import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy
-import org.springframework.boot.autoconfigure.flyway.FlywayProperties
-import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties
-import org.springframework.boot.autoconfigure.orm.jpa.HibernatePropertiesCustomizer
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.boot.flyway.autoconfigure.FlywayMigrationStrategy
+import org.springframework.boot.flyway.autoconfigure.FlywayProperties
+import org.springframework.boot.hibernate.autoconfigure.HibernatePropertiesCustomizer
+import org.springframework.boot.jdbc.autoconfigure.DataSourceProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import javax.sql.DataSource
@@ -54,8 +54,8 @@ private const val OWN_SCHEMA = "fint_flyt_history_service_db"
 private const val INSTANCE_SERVICE_SCHEMA = "fint_flyt_instance_service_db"
 
 /**
- * The database user and its schema follow `<tenant>_<application>_db`, so the instance-service schema shares the
- * tenant prefix with our own. Returns null when it cannot be derived and is not configured.
+ * The database user and its schema follow `<tenant>_<application>_db`. The instance schema is named after the former
+ * fint-flyt-instance-service and shares the tenant prefix with our own. Returns null when it cannot be derived and is not configured.
  */
 internal fun instanceSchema(
     configuredSchema: String,

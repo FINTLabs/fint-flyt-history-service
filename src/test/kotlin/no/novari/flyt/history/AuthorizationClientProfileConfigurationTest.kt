@@ -7,7 +7,7 @@ import org.springframework.core.io.ClassPathResource
 
 class AuthorizationClientProfileConfigurationTest {
     @Test
-    fun `authorization client profile configures audit actor display lookup`() {
+    fun `authorization client profile configures the audit lookup and the FlytAccess client`() {
         val properties =
             YamlPropertiesFactoryBean()
                 .apply { setResources(ClassPathResource("application-flyt-authorization-client.yaml")) }
@@ -18,8 +18,9 @@ class AuthorizationClientProfileConfigurationTest {
                 "novari.flyt.audit.authorization.base-url",
                 "http://fint-flyt-authorization-service:8080\${server.servlet.context-path:}",
             ).containsEntry(
-                "novari.flyt.web-resource-server.security.authorization.base-url",
-                "http://fint-flyt-authorization-service:8080\${server.servlet.context-path:}",
+                // Its presence turns on FlytAccess in flyt-security-starter.
+                "spring.security.oauth2.client.registration.authorization-service.client-id",
+                "\${fint.flyt.authorization.sso.client-id}",
             )
     }
 }

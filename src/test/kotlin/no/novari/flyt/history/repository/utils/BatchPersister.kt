@@ -5,7 +5,7 @@ import no.novari.flyt.history.repository.utils.performance.DurationFormatter.for
 import no.novari.flyt.history.repository.utils.performance.Timer
 import org.springframework.data.jpa.repository.JpaRepository
 
-class BatchPersister<T>(
+class BatchPersister<T : Any>(
     private val repository: JpaRepository<T, Long>,
     private val batchSize: Int,
 ) {

@@ -32,7 +32,7 @@ class InstanceRetryService(
         if (!eventService.hasLatestErrorStatus(registeredHeaders, instanceId)) {
             throw RetryStatusConflictException(instanceId)
         }
-        val headers = registeredHeaders.toBuilder().correlationId(UUID.randomUUID()).build()
+        val headers = registeredHeaders.copy(correlationId = UUID.randomUUID())
         try {
             producer.publish(headers, instance)
         } catch (failure: Exception) {

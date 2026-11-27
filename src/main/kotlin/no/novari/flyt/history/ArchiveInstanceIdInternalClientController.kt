@@ -1,6 +1,6 @@
 package no.novari.flyt.history
 
-import no.novari.flyt.webresourceserver.UrlPaths.INTERNAL_CLIENT_API
+import no.novari.flyt.security.UrlPaths.INTERNAL_CLIENT_API
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping

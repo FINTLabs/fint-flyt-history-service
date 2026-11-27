@@ -154,15 +154,14 @@ class ManualEventCreationServiceTest {
         uuid: UUID,
     ): Boolean {
         return event.instanceFlowHeaders ==
-            InstanceFlowHeaders
-                .builder()
-                .sourceApplicationId(1L)
-                .sourceApplicationIntegrationId("testSourceApplicationIntegrationId")
-                .sourceApplicationInstanceId("testSourceApplicationInstanceId")
-                .integrationId(10L)
-                .correlationId(uuid)
-                .archiveInstanceId("testArchiveInstanceId")
-                .build() &&
+            InstanceFlowHeaders(
+                sourceApplicationId = 1L,
+                sourceApplicationIntegrationId = "testSourceApplicationIntegrationId",
+                sourceApplicationInstanceId = "testSourceApplicationInstanceId",
+                integrationId = 10L,
+                correlationId = uuid,
+                archiveInstanceId = "testArchiveInstanceId",
+            ) &&
             event.category == EventCategory.INSTANCE_MANUALLY_PROCESSED &&
             event.timestamp!!.isEqual(OffsetDateTime.now(clock)) &&
             event.type == EventType.INFO &&
